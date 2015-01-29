@@ -490,7 +490,7 @@ func main() {
 
 	m.Get("/status", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
-		w.Write([]byte("running"))
+		w.Write([]byte("up"))
 	})
 
 	m.Get("/", func(w http.ResponseWriter, r *http.Request) {
