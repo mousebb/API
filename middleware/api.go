@@ -1,7 +1,9 @@
 package middleware
 
 import (
+	"encoding/json"
 	"fmt"
+	"github.com/julienschmidt/httprouter"
 	"net/http"
 	"strconv"
 
@@ -9,22 +11,21 @@ import (
 	"github.com/curt-labs/API/helpers/error"
 	"github.com/curt-labs/API/models/customer"
 	"github.com/gorilla/context"
-	"github.com/julienschmidt/httprouter"
 )
 
-type Handler func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) error
+type ApiHandler func(w http.ResponseWriter, r *http.Request) (interface{}, error)
 
-// Wrapper Wraps all endpoints in the generic middleware
-func Wrapper(name string, method string, handlers ...Handler) httprouter.Handle {
-	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		for _, handler := range handlers {
-			err := handler(w, r, ps)
-			if err != nil {
-				apierror.GenerateError(err.Error(), err, w, r, http.StatusInternalServerError)
-				return
-			}
-		}
+func (fn ApiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	context.Set(r, "params", ps)
+
+	obj, err := fn(w, r)
+	if err != nil {
+		apierror.GenerateError(err.Error(), err, w, r, http.StatusInternalServerError)
+		return
 	}
+
+	json.NewEncoder(w).Encode(obj)
+	return
 }
 
 // Keyed ...
