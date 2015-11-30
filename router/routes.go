@@ -1,8 +1,10 @@
 package router
 
 import (
+	"net/http"
+
 	"github.com/curt-labs/API/controllers"
-	"github.com/curt-labs/API/middleware"
+	"github.com/curt-labs/API/controllers/category"
 	// "github.com/curt-labs/API/controllers/apiKeyType"
 	// "github.com/curt-labs/API/controllers/applicationGuide"
 	// "github.com/curt-labs/API/controllers/blog"
@@ -10,7 +12,7 @@ import (
 	// "github.com/curt-labs/API/controllers/cache"
 	// "github.com/curt-labs/API/controllers/cart"
 	// "github.com/curt-labs/API/controllers/cartIntegration"
-	"github.com/curt-labs/API/controllers/category"
+
 	// "github.com/curt-labs/API/controllers/contact"
 	// "github.com/curt-labs/API/controllers/customer"
 	// "github.com/curt-labs/API/controllers/dealers"
@@ -57,13 +59,13 @@ type Route struct {
 	Method     string
 	Pattern    string
 	Middleware string
-	Handler    middleware.Handler
+	Handler    http.HandlerFunc
 }
 
 var routes = []Route{
 	Route{"Index", "GET", "/", PUBLIC_ENDPOINT, controllers.Index},
-	Route{"Status Checker", "GET", "/status", PUBLIC_ENDPOINT, controllers.Status},
-	Route{"Get API Key Typs", "GET", "/apiKeyTypes", PUBLIC_ENDPOINT, controllers.Status},
+	// Route{"Status Checker", "GET", "/status", PUBLIC_ENDPOINT, controllers.Status},
+	// Route{"Get API Key Typs", "GET", "/apiKeyTypes", PUBLIC_ENDPOINT, controllers.Status},
 	// Route{"Get Category Tree", "GET", "/category", KEYED_ENDPOINT, categoryCtlr.GetCategoryTree},
 	Route{"Get Category", "GET", "/category/:id", KEYED_ENDPOINT, categoryCtlr.GetCategory},
 	// Route{"Get Category Parts", "GET", "/category/:id/parts", KEYED_ENDPOINT, categoryCtlr.GetCategoryParts},

@@ -1,6 +1,8 @@
 package categoryCtlr
 
 import (
+	"log"
+
 	"github.com/curt-labs/API/helpers/error"
 	"github.com/curt-labs/API/models/category"
 	"github.com/gorilla/context"
@@ -11,10 +13,13 @@ import (
 )
 
 // GetCategory ...
-func GetCategory(rw http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	context.Get(r, "params")
+func GetCategory(rw http.ResponseWriter, r *http.Request) {
+	ps := context.Get(r, "params").(httprouter.Params)
+
 	var c category.Category
 	var err error
+
+	log.Println(ps.ByName("id"))
 	c.CategoryID, err = strconv.Atoi(ps.ByName("id"))
 	if err != nil || c.CategoryID == 0 {
 		apierror.GenerateError("Trouble getting category identifier", err, rw, r)
