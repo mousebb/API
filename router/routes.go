@@ -1,7 +1,6 @@
 package router
 
 import (
-	"github.com/curt-labs/API/controllers/category"
 	"net/http"
 
 	"github.com/curt-labs/API/controllers"
@@ -63,46 +62,10 @@ type Route struct {
 }
 
 var routes = []Route{
-	Route{
-		"Index",
-		"GET",
-		"/",
-		PUBLIC_ENDPOINT,
-		controllers.Index,
-	},
-	Route{
-		"Status Checker",
-		"GET",
-		"/status",
-		PUBLIC_ENDPOINT,
-		controllers.Status,
-	},
-	Route{
-		"Get API Key Typs",
-		"GET",
-		"/apiKeyTypes",
-		PUBLIC_ENDPOINT,
-		controllers.Status,
-	},
-	Route{
-		"Get Category Tree",
-		"GET",
-		"/category",
-		KEYED_ENDPOINT,
-		category_ctlr.GetCategoryTree,
-	},
-	Route{
-		"Get Category",
-		"GET",
-		"/category/:id",
-		KEYED_ENDPOINT,
-		category_ctlr.GetCategory,
-	},
-	Route{
-		"Get Category Parts",
-		"GET",
-		"/category/:id/parts",
-		KEYED_ENDPOINT,
-		category_ctlr.GetCategoryParts,
-	},
+	Route{"Index", "GET", "/", PUBLIC_ENDPOINT, controllers.Index},
+	Route{"Status Checker", "GET", "/status", PUBLIC_ENDPOINT, controllers.Status},
+	Route{"Get API Key Typs", "GET", "/apiKeyTypes", PUBLIC_ENDPOINT, controllers.Status},
+	Route{"Get Category Tree", "GET", "/category", KEYED_ENDPOINT, category_ctlr.GetCategoryTree},
+	Route{"Get Category", "GET", "/category/:id", KEYED_ENDPOINT, category_ctlr.GetCategory},
+	Route{"Get Category Parts", "GET", "/category/:id/parts", KEYED_ENDPOINT, category_ctlr.GetCategoryParts},
 }

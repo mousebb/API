@@ -2,6 +2,11 @@ package router
 
 import (
 	"fmt"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/curt-labs/API/helpers/apicontext"
 	"github.com/curt-labs/API/helpers/error"
 	"github.com/curt-labs/API/models/cart"
@@ -11,10 +16,6 @@ import (
 	"github.com/rs/cors"
 	"github.com/unrolled/render"
 	"gopkg.in/mgo.v2/bson"
-	"net/http"
-	"strconv"
-	"strings"
-	"time"
 )
 
 var (
