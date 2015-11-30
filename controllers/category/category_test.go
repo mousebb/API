@@ -1,4 +1,4 @@
-package category_ctlr
+package categoryCtlr
 
 // import (
 // 	"bytes"

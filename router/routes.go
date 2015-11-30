@@ -1,9 +1,8 @@
 package router
 
 import (
-	"net/http"
-
 	"github.com/curt-labs/API/controllers"
+	"github.com/curt-labs/API/middleware"
 	// "github.com/curt-labs/API/controllers/apiKeyType"
 	// "github.com/curt-labs/API/controllers/applicationGuide"
 	// "github.com/curt-labs/API/controllers/blog"
@@ -11,7 +10,7 @@ import (
 	// "github.com/curt-labs/API/controllers/cache"
 	// "github.com/curt-labs/API/controllers/cart"
 	// "github.com/curt-labs/API/controllers/cartIntegration"
-	// "github.com/curt-labs/API/controllers/category"
+	"github.com/curt-labs/API/controllers/category"
 	// "github.com/curt-labs/API/controllers/contact"
 	// "github.com/curt-labs/API/controllers/customer"
 	// "github.com/curt-labs/API/controllers/dealers"
@@ -42,10 +41,10 @@ const (
 	// SHOPIFY_ACCOUNT_ENDPOINT Binds with authentication based off token
 	SHOPIFY_ACCOUNT_ENDPOINT = "SHOPIFY_ACCOUNT"
 
-	// SHOPIFY_ACCOUNT_ENDPOINT Binds without authentication
+	// SHOPIFY_ACCOUNT_LOGIN_ENDPOINT Binds without authentication
 	SHOPIFY_ACCOUNT_LOGIN_ENDPOINT = "SHOPIFY_ACCOUNT_LOGIN"
 
-	// SHOPIFY_ACCOUNT_ENDPOINT Binds with full account authentication based off token
+	// SHOPIFY_ENDPOINT Binds with full account authentication based off token
 	SHOPIFY_ENDPOINT = "SHOPIFY"
 
 	// KEYED_ENDPOINT Typical CURT authentication
@@ -58,14 +57,14 @@ type Route struct {
 	Method     string
 	Pattern    string
 	Middleware string
-	Handler    http.HandlerFunc
+	Handler    middleware.Handler
 }
 
 var routes = []Route{
 	Route{"Index", "GET", "/", PUBLIC_ENDPOINT, controllers.Index},
 	Route{"Status Checker", "GET", "/status", PUBLIC_ENDPOINT, controllers.Status},
 	Route{"Get API Key Typs", "GET", "/apiKeyTypes", PUBLIC_ENDPOINT, controllers.Status},
-	Route{"Get Category Tree", "GET", "/category", KEYED_ENDPOINT, category_ctlr.GetCategoryTree},
-	Route{"Get Category", "GET", "/category/:id", KEYED_ENDPOINT, category_ctlr.GetCategory},
-	Route{"Get Category Parts", "GET", "/category/:id/parts", KEYED_ENDPOINT, category_ctlr.GetCategoryParts},
+	// Route{"Get Category Tree", "GET", "/category", KEYED_ENDPOINT, categoryCtlr.GetCategoryTree},
+	Route{"Get Category", "GET", "/category/:id", KEYED_ENDPOINT, categoryCtlr.GetCategory},
+	// Route{"Get Category Parts", "GET", "/category/:id/parts", KEYED_ENDPOINT, categoryCtlr.GetCategoryParts},
 }
