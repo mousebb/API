@@ -35,22 +35,17 @@ func GetCategory(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Req
 		return nil, err
 	}
 
-	return c, nil
+	return &c, nil
 }
 
-func GetCategoryTree(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) ([]category.Category, error) {
-	cats, err := category.GetCategoryTree(ctx.DataContext)
-	if err != nil {
-		return cats, err
-	}
-
-	return cats, nil
+func GetCategoryTree(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
+	return category.GetCategoryTree(ctx.DataContext)
 }
 
-func GetCategoryParts(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (category.PartResponse, error) {
+func GetCategoryParts(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	catId, err := strconv.Atoi(ctx.Params.ByName("id"))
 	if err != nil {
-		return category.PartResponse{}, err
+		return nil, err
 	}
 
 	qs := r.URL.Query()

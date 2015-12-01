@@ -4,36 +4,9 @@ import (
 	"github.com/curt-labs/API/middleware"
 
 	"github.com/curt-labs/API/controllers"
+	"github.com/curt-labs/API/controllers/apiKeyType"
+	"github.com/curt-labs/API/controllers/applicationGuide"
 	"github.com/curt-labs/API/controllers/category"
-	// "github.com/curt-labs/API/controllers/apiKeyType"
-	// "github.com/curt-labs/API/controllers/applicationGuide"
-	// "github.com/curt-labs/API/controllers/blog"
-	// "github.com/curt-labs/API/controllers/brand"
-	// "github.com/curt-labs/API/controllers/cache"
-	// "github.com/curt-labs/API/controllers/cart"
-	// "github.com/curt-labs/API/controllers/cartIntegration"
-
-	// "github.com/curt-labs/API/controllers/contact"
-	// "github.com/curt-labs/API/controllers/customer"
-	// "github.com/curt-labs/API/controllers/dealers"
-	// "github.com/curt-labs/API/controllers/faq"
-	// "github.com/curt-labs/API/controllers/forum"
-	// "github.com/curt-labs/API/controllers/geography"
-	// "github.com/curt-labs/API/controllers/landingPages"
-	// "github.com/curt-labs/API/controllers/middleware"
-	// "github.com/curt-labs/API/controllers/news"
-	// "github.com/curt-labs/API/controllers/part"
-	// "github.com/curt-labs/API/controllers/salesrep"
-	// "github.com/curt-labs/API/controllers/search"
-	// "github.com/curt-labs/API/controllers/showcase"
-	// "github.com/curt-labs/API/controllers/site"
-	// "github.com/curt-labs/API/controllers/techSupport"
-	// "github.com/curt-labs/API/controllers/testimonials"
-	// "github.com/curt-labs/API/controllers/vehicle"
-	// "github.com/curt-labs/API/controllers/videos"
-	// "github.com/curt-labs/API/controllers/vinLookup"
-	// "github.com/curt-labs/API/controllers/warranty"
-	// "github.com/curt-labs/API/controllers/webProperty"
 )
 
 const (
@@ -62,11 +35,24 @@ type Route struct {
 	Handler    middleware.APIHandler
 }
 
+var commonBefore = []middleware.Middleware{middleware.Keyed}
+var commonAfter = []middleware.Middleware{}
+
 var routes = []Route{
+
+	// Static handlers
 	Route{"Index", "GET", "/", PUBLIC_ENDPOINT, middleware.APIHandler{S: controllers.Index}},
 	Route{"Status Checker", "GET", "/status", PUBLIC_ENDPOINT, middleware.APIHandler{S: controllers.Status}},
-	// Route{"Get API Key Typs", "GET", "/apiKeyTypes", PUBLIC_ENDPOINT, controllers.Status},
-	// Route{"Get Category Tree", "GET", "/category", KEYED_ENDPOINT, categoryCtlr.GetCategoryTree},
-	Route{"Get Category", "GET", "/category/:id", KEYED_ENDPOINT, middleware.APIHandler{H: categoryCtlr.GetCategory, BeforeFuncs: []middleware.Middleware{middleware.Keyed}}},
-	// Route{"Get Category Parts", "GET", "/category/:id/parts", KEYED_ENDPOINT, categoryCtlr.GetCategoryParts},
+
+	// API Key Management
+	Route{"Get API Key Types", "GET", "/apiKeyTypes", KEYED_ENDPOINT, middleware.APIHandler{H: apiKeyType.GetApiKeyTypes, BeforeFuncs: commonBefore, AfterFuncs: commonAfter}},
+
+	// Application Guides
+	Route{"Get Application Guides by WebSite", "GET", "/applicationGuide/:id/website", KEYED_ENDPOINT, middleware.APIHandler{H: applicationGuide.GetApplicationGuidesByWebsite, BeforeFuncs: commonBefore, AfterFuncs: commonAfter}},
+	Route{"Get Application Guide", "GET", "/applicationGuide/:id", KEYED_ENDPOINT, middleware.APIHandler{H: applicationGuide.GetApplicationGuide, BeforeFuncs: commonBefore, AfterFuncs: commonAfter}},
+
+	// Category Endpoints
+	Route{"Get Category Tree", "GET", "/category", KEYED_ENDPOINT, middleware.APIHandler{H: categoryCtlr.GetCategoryTree, BeforeFuncs: commonBefore, AfterFuncs: commonAfter}},
+	Route{"Get Category", "GET", "/category/:id", KEYED_ENDPOINT, middleware.APIHandler{H: categoryCtlr.GetCategory, BeforeFuncs: commonBefore, AfterFuncs: commonAfter}},
+	Route{"Get Category Parts", "GET", "/category/:id/parts", KEYED_ENDPOINT, middleware.APIHandler{H: categoryCtlr.GetCategoryParts, BeforeFuncs: commonBefore, AfterFuncs: commonAfter}},
 }

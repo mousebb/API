@@ -1,105 +1,96 @@
 package applicationGuide
 
 import (
-	"encoding/json"
-	"io/ioutil"
+	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 
-	"github.com/curt-labs/API/helpers/apicontext"
-	"github.com/curt-labs/API/helpers/encoding"
-	"github.com/curt-labs/API/helpers/error"
+	"github.com/curt-labs/API/middleware"
 	"github.com/curt-labs/API/models/applicationGuide"
-	"github.com/go-martini/martini"
 )
 
-func GetApplicationGuide(rw http.ResponseWriter, req *http.Request, enc encoding.Encoder, params martini.Params, dtx *apicontext.DataContext) string {
+// GetApplicationGuide ...
+func GetApplicationGuide(ctx *middleware.APIContext, rw http.ResponseWriter, req *http.Request) (interface{}, error) {
 	var err error
 	var ag applicationGuide.ApplicationGuide
-	id := params["id"]
-	ag.ID, err = strconv.Atoi(id)
+
+	ag.ID, err = strconv.Atoi(ctx.Params.ByName("id"))
 	if err != nil {
-		apierror.GenerateError("Trouble converting ID parameter", err, rw, req)
+		return nil, err
 	}
 
-	err = ag.Get(dtx)
+	err = ag.Get(ctx.DataContext)
 	if err != nil {
-		apierror.GenerateError("Error getting Application Guide", err, rw, req)
+		return nil, err
 	}
-	return encoding.Must(enc.Encode(ag))
+
+	return ag, nil
 }
 
-func GetApplicationGuidesByWebsite(rw http.ResponseWriter, req *http.Request, enc encoding.Encoder, params martini.Params, dtx *apicontext.DataContext) string {
-	var err error
-	var ag applicationGuide.ApplicationGuide
-	id := params["id"]
-	ag.Website.ID, err = strconv.Atoi(id)
-
-	ags, err := ag.GetBySite(dtx)
-	if err != nil {
-		apierror.GenerateError("Error getting Application Guides", err, rw, req)
-	}
-	return encoding.Must(enc.Encode(ags))
-}
-
-func CreateApplicationGuide(rw http.ResponseWriter, req *http.Request, enc encoding.Encoder, params martini.Params, dtx *apicontext.DataContext) string {
-	contType := req.Header.Get("Content-Type")
-
+// GetApplicationGuidesByWebsite ...
+func GetApplicationGuidesByWebsite(ctx *middleware.APIContext, rw http.ResponseWriter, req *http.Request) (interface{}, error) {
 	var ag applicationGuide.ApplicationGuide
 	var err error
-
-	// if contType == "application/json" {
-	if strings.Contains(contType, "application/json") {
-		//json
-		requestBody, err := ioutil.ReadAll(req.Body)
-		if err != nil {
-			apierror.GenerateError("Error reading request body", err, rw, req)
-		}
-
-		err = json.Unmarshal(requestBody, &ag)
-		if err != nil {
-			apierror.GenerateError("Error decoding request body", err, rw, req)
-		}
-	} else {
-		//else, form
-		ag.Url = req.FormValue("url")
-		web := req.FormValue("website_id")
-		ag.FileType = req.FormValue("file_type")
-		cat := req.FormValue("category_id")
-
-		if err != nil {
-			apierror.GenerateError("Error parsing form", err, rw, req)
-		}
-		if web != "" {
-			ag.Website.ID, err = strconv.Atoi(web)
-		}
-		if cat != "" {
-			ag.Category.CategoryID, err = strconv.Atoi(cat)
-		}
-		if err != nil {
-			apierror.GenerateError("Error parsing category ID or website ID", err, rw, req)
-		}
-	}
-	err = ag.Create(dtx)
+	ag.Website.ID, err = strconv.Atoi(ctx.Params.ByName("id"))
 	if err != nil {
-		apierror.GenerateError("Error creating Application Guide", err, rw, req)
+		return nil, fmt.Errorf("%s", "failed to parse website identifier")
 	}
 
-	//Return JSON
-	return encoding.Must(enc.Encode(ag))
+	return ag.GetBySite(ctx.DataContext)
 }
 
-func DeleteApplicationGuide(rw http.ResponseWriter, req *http.Request, enc encoding.Encoder, params martini.Params) string {
-	var err error
-	var ag applicationGuide.ApplicationGuide
-	id, err := strconv.Atoi(params["id"])
-	ag.ID = id
-	err = ag.Delete()
-	if err != nil {
-		apierror.GenerateError("Error deleting Application Guide", err, rw, req)
-	}
-
-	//Return JSON
-	return encoding.Must(enc.Encode(ag))
-}
+// CreateApplicationGuide ...
+// func CreateApplicationGuide(ctx *middleware.APIContext, rw http.ResponseWriter, req *http.Request) (interface{}, error) {
+// 	contType := req.Header.Get("Content-Type")
+//
+// 	var ag applicationGuide.ApplicationGuide
+// 	var err error
+//
+// 	if strings.Contains(contType, "application/json") {
+// 		//json
+// 		err = json.NewDecoder(req.Body).Decode(&ag)
+// 		if err != nil {
+// 			return nil, fmt.Errorf("%s", "error decoding request body")
+// 		}
+// 	} else {
+// 		//else, form
+// 		ag.Url = req.FormValue("url")
+// 		web := req.FormValue("website_id")
+// 		ag.FileType = req.FormValue("file_type")
+// 		cat := req.FormValue("category_id")
+//
+// 		if err != nil {
+// 			return nil, fmt.Errorf("%s", "error parsing form")
+// 		}
+// 		if web != "" {
+// 			ag.Website.ID, err = strconv.Atoi(web)
+// 		}
+// 		if cat != "" {
+// 			ag.Category.CategoryID, err = strconv.Atoi(cat)
+// 		}
+// 		if err != nil {
+// 			return nil, fmt.Errorf("%s", "error parsing category identifier or website identifer")
+// 		}
+// 	}
+// 	err = ag.Create(ctx.DataContext)
+//
+// 	return ag, err
+// }
+//
+// // DeleteApplicationGuide ...
+// func DeleteApplicationGuide(ctx *middleware.APIContext, req *http.Request) (interface{}, error) {
+// 	var err error
+// 	var ag applicationGuide.ApplicationGuide
+// 	id, err := strconv.Atoi(ctx.Params.ByName("id"))
+// 	if err != nil {
+// 		return nil, fmt.Errorf("%s", "failed to parse application guides identifier")
+// 	}
+//
+// 	ag.ID = id
+// 	err = ag.Delete()
+// 	if err != nil {
+// 		return nil, fmt.Errorf("%s", "failed to delete application guide")
+// 	}
+//
+// 	return ag, nil
+// }
