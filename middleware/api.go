@@ -1,9 +1,11 @@
 package middleware
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"github.com/julienschmidt/httprouter"
+	"gopkg.in/mgo.v2"
 	"net/http"
 	"strconv"
 
@@ -13,19 +15,43 @@ import (
 	"github.com/gorilla/context"
 )
 
-type ApiHandler func(w http.ResponseWriter, r *http.Request) (interface{}, error)
+type ApiContext struct {
+	db      *sql.DB
+	session *mgo.Session
+	encoder interface{}
+}
+
+type ApiHandler struct {
+	*ApiContext
+	H func(*ApiContext, http.ResponseWriter, *http.Request) (interface{}, error)
+	S func(*ApiContext, http.ResponseWriter, *http.Request)
+}
 
 func (fn ApiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	if fn.H == nil && fn.S == nil {
+		apierror.GenerateError("There hasn't been a handler declared for this route", nil, w, r, http.StatusInternalServerError)
+		return
+	}
 	context.Set(r, "params", ps)
 
-	obj, err := fn(w, r)
+	if fn.S != nil {
+		fn.S(fn.ApiContext, w, r)
+		return
+	}
+
+	obj, err := fn.H(fn.ApiContext, w, r)
 	if err != nil {
 		apierror.GenerateError(err.Error(), err, w, r, http.StatusInternalServerError)
 		return
 	}
 
 	json.NewEncoder(w).Encode(obj)
-	return
+}
+
+func Wrap(h ApiHandler) httprouter.Handle {
+	return httprouter.Handle(func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		h.ServeHTTP(w, r, ps)
+	})
 }
 
 // Keyed ...

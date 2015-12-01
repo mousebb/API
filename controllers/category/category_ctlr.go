@@ -1,9 +1,9 @@
 package categoryCtlr
 
 import (
+	"github.com/curt-labs/API/middleware"
 	"log"
 
-	"github.com/curt-labs/API/helpers/error"
 	"github.com/curt-labs/API/models/category"
 	"github.com/gorilla/context"
 	"github.com/julienschmidt/httprouter"
@@ -13,7 +13,7 @@ import (
 )
 
 // GetCategory ...
-func GetCategory(rw http.ResponseWriter, r *http.Request) {
+func GetCategory(ctx *middleware.ApiContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	ps := context.Get(r, "params").(httprouter.Params)
 
 	var c category.Category
@@ -22,8 +22,7 @@ func GetCategory(rw http.ResponseWriter, r *http.Request) {
 	log.Println(ps.ByName("id"))
 	c.CategoryID, err = strconv.Atoi(ps.ByName("id"))
 	if err != nil || c.CategoryID == 0 {
-		apierror.GenerateError("Trouble getting category identifier", err, rw, r)
-		return
+		return nil, err
 	}
 
 	qs := r.URL.Query()
@@ -38,11 +37,10 @@ func GetCategory(rw http.ResponseWriter, r *http.Request) {
 
 	err = c.Get(page, count)
 	if err != nil || c.CategoryID == 0 {
-		apierror.GenerateError("Trouble getting category", err, rw, r)
-		return
+		return nil, err
 	}
 
-	return
+	return c, nil
 }
 
 //
