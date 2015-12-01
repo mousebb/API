@@ -13,7 +13,7 @@ func NewRouter() *Router {
 	return &Router{httprouter.New()}
 }
 
-func (r *Router) HandleRoute(method string, pattern string, handler middleware.ApiHandler) {
+func (r *Router) HandleRoute(method string, pattern string, handler middleware.APIHandler) {
 	r.Router.Handle(method, pattern, middleware.Wrap(handler))
 }
 
