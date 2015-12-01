@@ -52,6 +52,11 @@ type APIHandler struct {
 // middleware.
 type Middleware func(*APIContext, http.ResponseWriter, *http.Request) error
 
+func (m Middleware) ServeHTTP(ctx *APIContext, rw http.ResponseWriter, r *http.Request) error {
+	m(ctx, rw, r)
+	return nil
+}
+
 func (fn APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	if fn.H == nil && fn.S == nil {
 		apierror.GenerateError("There hasn't been a handler declared for this route", nil, w, r, http.StatusInternalServerError)
@@ -82,12 +87,20 @@ func (fn APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, ps httpro
 	}
 
 	json.NewEncoder(w).Encode(obj)
+	return
 }
 
 // Wrap Wraps APIHandler into httprouter.Handle
 func Wrap(h APIHandler) httprouter.Handle {
 	return httprouter.Handle(func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		h.ServeHTTP(w, r, ps)
+	})
+}
+
+func WrapMiddleware(fn http.Handler) Middleware {
+	return Middleware(func(ctx *APIContext, w http.ResponseWriter, r *http.Request) error {
+		fn.ServeHTTP(w, r)
+		return nil
 	})
 }
 
