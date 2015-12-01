@@ -18,9 +18,9 @@ import (
 // APIContext Holds all the possible globals that we are going to want
 // to use throughout the request lifecycle.
 type APIContext struct {
-	db          *sql.DB
-	session     *mgo.Session
-	encoder     interface{}
+	DB          *sql.DB
+	Session     *mgo.Session
+	Encoder     interface{}
 	Params      httprouter.Params
 	DataContext *apicontext.DataContext
 }
@@ -28,14 +28,29 @@ type APIContext struct {
 // APIHandler Will delegate requests off the defined middleware and finally
 // to the appropriate request endpoint.
 type APIHandler struct {
+
+	// APIContext Global holder
 	*APIContext
+
+	// BeforeFuncs A series a middleware that gets executed before
+	// endpoint handlers
 	BeforeFuncs []Middleware
-	AfterFuncs  []Middleware
-	H           func(*APIContext, http.ResponseWriter, *http.Request) (interface{}, error)
-	S           func(*APIContext, http.ResponseWriter, *http.Request)
+
+	// AfterFuncs A series a middleware that gets executed after
+	// endpoint handlers
+	AfterFuncs []Middleware
+
+	// H Defines a function definition for Object-Oriented handlers
+	H func(*APIContext, http.ResponseWriter, *http.Request) (interface{}, error)
+
+	// S Defines a function definition for a static endpoint, great
+	// for uptime checks, redirects, direct ouput, etc. (Bypasses all middleware)
+	S func(*APIContext, http.ResponseWriter, *http.Request)
 }
 
-type Middleware func(*APIContext, http.ResponseWriter, *http.Request)
+// Middleware Required function definition for building/executing
+// middleware.
+type Middleware func(*APIContext, http.ResponseWriter, *http.Request) error
 
 func (fn APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	if fn.H == nil && fn.S == nil {
@@ -47,13 +62,13 @@ func (fn APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, ps httpro
 	}
 	fn.APIContext.Params = ps
 
-	for _, bf := range fn.BeforeFuncs {
-		bf(fn.APIContext, w, r)
-	}
-
 	if fn.S != nil {
 		fn.S(fn.APIContext, w, r)
 		return
+	}
+
+	for _, bf := range fn.BeforeFuncs {
+		bf(fn.APIContext, w, r)
 	}
 
 	obj, err := fn.H(fn.APIContext, w, r)
@@ -69,6 +84,7 @@ func (fn APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, ps httpro
 	json.NewEncoder(w).Encode(obj)
 }
 
+// Wrap Wraps APIHandler into httprouter.Handle
 func Wrap(h APIHandler) httprouter.Handle {
 	return httprouter.Handle(func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		h.ServeHTTP(w, r, ps)
@@ -76,7 +92,7 @@ func Wrap(h APIHandler) httprouter.Handle {
 }
 
 // Keyed ...
-func Keyed(ctx *APIContext, w http.ResponseWriter, r *http.Request) {
+func Keyed(ctx *APIContext, w http.ResponseWriter, r *http.Request) error {
 	var err error
 
 	qs := r.URL.Query()
@@ -98,9 +114,7 @@ func Keyed(ctx *APIContext, w http.ResponseWriter, r *http.Request) {
 	//gets customer user from api key
 	user, err := customer.GetCustomerUserFromKey(apiKey)
 	if err != nil || user.Id == "" {
-		err = fmt.Errorf("%s", "No User for this API Key.")
-		apierror.GenerateError(err.Error(), err, w, r)
-		return
+		return fmt.Errorf("%s", "No User for this API Key.")
 	}
 	// go user.LogApiRequest(r)
 
@@ -126,7 +140,7 @@ func Keyed(ctx *APIContext, w http.ResponseWriter, r *http.Request) {
 	//load brands in dtx
 	//returns our data context...shared amongst controllers
 	// var dtx apicontext.DataContext
-	dtx := &apicontext.DataContext{
+	ctx.DataContext = &apicontext.DataContext{
 		APIKey:     apiKey,
 		BrandID:    brandID,
 		WebsiteID:  websiteID,
@@ -134,13 +148,6 @@ func Keyed(ctx *APIContext, w http.ResponseWriter, r *http.Request) {
 		CustomerID: user.CustomerID,
 		Globals:    nil,
 	}
-	err = dtx.GetBrandsArrayAndString(apiKey, brandID)
-	if err != nil {
-		apierror.GenerateError(err.Error(), err, w, r)
-		return
-	}
 
-	ctx.DataContext = dtx
-	// context.Set(r, "request_ctx", dtx)
-
+	return ctx.DataContext.GetBrandsArrayAndString(apiKey, brandID)
 }
