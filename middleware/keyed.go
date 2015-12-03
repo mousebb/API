@@ -49,6 +49,8 @@ func (kh Keyed) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctx.Key = apiKey
+
 	//handles branding
 	var brandID int
 	if brand == "" {

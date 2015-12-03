@@ -1,8 +1,13 @@
-package part_ctlr
+package partCtlr
 
 import (
 	"bytes"
 	"encoding/json"
+	"net/url"
+	"strconv"
+	"testing"
+	"time"
+
 	"github.com/curt-labs/API/helpers/apicontextmock"
 	"github.com/curt-labs/API/helpers/database"
 	"github.com/curt-labs/API/helpers/testThatHttp"
@@ -12,10 +17,6 @@ import (
 	"github.com/curt-labs/API/models/products"
 	"github.com/curt-labs/API/models/video"
 	. "github.com/smartystreets/goconvey/convey"
-	"net/url"
-	"strconv"
-	"testing"
-	"time"
 )
 
 func TestParts(t *testing.T) {

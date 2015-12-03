@@ -1,6 +1,7 @@
 package database
 
 import (
+	"database/sql"
 	"flag"
 	"fmt"
 	"os"
@@ -19,28 +20,48 @@ var (
 
 	ProductCollectionName  = "products"
 	CategoryCollectionName = "categories"
-	ProductDatabase        = "product_data"
-	CategoryDatabase       = "category_data"
+	productDB              = "product_data"
+	ariesDB                = "aries"
 
 	ProductMongoSession  *mgo.Session
 	ProductMongoDatabase string
+
+	AriesMongoSession  *mgo.Session
+	AriesMongoDatabase string
+
+	DB     *sql.DB
+	Driver = "mysql"
 )
 
 func Init() error {
 	var err error
 	if ProductMongoSession == nil {
-		connectionString := ProductMongoConnectionString()
+		connectionString := mongoConnectionString(productDB)
 		ProductMongoSession, err = mgo.DialWithInfo(connectionString)
 		if err != nil {
 			return err
 		}
 		ProductMongoDatabase = connectionString.Database
 	}
+	if AriesMongoSession == nil {
+		connectionString := mongoConnectionString(ariesDB)
+		AriesMongoSession, err = mgo.DialWithInfo(connectionString)
+		if err != nil {
+			return err
+		}
+		AriesMongoDatabase = connectionString.Database
+	}
+	if DB == nil {
+		DB, err = sql.Open(Driver, connectionString())
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
 
-func ConnectionString() string {
+func connectionString() string {
 	if addr := os.Getenv("DATABASE_HOST"); addr != "" {
 		proto := os.Getenv("DATABASE_PROTOCOL")
 		user := os.Getenv("DATABASE_USERNAME")
@@ -75,28 +96,7 @@ func VintelligencePass() string {
 	return "curtman:Oct2013!"
 }
 
-func MongoConnectionString() *mgo.DialInfo {
-	var info mgo.DialInfo
-	addr := os.Getenv("MONGO_URL")
-	if addr == "" {
-		addr = "127.0.0.1"
-	}
-	addrs := strings.Split(addr, ",")
-	info.Addrs = append(info.Addrs, addrs...)
-	info.Username = os.Getenv("MONGO_CART_USERNAME")
-	info.Password = os.Getenv("MONGO_CART_PASSWORD")
-	info.Database = os.Getenv("MONGO_CART_DATABASE")
-	info.Timeout = time.Second * 2
-	info.FailFast = true
-	if info.Database == "" {
-		info.Database = "CurtCart"
-	}
-	info.Source = "admin"
-
-	return &info
-}
-
-func ProductMongoConnectionString() *mgo.DialInfo {
+func mongoConnectionString(db string) *mgo.DialInfo {
 	var info mgo.DialInfo
 	addr := os.Getenv("MONGO_URL")
 	if addr == "" {
@@ -110,42 +110,10 @@ func ProductMongoConnectionString() *mgo.DialInfo {
 	info.Database = os.Getenv("MONGO_CART_DATABASE")
 	info.Timeout = time.Second * 2
 	info.FailFast = true
-	info.Database = "product_data"
+	info.Database = db
 	info.Source = "admin"
 
 	return &info
-}
-
-func MongoPartConnectionString() *mgo.DialInfo {
-	info := MongoConnectionString()
-	info.Database = ProductDatabase
-	return info
-}
-
-func AriesMongoConnectionString() *mgo.DialInfo {
-	var info mgo.DialInfo
-	addr := os.Getenv("MONGO_URL")
-	if addr == "" {
-		addr = "127.0.0.1"
-	}
-	addrs := strings.Split(addr, ",")
-	info.Addrs = append(info.Addrs, addrs...)
-
-	info.Username = os.Getenv("MONGO_ARIES_USERNAME")
-	info.Password = os.Getenv("MONGO_ARIES_PASSWORD")
-	info.Database = os.Getenv("MONGO_ARIES_DATABASE")
-	info.Timeout = time.Second * 2
-	info.FailFast = true
-	if info.Database == "" {
-		info.Database = "aries"
-	}
-	info.Source = "admin"
-
-	return &info
-}
-
-func AriesConnectionString() string {
-	return ConnectionString()
 }
 
 func GetCleanDBFlag() string {

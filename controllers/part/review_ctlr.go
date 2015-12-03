@@ -1,4 +1,4 @@
-package part_ctlr
+package partCtlr
 
 // import (
 // 	"encoding/json"

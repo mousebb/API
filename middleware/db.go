@@ -9,11 +9,11 @@ import (
 
 // Mongo http.HandlerFunc middleware that will initiate
 // a MongoDB session and bind to APIContext.
-type Mongo struct {
+type DB struct {
 	http.Handler
 }
 
-func (mh Mongo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (db DB) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	ctx := context.Get(r, apiContext).(*APIContext)
 	if ctx == nil {
@@ -23,7 +23,12 @@ func (mh Mongo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	sess := database.ProductMongoSession.Copy()
 	defer sess.Close()
 
+	ariesSess := database.AriesMongoSession.Copy()
+	defer ariesSess.Close()
+
 	ctx.Session = sess
+	ctx.AriesSession = ariesSess
+	ctx.DB = database.DB
 
 	context.Set(r, apiContext, ctx)
 }

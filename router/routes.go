@@ -8,6 +8,7 @@ import (
 	"github.com/curt-labs/API/controllers/cache"
 	"github.com/curt-labs/API/controllers/cartIntegration"
 	"github.com/curt-labs/API/controllers/category"
+	"github.com/curt-labs/API/controllers/part"
 	"github.com/curt-labs/API/middleware"
 )
 
@@ -32,7 +33,7 @@ type Route struct {
 }
 
 var common = []middleware.Middleware{
-	middleware.WrapMiddleware(middleware.Mongo{}),
+	middleware.WrapMiddleware(middleware.DB{}),
 	middleware.WrapMiddleware(middleware.Keyed{}),
 	middleware.WrapMiddleware(middleware.Logger{}),
 }
@@ -78,5 +79,23 @@ var routes = []Route{
 	Route{"Get Cache By Key", "GET", "/cache/key", KEYED_ENDPOINT, middleware.APIHandler{H: cache.GetByKey, Middleware: common}},
 	Route{"Delete By Key", "DELETE", "/cache/keys", KEYED_ENDPOINT, middleware.APIHandler{H: cache.DeleteKey, Middleware: common}},
 
-	// Customer Management
+	// Product Management
+	Route{"Get Featured Parts", "GET", "/parts/featured", KEYED_ENDPOINT, middleware.APIHandler{H: partCtlr.Featured, Middleware: common}},
+	Route{"Get Latest Parts", "GET", "/parts/latest", KEYED_ENDPOINT, middleware.APIHandler{H: partCtlr.Latest, Middleware: common}},
+	Route{"Get All Identifiers", "GET", "/parts/identifiers", KEYED_ENDPOINT, middleware.APIHandler{H: partCtlr.Identifiers, Middleware: common}},
+	Route{"Get Part Vehicles", "GET", "/parts/:part/vehicles", KEYED_ENDPOINT, middleware.APIHandler{H: partCtlr.Vehicles, Middleware: common}},
+	Route{"Get Part Attributes", "GET", "/parts/:part/attributes", KEYED_ENDPOINT, middleware.APIHandler{H: partCtlr.Attributes, Middleware: common}},
+	Route{"Get Part Reviews", "GET", "/parts/:part/reviews", KEYED_ENDPOINT, middleware.APIHandler{H: partCtlr.ActiveApprovedReviews, Middleware: common}},
+	Route{"Get Part Categories", "GET", "/parts/:part/categories", KEYED_ENDPOINT, middleware.APIHandler{H: partCtlr.Categories, Middleware: common}},
+	Route{"Get Part Content", "GET", "/parts/:part/content", KEYED_ENDPOINT, middleware.APIHandler{H: partCtlr.GetContent, Middleware: common}},
+	Route{"Get Part Images", "GET", "/parts/:part/images", KEYED_ENDPOINT, middleware.APIHandler{H: partCtlr.Images, Middleware: common}},
+	Route{"Get Part Installation Sheet", "GET", "/parts/:part.pdf", KEYED_ENDPOINT, middleware.APIHandler{H: partCtlr.InstallSheet, Middleware: common}},
+	Route{"Get Part Packages", "GET", "/parts/:part/packages", KEYED_ENDPOINT, middleware.APIHandler{H: partCtlr.Packaging, Middleware: common}},
+	Route{"Get Part Pricing", "GET", "/parts/:part/pricing", KEYED_ENDPOINT, middleware.APIHandler{H: partCtlr.Prices, Middleware: common}},
+	Route{"Get Related Parts", "GET", "/parts/:part/related", KEYED_ENDPOINT, middleware.APIHandler{H: partCtlr.GetRelated, Middleware: common}},
+	Route{"Get Videos", "GET", "/parts/:part/videos", KEYED_ENDPOINT, middleware.APIHandler{H: partCtlr.Videos, Middleware: common}},
+	Route{"Get Part with Vehicle", "GET", "/parts/:part/:year/:make/:model/:submodel", KEYED_ENDPOINT, middleware.APIHandler{H: partCtlr.GetWithVehicle, Middleware: common}},
+	Route{"Get Part with Vehicle Config", "GET", "/parts/:part/:year/:make/:model/:submodel/:config", KEYED_ENDPOINT, middleware.APIHandler{H: partCtlr.GetWithVehicle, Middleware: common}},
+	Route{"Get Part", "GET", "/parts/:part", KEYED_ENDPOINT, middleware.APIHandler{H: partCtlr.PartNumber, Middleware: common}},
+	Route{"Get All Parts", "GET", "/parts", KEYED_ENDPOINT, middleware.APIHandler{H: partCtlr.All, Middleware: common}},
 }

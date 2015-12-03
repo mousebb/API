@@ -1,4 +1,4 @@
-package part_ctlr
+package partCtlr
 
 import (
 	"encoding/json"
@@ -9,14 +9,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/curt-labs/API/helpers/apicontext"
-	"github.com/curt-labs/API/helpers/encoding"
 	"github.com/curt-labs/API/helpers/error"
 	"github.com/curt-labs/API/helpers/rest"
+	"github.com/curt-labs/API/middleware"
 	"github.com/curt-labs/API/models/customer"
 	"github.com/curt-labs/API/models/products"
 	"github.com/curt-labs/API/models/vehicle"
-	"github.com/go-martini/martini"
 	"github.com/ninnemana/analytics-go"
 )
 
@@ -39,23 +37,17 @@ func track(endpoint string, params map[string]string, r *http.Request) {
 	})
 }
 
-func Identifiers(w http.ResponseWriter, r *http.Request, params martini.Params, enc encoding.Encoder, dtx *apicontext.DataContext) string {
-
+// Identifiers Returns a slice of distinct part numbers.
+func Identifiers(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	var b int
 	if r.URL.Query().Get("brand") != "" {
 		b, _ = strconv.Atoi(r.URL.Query().Get("brand"))
 	}
 
-	ids, err := products.Identifiers(b, dtx)
-	if err != nil {
-		apierror.GenerateError("Trouble getting all part identifiers", err, w, r)
-		return ""
-	}
-
-	return encoding.Must(enc.Encode(ids))
+	return products.Identifiers(b, ctx.DataContext, ctx.Session)
 }
 
-func All(w http.ResponseWriter, r *http.Request, params martini.Params, enc encoding.Encoder, dtx *apicontext.DataContext) string {
+func All(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	page := 0
 	count := 10
 	qs := r.URL.Query()
@@ -71,31 +63,23 @@ func All(w http.ResponseWriter, r *http.Request, params martini.Params, enc enco
 	if qs.Get("count") != "" {
 		if ct, err := strconv.Atoi(qs.Get("count")); err == nil {
 			if ct > 500 {
-				apierror.GenerateError(fmt.Sprintf("maximum request size is 500, you requested: %d", ct), err, w, r)
-				return ""
+				return nil, fmt.Errorf("maximum request size is 500, you requested: %d", ct)
 			}
 			count = ct
 		}
 	}
 
-	parts, err := products.All(page, count, dtx)
-	if err != nil {
-		apierror.GenerateError("Trouble getting all parts", err, w, r)
-		return ""
-	}
-
-	return encoding.Must(enc.Encode(parts))
+	return products.All(page, count, ctx.DataContext, ctx.Session)
 }
 
-func Featured(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, dtx *apicontext.DataContext) string {
+func Featured(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	count := 10
 	qs := r.URL.Query()
 
 	if qs.Get("count") != "" {
 		if ct, err := strconv.Atoi(qs.Get("count")); err == nil {
 			if ct > 50 {
-				apierror.GenerateError(fmt.Sprintf("maximum request size is 50, you requested: %d", ct), err, w, r)
-				return ""
+				return nil, fmt.Errorf("maximum request size is 50, you requested: %d", ct)
 			}
 			count = ct
 		}
@@ -106,29 +90,21 @@ func Featured(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, dtx 
 	if brandStr != "" {
 		brand, err = strconv.Atoi(brandStr)
 		if err != nil {
-			apierror.GenerateError("Trouble getting featured parts", err, w, r)
-			return ""
+			return nil, err
 		}
 	}
 
-	parts, err := products.Featured(count, dtx, brand)
-	if err != nil {
-		apierror.GenerateError("Trouble getting featured parts", err, w, r)
-		return ""
-	}
-
-	return encoding.Must(enc.Encode(parts))
+	return products.Featured(count, dtx, brand)
 }
 
-func Latest(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, dtx *apicontext.DataContext) string {
+func Latest(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	count := 10
 	qs := r.URL.Query()
 
 	if qs.Get("count") != "" {
 		if ct, err := strconv.Atoi(qs.Get("count")); err == nil {
 			if ct > 50 {
-				apierror.GenerateError(fmt.Sprintf("maximum request size is 50, you requested: %d", ct), err, w, r)
-				return ""
+				return nil, fmt.Errorf("maximum request size is 50, you requested: %d", ct)
 			}
 			count = ct
 		}
@@ -139,58 +115,45 @@ func Latest(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, dtx *a
 	if brandStr != "" {
 		brand, err = strconv.Atoi(brandStr)
 		if err != nil {
-			apierror.GenerateError("Trouble getting featured parts", err, w, r)
-			return ""
+			return nil, err
 		}
 	}
 
-	parts, err := products.Latest(count, dtx, brand)
-	if err != nil {
-		apierror.GenerateError("Trouble getting latest parts", err, w, r)
-		return ""
-	}
-
-	return encoding.Must(enc.Encode(parts))
+	return products.Latest(count, ctx)
 }
 
-func Get(w http.ResponseWriter, r *http.Request, params martini.Params, enc encoding.Encoder, dtx *apicontext.DataContext) string {
-	id, err := strconv.Atoi(params["part"])
-	if err != nil {
-		apierror.GenerateError("Trouble getting part", err, w, r)
-		return ""
-	}
+// func Get(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
+// 	id, err := strconv.Atoi(params["part"])
+// 	if err != nil {
+// 		apierror.GenerateError("Trouble getting part", err, w, r)
+// 		return ""
+// 	}
+// 	p := products.Part{
+// 		ID: id,
+// 	}
+//
+// 	if err = p.Get(dtx); err != nil {
+//
+// 		apierror.GenerateError("Trouble getting part", err, w, r)
+// 		return ""
+// 	}
+//
+// 	return encoding.Must(enc.Encode(p))
+// }
+
+func GetRelated(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
+	id, _ := strconv.Atoi(ctx.Params.ByName("part"))
 	p := products.Part{
 		ID: id,
 	}
 
-	if err = p.Get(dtx); err != nil {
-
-		apierror.GenerateError("Trouble getting part", err, w, r)
-		return ""
-	}
-
-	return encoding.Must(enc.Encode(p))
+	return p.GetRelated(ctx)
 }
 
-func GetRelated(w http.ResponseWriter, r *http.Request, params martini.Params, enc encoding.Encoder, dtx *apicontext.DataContext) string {
-	id, _ := strconv.Atoi(params["part"])
-	p := products.Part{
-		ID: id,
-	}
-
-	parts, err := p.GetRelated(dtx)
-	if err != nil {
-		apierror.GenerateError("Trouble getting related parts", err, w, r)
-		return ""
-	}
-	return encoding.Must(enc.Encode(parts))
-}
-
-func GetWithVehicle(w http.ResponseWriter, r *http.Request, params martini.Params, enc encoding.Encoder) string {
+func GetWithVehicle(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	var err error
 	err = errors.New("Not Implemented")
-	apierror.GenerateError("Not Implemented", err, w, r)
-	return ""
+	return nil, err
 	// qs := r.URL.Query()
 	// partID, err := strconv.Atoi(params["part"])
 	// if err != nil {
@@ -229,111 +192,90 @@ func GetWithVehicle(w http.ResponseWriter, r *http.Request, params martini.Param
 	// return encoding.Must(enc.Encode(part))
 }
 
-func Vehicles(w http.ResponseWriter, r *http.Request, params martini.Params, enc encoding.Encoder) string {
-	id, err := strconv.Atoi(params["part"])
+func Vehicles(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
+	id, err := strconv.Atoi(ctx.Params.ByName("part"))
 	if err != nil {
-		apierror.GenerateError("Trouble getting part ID", err, w, r)
-		return ""
+		return nil, err
 	}
 
-	vehicles, err := vehicle.ReverseLookup(id)
-	if err != nil {
-		apierror.GenerateError("Trouble getting part vehicles", err, w, r)
-		return ""
-	}
-
-	return encoding.Must(enc.Encode(vehicles))
+	return vehicle.ReverseLookup(id, ctx)
 }
 
 //Redundant
-func Images(w http.ResponseWriter, r *http.Request, params martini.Params, enc encoding.Encoder, dtx *apicontext.DataContext) string {
-	id, err := strconv.Atoi(params["part"])
+func Images(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
+	id, err := strconv.Atoi(ctx.Params.ByName("part"))
 	if err != nil {
-		apierror.GenerateError("Trouble getting part ID", err, w, r)
-		return ""
+		return nil, err
+	}
+	p := products.Part{
+		ID: id,
+	}
+
+	err = p.Get(ctx)
+
+	return p.Images, err
+}
+
+//Redundant
+func Attributes(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
+	id, err := strconv.Atoi(ctx.Params.ByName("part"))
+	if err != nil {
+		return nil, err
+	}
+
+	p := products.Part{
+		ID: id,
+	}
+
+	err = p.Get(ctx)
+
+	return p.Attributes, err
+}
+
+//Redundant
+func GetContent(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
+	id, err := strconv.Atoi(ctx.Params.ByName("part"))
+	if err != nil {
+		return nil, err
+	}
+	p := products.Part{
+		ID: id,
+	}
+
+	err = p.Get(dtx)
+
+	return p.Content, err
+}
+
+//Redundant
+func Packaging(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
+	id, err := strconv.Atoi(ctx.Params.ByName("part"))
+	if err != nil {
+		return nil, err
+	}
+	p := products.Part{
+		ID: id,
+	}
+
+	err = p.Get(dtx)
+
+	return p.Packages, err
+}
+
+//Redundant
+func ActiveApprovedReviews(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
+	id, err := strconv.Atoi(ctx.Params.ByName("part"))
+	if err != nil {
+		return nil, err
 	}
 	p := products.Part{
 		ID: id,
 	}
 
 	if err = p.Get(dtx); err != nil {
-		apierror.GenerateError("Trouble getting part images", err, w, r)
-		return ""
+		return nil, err
 	}
 
-	return encoding.Must(enc.Encode(p.Images))
-}
-
-//Redundant
-func Attributes(w http.ResponseWriter, r *http.Request, params martini.Params, enc encoding.Encoder, dtx *apicontext.DataContext) string {
-	id, err := strconv.Atoi(params["part"])
-	if err != nil {
-		apierror.GenerateError("Trouble getting part ID", err, w, r)
-		return ""
-	}
-	p := products.Part{
-		ID: id,
-	}
-
-	if err = p.Get(dtx); err != nil {
-		apierror.GenerateError("Trouble getting part attributes", err, w, r)
-		return ""
-	}
-
-	return encoding.Must(enc.Encode(p.Attributes))
-}
-
-//Redundant
-func GetContent(w http.ResponseWriter, r *http.Request, params martini.Params, enc encoding.Encoder, dtx *apicontext.DataContext) string {
-	id, err := strconv.Atoi(params["part"])
-	if err != nil {
-		apierror.GenerateError("Trouble getting part ID", err, w, r)
-		return ""
-	}
-	p := products.Part{
-		ID: id,
-	}
-
-	if err = p.Get(dtx); err != nil {
-		apierror.GenerateError("Trouble getting part", err, w, r)
-		return ""
-	}
-	return encoding.Must(enc.Encode(p.Content))
-}
-
-//Redundant
-func Packaging(w http.ResponseWriter, r *http.Request, params martini.Params, enc encoding.Encoder, dtx *apicontext.DataContext) string {
-	id, err := strconv.Atoi(params["part"])
-	if err != nil {
-		apierror.GenerateError("Trouble getting part ID", err, w, r)
-		return ""
-	}
-	p := products.Part{
-		ID: id,
-	}
-
-	if err = p.Get(dtx); err != nil {
-		apierror.GenerateError("Trouble getting part packages", err, w, r)
-		return ""
-	}
-	return encoding.Must(enc.Encode(p.Packages))
-}
-
-//Redundant
-func ActiveApprovedReviews(w http.ResponseWriter, r *http.Request, params martini.Params, enc encoding.Encoder, dtx *apicontext.DataContext) string {
-	id, err := strconv.Atoi(params["part"])
-	if err != nil {
-		apierror.GenerateError("Trouble getting part ID", err, w, r)
-		return ""
-	}
-	p := products.Part{
-		ID: id,
-	}
-
-	if err = p.Get(dtx); err != nil {
-		apierror.GenerateError("Trouble getting part reviews", err, w, r)
-		return ""
-	}
 	var revs []products.Review
 	for _, rev := range p.Reviews {
 		if rev.Active == true && rev.Approved == true {
@@ -341,14 +283,13 @@ func ActiveApprovedReviews(w http.ResponseWriter, r *http.Request, params martin
 		}
 	}
 
-	return encoding.Must(enc.Encode(revs))
+	return revs, nil
 }
 
-func Videos(w http.ResponseWriter, r *http.Request, params martini.Params, enc encoding.Encoder, dtx *apicontext.DataContext) string {
-	id, err := strconv.Atoi(params["part"])
+func Videos(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
+	id, err := strconv.Atoi(ctx.Params.ByName("part"))
 	if err != nil {
-		apierror.GenerateError("Trouble getting part ID", err, w, r)
-		return ""
+		return nil, err
 	}
 
 	p := products.Part{
@@ -356,16 +297,13 @@ func Videos(w http.ResponseWriter, r *http.Request, params martini.Params, enc e
 	}
 
 	err = p.Get(dtx)
-	if err != nil {
-		apierror.GenerateError("Trouble getting part videos", err, w, r)
-		return ""
-	}
-	return encoding.Must(enc.Encode(p.Videos))
+
+	return p.Videos, err
 }
 
 //Sort of Redundant
-func InstallSheet(w http.ResponseWriter, r *http.Request, params martini.Params, dtx *apicontext.DataContext) {
-	id, err := strconv.Atoi(strings.Split(params["part"], ".")[0])
+func InstallSheet(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(strings.Split(ctx.Params.ByName("part"), ".")[0])
 	if err != nil {
 		apierror.GenerateError("Trouble getting part ID", err, w, r)
 		return
@@ -405,11 +343,10 @@ func InstallSheet(w http.ResponseWriter, r *http.Request, params martini.Params,
 }
 
 //Redundant
-func Categories(w http.ResponseWriter, r *http.Request, params martini.Params, enc encoding.Encoder, dtx *apicontext.DataContext) string {
-	id, err := strconv.Atoi(params["part"])
+func Categories(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
+	id, err := strconv.Atoi(ctx.Params.ByName("part"))
 	if err != nil {
-		apierror.GenerateError("Trouble getting part ID", err, w, r)
-		return ""
+		return nil, err
 	}
 
 	p := products.Part{
@@ -417,74 +354,58 @@ func Categories(w http.ResponseWriter, r *http.Request, params martini.Params, e
 	}
 
 	err = p.Get(dtx)
-	if err != nil {
-		apierror.GenerateError("Trouble getting part categories", err, w, r)
-		return ""
-	}
 
-	return encoding.Must(enc.Encode(p.Categories))
+	return p.Categories, err
 }
 
-func Prices(w http.ResponseWriter, r *http.Request, params martini.Params, enc encoding.Encoder, dtx *apicontext.DataContext) string {
-	id, err := strconv.Atoi(params["part"])
+func Prices(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
+	id, err := strconv.Atoi(ctx.Params.ByName("part"))
 	if err != nil {
-		apierror.GenerateError("Trouble getting part ID", err, w, r)
-		return ""
+		return nil, err
 	}
 	p := products.Part{
 		ID: id,
 	}
 
-	priceChan := make(chan int)
-	custChan := make(chan int)
+	custChan := make(chan products.Price)
 
 	go func() {
-		err = p.Get(dtx)
-		priceChan <- 1
-	}()
-
-	go func() {
-		price, custErr := customer.GetCustomerPrice(dtx, p.ID)
+		price, custErr := customer.GetCustomerPrice(ctx, p.ID)
 		if custErr != nil {
 			err = custErr
 		}
-		p.Pricing = append(p.Pricing, products.Price{0, 0, "Customer", price, false, time.Now()})
-		custChan <- 1
+		custChan <- products.Price{0, 0, "Customer", price, false, time.Now()}
 	}()
 
-	<-priceChan
-	<-custChan
-
+	err = p.Get(dtx)
 	if err != nil {
-		apierror.GenerateError("Trouble getting part prices", err, w, r)
-		return ""
+		return nil, err
 	}
 
-	return encoding.Must(enc.Encode(p.Pricing))
+	p.Pricing = append(p.Pricing, <-custChan)
+
+	return p.Pricing, nil
 }
 
-func PartNumber(rw http.ResponseWriter, r *http.Request, params martini.Params, enc encoding.Encoder, dtx *apicontext.DataContext) string {
+func PartNumber(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	var p products.Part
 	var err error
 
-	p.PartNumber = params["part"]
+	p.PartNumber = ctx.Params.ByName("part")
 
 	if p.PartNumber == "" {
-		apierror.GenerateError("Trouble getting old part number", err, rw, r)
-		return ""
+		return nil, fmt.Errorf("%s", "trouble getting old part number")
 	}
 
 	if err = p.GetPartByPartNumber(); err != nil {
-		apierror.GenerateError("Trouble getting part by old part number", err, rw, r)
-		return ""
+		return nil, err
 	}
 
 	//TODO - remove when curt & aries vehicle application data are in sync
 	if p.Brand.ID == 3 {
 		mgoVehicles, err := vehicle.ReverseMongoLookup(p.ID)
 		if err != nil {
-			apierror.GenerateError("Trouble getting part by old part number", err, rw, r)
-			return ""
+			return nil, err
 		}
 		for _, v := range mgoVehicles {
 			vehicleApplication := products.VehicleApplication{
@@ -497,5 +418,5 @@ func PartNumber(rw http.ResponseWriter, r *http.Request, params martini.Params, 
 		}
 	} //END TODO
 
-	return encoding.Must(enc.Encode(p))
+	return p, nil
 }

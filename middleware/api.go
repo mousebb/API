@@ -20,11 +20,14 @@ const (
 // APIContext Holds all the possible globals that we are going to want
 // to use throughout the request lifecycle.
 type APIContext struct {
-	DB          *sql.DB
-	Session     *mgo.Session
-	Encoder     interface{}
-	Params      httprouter.Params
-	DataContext *apicontext.DataContext
+	Brand        int
+	DB           *sql.DB
+	Session      *mgo.Session
+	AriesSession *mgo.Session
+	Encoder      interface{}
+	Params       httprouter.Params
+	DataContext  *apicontext.DataContext
+	Key          string
 }
 
 // Middleware Gives the ability to add Middleware capability to APIHandler
@@ -65,11 +68,6 @@ func (fn APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, ps httpro
 		Params: ps,
 	}
 
-	if fn.S != nil {
-		fn.S(ctx, w, r)
-		return
-	}
-
 	context.Set(r, apiContext, ctx)
 
 	for _, m := range fn.Middleware {
@@ -81,6 +79,11 @@ func (fn APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, ps httpro
 	}
 
 	ctx = context.Get(r, apiContext).(*APIContext)
+
+	if fn.S != nil {
+		fn.S(ctx, w, r)
+		return
+	}
 
 	obj, err := fn.H(ctx, w, r)
 	if err != nil {
