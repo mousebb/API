@@ -1,15 +1,11 @@
 package router
 
 import (
-	"net/http"
-
-	"github.com/curt-labs/API/middleware"
-	"github.com/gorilla/context"
-
 	"github.com/curt-labs/API/controllers"
 	"github.com/curt-labs/API/controllers/apiKeyType"
 	"github.com/curt-labs/API/controllers/applicationGuide"
 	"github.com/curt-labs/API/controllers/category"
+	"github.com/curt-labs/API/middleware"
 )
 
 const (
@@ -38,10 +34,11 @@ type Route struct {
 	Handler    middleware.APIHandler
 }
 
-var commonBefore = []http.Handler{middleware.Keyed{}}
-
-// var commonBefore = []http.Handler{}
-var commonAfter = []func(http.Handler) http.Handler{context.ClearHandler}
+var common = []middleware.Middleware{
+	middleware.WrapMiddleware(middleware.Mongo{}),
+	middleware.WrapMiddleware(middleware.Keyed{}),
+	middleware.WrapMiddleware(middleware.Logger{}),
+}
 
 var routes = []Route{
 
@@ -50,14 +47,14 @@ var routes = []Route{
 	Route{"Status Checker", "GET", "/status", PUBLIC_ENDPOINT, middleware.APIHandler{S: controllers.Status}},
 
 	// API Key Management
-	Route{"Get API Key Types", "GET", "/apiKeyTypes", KEYED_ENDPOINT, middleware.APIHandler{H: apiKeyType.GetApiKeyTypes, BeforeFuncs: commonBefore, AfterFuncs: commonAfter}},
+	Route{"Get API Key Types", "GET", "/apiKeyTypes", KEYED_ENDPOINT, middleware.APIHandler{H: apiKeyType.GetApiKeyTypes, Middleware: common}},
 
 	// Application Guides
-	Route{"Get Application Guides by WebSite", "GET", "/applicationGuide/:id/website", KEYED_ENDPOINT, middleware.APIHandler{H: applicationGuide.GetApplicationGuidesByWebsite, BeforeFuncs: commonBefore, AfterFuncs: commonAfter}},
-	Route{"Get Application Guide", "GET", "/applicationGuide/:id", KEYED_ENDPOINT, middleware.APIHandler{H: applicationGuide.GetApplicationGuide, BeforeFuncs: commonBefore, AfterFuncs: commonAfter}},
+	Route{"Get Application Guides by WebSite", "GET", "/applicationGuide/:id/website", KEYED_ENDPOINT, middleware.APIHandler{H: applicationGuide.GetApplicationGuidesByWebsite, Middleware: common}},
+	Route{"Get Application Guide", "GET", "/applicationGuide/:id", KEYED_ENDPOINT, middleware.APIHandler{H: applicationGuide.GetApplicationGuide, Middleware: common}},
 
 	// Category Endpoints
-	Route{"Get Category Tree", "GET", "/category", KEYED_ENDPOINT, middleware.APIHandler{H: categoryCtlr.GetCategoryTree, BeforeFuncs: commonBefore, AfterFuncs: commonAfter}},
-	Route{"Get Category", "GET", "/category/:id", KEYED_ENDPOINT, middleware.APIHandler{H: categoryCtlr.GetCategory, BeforeFuncs: commonBefore, AfterFuncs: commonAfter}},
-	Route{"Get Category Parts", "GET", "/category/:id/parts", KEYED_ENDPOINT, middleware.APIHandler{H: categoryCtlr.GetCategoryParts, BeforeFuncs: commonBefore, AfterFuncs: commonAfter}},
+	Route{"Get Category Tree", "GET", "/category", KEYED_ENDPOINT, middleware.APIHandler{H: categoryCtlr.GetCategoryTree, Middleware: common}},
+	Route{"Get Category", "GET", "/category/:id", KEYED_ENDPOINT, middleware.APIHandler{H: categoryCtlr.GetCategory, Middleware: common}},
+	Route{"Get Category Parts", "GET", "/category/:id/parts", KEYED_ENDPOINT, middleware.APIHandler{H: categoryCtlr.GetCategoryParts, Middleware: common}},
 }

@@ -21,7 +21,24 @@ var (
 	CategoryCollectionName = "categories"
 	ProductDatabase        = "product_data"
 	CategoryDatabase       = "category_data"
+
+	ProductMongoSession  *mgo.Session
+	ProductMongoDatabase string
 )
+
+func Init() error {
+	var err error
+	if ProductMongoSession == nil {
+		connectionString := ProductMongoConnectionString()
+		ProductMongoSession, err = mgo.DialWithInfo(connectionString)
+		if err != nil {
+			return err
+		}
+		ProductMongoDatabase = connectionString.Database
+	}
+
+	return nil
+}
 
 func ConnectionString() string {
 	if addr := os.Getenv("DATABASE_HOST"); addr != "" {
@@ -74,6 +91,26 @@ func MongoConnectionString() *mgo.DialInfo {
 	if info.Database == "" {
 		info.Database = "CurtCart"
 	}
+	info.Source = "admin"
+
+	return &info
+}
+
+func ProductMongoConnectionString() *mgo.DialInfo {
+	var info mgo.DialInfo
+	addr := os.Getenv("MONGO_URL")
+	if addr == "" {
+		addr = "127.0.0.1"
+	}
+	addrs := strings.Split(addr, ",")
+	info.Addrs = append(info.Addrs, addrs...)
+
+	info.Username = os.Getenv("MONGO_CART_USERNAME")
+	info.Password = os.Getenv("MONGO_CART_PASSWORD")
+	info.Database = os.Getenv("MONGO_CART_DATABASE")
+	info.Timeout = time.Second * 2
+	info.FailFast = true
+	info.Database = "product_data"
 	info.Source = "admin"
 
 	return &info

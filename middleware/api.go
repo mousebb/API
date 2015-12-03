@@ -2,10 +2,7 @@ package middleware
 
 import (
 	"database/sql"
-	"encoding/json"
-	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/gorilla/context"
 	"github.com/julienschmidt/httprouter"
@@ -13,7 +10,6 @@ import (
 
 	"github.com/curt-labs/API/helpers/apicontext"
 	"github.com/curt-labs/API/helpers/error"
-	"github.com/curt-labs/API/models/customer"
 )
 
 const (
@@ -31,13 +27,20 @@ type APIContext struct {
 	DataContext *apicontext.DataContext
 }
 
+// Middleware Gives the ability to add Middleware capability to APIHandler
+// that supports before and deferred after functionality.
+type Middleware struct {
+	H     http.Handler
+	Defer bool
+}
+
 // APIHandler Will delegate requests off the defined middleware and finally
 // to the appropriate request endpoint.
 type APIHandler struct {
 
 	// BeforeFuncs A series a middleware that gets executed before
 	// endpoint handlers
-	BeforeFuncs []http.Handler
+	Middleware []Middleware
 
 	// AfterFuncs A series a middleware that gets executed after
 	// endpoint handlers
@@ -51,6 +54,7 @@ type APIHandler struct {
 	S func(*APIContext, http.ResponseWriter, *http.Request)
 }
 
+// ServeHTTP For interfacing http.HandlerFunc
 func (fn APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	if fn.H == nil && fn.S == nil {
 		apierror.GenerateError("There hasn't been a handler declared for this route", nil, w, r, http.StatusInternalServerError)
@@ -68,17 +72,29 @@ func (fn APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, ps httpro
 
 	context.Set(r, apiContext, ctx)
 
-	for _, bf := range fn.BeforeFuncs {
-		bf.ServeHTTP(w, r)
+	for _, m := range fn.Middleware {
+		if m.Defer {
+			defer m.H.ServeHTTP(w, r)
+		} else {
+			m.H.ServeHTTP(w, r)
+		}
 	}
 
 	ctx = context.Get(r, apiContext).(*APIContext)
 
-	obj, _ := fn.H(ctx, w, r)
+	obj, err := fn.H(ctx, w, r)
+	if err != nil {
+		apierror.GenerateError(err.Error(), err, w, r, http.StatusInternalServerError)
+		return
+	}
 
-	// context.Clear(r)
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(obj)
+	context.Clear(r)
+
+	err = Encode(r, w, obj)
+	if err != nil {
+		apierror.GenerateError(err.Error(), err, w, r, http.StatusInternalServerError)
+		return
+	}
 
 	return
 }
@@ -87,83 +103,17 @@ func (fn APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, ps httpro
 func Wrap(h APIHandler) httprouter.Handle {
 	return httprouter.Handle(func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		h.ServeHTTP(w, r, ps)
-		// Gzip(h)
 	})
 }
 
-type Keyed struct {
-	http.Handler
+// WrapMiddleware Convenience function around WrapDeferredMiddleware
+// defaulting the deferred option to false.
+func WrapMiddleware(h http.Handler) Middleware {
+	return WrapDeferredMiddleware(h, false)
 }
 
-func (kh Keyed) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var err error
-
-	ctx := context.Get(r, apiContext).(*APIContext)
-	if ctx == nil {
-		ctx = &APIContext{}
-	}
-
-	qs := r.URL.Query()
-	apiKey := qs.Get("key")
-	brand := qs.Get("brandID")
-	website := qs.Get("websiteID")
-
-	//handles api key
-	if apiKey == "" {
-		apiKey = r.FormValue("key")
-	}
-	if apiKey == "" {
-		apiKey = r.Header.Get("key")
-	}
-	if apiKey == "" {
-		err = fmt.Errorf("%s", "No API Key Supplied.")
-	}
-
-	//gets customer user from api key
-	user, err := customer.GetCustomerUserFromKey(apiKey)
-	if err != nil || user.Id == "" {
-		err = fmt.Errorf("%s", "No User for this API Key.")
-		apierror.GenerateError(err.Error(), err, w, r, http.StatusInternalServerError)
-		return
-	}
-	// go user.LogApiRequest(r)
-
-	//handles branding
-	var brandID int
-	if brand == "" {
-		brand = r.FormValue("brandID")
-	}
-	if brand == "" {
-		brand = r.Header.Get("brandID")
-	}
-	brandID, _ = strconv.Atoi(brand)
-
-	//handles websiteID
-	if website == "" {
-		website = r.FormValue("websiteID")
-	}
-	if website == "" {
-		website = r.Header.Get("websiteID")
-	}
-	websiteID, _ := strconv.Atoi(website)
-
-	//load brands in dtx
-	//returns our data context...shared amongst controllers
-	// var dtx apicontext.DataContext
-	ctx.DataContext = &apicontext.DataContext{
-		APIKey:     apiKey,
-		BrandID:    brandID,
-		WebsiteID:  websiteID,
-		UserID:     user.Id, //current authenticated user
-		CustomerID: user.CustomerID,
-		Globals:    nil,
-	}
-
-	err = ctx.DataContext.GetBrandsArrayAndString(apiKey, brandID)
-	if err != nil {
-		apierror.GenerateError(err.Error(), err, w, r, http.StatusInternalServerError)
-		return
-	}
-
-	context.Set(r, apiContext, ctx)
+// WrapDeferredMiddleware Converts http.HandlerFunc to Middleware with defered
+// designation.
+func WrapDeferredMiddleware(h http.Handler, def bool) Middleware {
+	return Middleware{h, def}
 }

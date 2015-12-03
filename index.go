@@ -4,6 +4,7 @@ import (
 	"flag"
 	"net/http"
 
+	"github.com/curt-labs/API/helpers/database"
 	"github.com/curt-labs/API/router"
 
 	"log"
@@ -21,6 +22,10 @@ var (
  */
 func main() {
 	flag.Parse()
+
+	if err := database.Init(); err != nil {
+		log.Fatal(err)
+	}
 
 	r := router.New()
 
