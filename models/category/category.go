@@ -1,6 +1,10 @@
 package category
 
 import (
+	"math"
+	"net/url"
+	"time"
+
 	"github.com/curt-labs/API/helpers/apicontext"
 	"github.com/curt-labs/API/helpers/database"
 	"github.com/curt-labs/API/models/brand"
@@ -8,9 +12,6 @@ import (
 	"github.com/curt-labs/API/models/video"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
-	"math"
-	"net/url"
-	"time"
 )
 
 type Category struct {
@@ -39,7 +40,7 @@ type Category struct {
 	Content            []Content                         `bson:"content" json:"content" xml:"content"`
 	Videos             []video.Video                     `bson:"videos" json:"videos" xml:"videos"`
 	Brand              brand.Brand                       `bson:"brand" json:"brand" xml:"brand"`
-	ProductIdentifiers []int                             `bson:"part_ids" json:"part_identifiers" xml:"part_identifiers"`
+	ProductIdentifiers []int                             `bson:"part_ids" json:"-" xml:"-"`
 }
 
 type PartResponse struct {

@@ -7,12 +7,18 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/gorilla/context"
 	"github.com/julienschmidt/httprouter"
 	"gopkg.in/mgo.v2"
 
 	"github.com/curt-labs/API/helpers/apicontext"
 	"github.com/curt-labs/API/helpers/error"
 	"github.com/curt-labs/API/models/customer"
+)
+
+const (
+	apiContext = "API_CONTEXT"
+	respObject = "RESPONSE_OBJECT"
 )
 
 // APIContext Holds all the possible globals that we are going to want
@@ -29,16 +35,13 @@ type APIContext struct {
 // to the appropriate request endpoint.
 type APIHandler struct {
 
-	// APIContext Global holder
-	*APIContext
-
 	// BeforeFuncs A series a middleware that gets executed before
 	// endpoint handlers
-	BeforeFuncs []Middleware
+	BeforeFuncs []http.Handler
 
 	// AfterFuncs A series a middleware that gets executed after
 	// endpoint handlers
-	AfterFuncs []Middleware
+	AfterFuncs []func(http.Handler) http.Handler
 
 	// H Defines a function definition for Object-Oriented handlers
 	H func(*APIContext, http.ResponseWriter, *http.Request) (interface{}, error)
@@ -48,45 +51,35 @@ type APIHandler struct {
 	S func(*APIContext, http.ResponseWriter, *http.Request)
 }
 
-// Middleware Required function definition for building/executing
-// middleware.
-type Middleware func(*APIContext, http.ResponseWriter, *http.Request) error
-
-func (m Middleware) ServeHTTP(ctx *APIContext, rw http.ResponseWriter, r *http.Request) error {
-	m(ctx, rw, r)
-	return nil
-}
-
 func (fn APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	if fn.H == nil && fn.S == nil {
 		apierror.GenerateError("There hasn't been a handler declared for this route", nil, w, r, http.StatusInternalServerError)
 		return
 	}
-	if fn.APIContext == nil {
-		fn.APIContext = new(APIContext)
+
+	ctx := &APIContext{
+		Params: ps,
 	}
-	fn.APIContext.Params = ps
 
 	if fn.S != nil {
-		fn.S(fn.APIContext, w, r)
+		fn.S(ctx, w, r)
 		return
 	}
+
+	context.Set(r, apiContext, ctx)
 
 	for _, bf := range fn.BeforeFuncs {
-		bf(fn.APIContext, w, r)
+		bf.ServeHTTP(w, r)
 	}
 
-	obj, err := fn.H(fn.APIContext, w, r)
-	if err != nil {
-		apierror.GenerateError(err.Error(), err, w, r, http.StatusInternalServerError)
-		return
-	}
+	ctx = context.Get(r, apiContext).(*APIContext)
 
-	for _, af := range fn.AfterFuncs {
-		af(fn.APIContext, w, r)
-	}
+	obj, _ := fn.H(ctx, w, r)
 
+	// context.Clear(r)
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(obj)
+
 	return
 }
 
@@ -94,19 +87,21 @@ func (fn APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, ps httpro
 func Wrap(h APIHandler) httprouter.Handle {
 	return httprouter.Handle(func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		h.ServeHTTP(w, r, ps)
+		// Gzip(h)
 	})
 }
 
-func WrapMiddleware(fn http.Handler) Middleware {
-	return Middleware(func(ctx *APIContext, w http.ResponseWriter, r *http.Request) error {
-		fn.ServeHTTP(w, r)
-		return nil
-	})
+type Keyed struct {
+	http.Handler
 }
 
-// Keyed ...
-func Keyed(ctx *APIContext, w http.ResponseWriter, r *http.Request) error {
+func (kh Keyed) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var err error
+
+	ctx := context.Get(r, apiContext).(*APIContext)
+	if ctx == nil {
+		ctx = &APIContext{}
+	}
 
 	qs := r.URL.Query()
 	apiKey := qs.Get("key")
@@ -127,7 +122,9 @@ func Keyed(ctx *APIContext, w http.ResponseWriter, r *http.Request) error {
 	//gets customer user from api key
 	user, err := customer.GetCustomerUserFromKey(apiKey)
 	if err != nil || user.Id == "" {
-		return fmt.Errorf("%s", "No User for this API Key.")
+		err = fmt.Errorf("%s", "No User for this API Key.")
+		apierror.GenerateError(err.Error(), err, w, r, http.StatusInternalServerError)
+		return
 	}
 	// go user.LogApiRequest(r)
 
@@ -162,5 +159,11 @@ func Keyed(ctx *APIContext, w http.ResponseWriter, r *http.Request) error {
 		Globals:    nil,
 	}
 
-	return ctx.DataContext.GetBrandsArrayAndString(apiKey, brandID)
+	err = ctx.DataContext.GetBrandsArrayAndString(apiKey, brandID)
+	if err != nil {
+		apierror.GenerateError(err.Error(), err, w, r, http.StatusInternalServerError)
+		return
+	}
+
+	context.Set(r, apiContext, ctx)
 }

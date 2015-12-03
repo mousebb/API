@@ -11,7 +11,6 @@ import (
 
 // GetCategory ...
 func GetCategory(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-
 	var c category.Category
 	var err error
 
@@ -22,7 +21,7 @@ func GetCategory(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Req
 
 	qs := r.URL.Query()
 	page := 1
-	count := 50
+	count := 25
 	if pg := qs.Get("page"); pg != "" {
 		page, _ = strconv.Atoi(pg)
 	}

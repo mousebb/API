@@ -1,7 +1,10 @@
 package router
 
 import (
+	"net/http"
+
 	"github.com/curt-labs/API/middleware"
+	"github.com/gorilla/context"
 
 	"github.com/curt-labs/API/controllers"
 	"github.com/curt-labs/API/controllers/apiKeyType"
@@ -35,8 +38,10 @@ type Route struct {
 	Handler    middleware.APIHandler
 }
 
-var commonBefore = []middleware.Middleware{middleware.Keyed}
-var commonAfter = []middleware.Middleware{}
+var commonBefore = []http.Handler{middleware.Keyed{}}
+
+// var commonBefore = []http.Handler{}
+var commonAfter = []func(http.Handler) http.Handler{context.ClearHandler}
 
 var routes = []Route{
 

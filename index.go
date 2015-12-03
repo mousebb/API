@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/curt-labs/API/router"
-	"github.com/nytimes/gziphandler"
 
 	"log"
 	"time"
@@ -493,7 +492,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:         *listenAddr,
-		Handler:      gziphandler.GzipHandler(r),
+		Handler:      r,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 	}
