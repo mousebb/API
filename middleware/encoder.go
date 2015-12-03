@@ -90,5 +90,7 @@ func toHTML(r *http.Request, w http.ResponseWriter, obj ...interface{}) error {
 		return err
 	}
 
+	w.Header().Set("Content-Type", "text/html")
+
 	return t.Execute(w, obj[0])
 }
