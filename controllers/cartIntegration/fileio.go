@@ -1,4 +1,4 @@
-package cartIntegration
+package pricingCtlr
 
 import (
 	"bytes"
@@ -7,19 +7,19 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/curt-labs/API/helpers/encoding"
 	"github.com/curt-labs/API/helpers/error"
+	"github.com/curt-labs/API/middleware"
 	"github.com/curt-labs/API/models/cartIntegration"
 )
 
 //TODO - extremely untested
 
-func Upload(rw http.ResponseWriter, r *http.Request, enc encoding.Encoder) string {
+// Upload ...
+func Upload(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	key := r.URL.Query().Get("key")
 	file, fileHeader, err := r.FormFile("file")
 	if err != nil {
-		apierror.GenerateError("Error getting file from form", err, rw, r)
-		return ""
+		return nil, err
 	}
 
 	if fileHeader != nil {
@@ -29,35 +29,35 @@ func Upload(rw http.ResponseWriter, r *http.Request, enc encoding.Encoder) strin
 			contentType != "application/csv" && contentType != "application/excel" &&
 			contentType != "application/vnd.ms-excel" && contentType != "application/vnd.msexcel" {
 			err = errors.New("The file you tried uploading was not a valid CSV file. Please try again using a valid CSV file.")
-			apierror.GenerateError("Error uploading file", err, rw, r)
-			return ""
+			return nil, err
 		}
 	}
 
 	err = cartIntegration.UploadFile(file, key)
 	if err != nil {
-		apierror.GenerateError("Error uploading file", err, rw, r)
-		return ""
+		return nil, err
 	}
-	return ""
+
+	return true, nil
 }
 
-func Download(rw http.ResponseWriter, r *http.Request, enc encoding.Encoder) string {
+// Download ...
+func Download(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) {
 
 	b := &bytes.Buffer{}
 	wr := csv.NewWriter(b)
 
 	customerPrices, err := cartIntegration.GetCustomerPrices()
 	if err != nil {
-		apierror.GenerateError("Error getting customer prices ", err, rw, r)
-		return ""
+		apierror.GenerateError(err.Error(), err, rw, r, http.StatusInternalServerError)
+		return
 	}
 
 	//Price map
 	prices, err := cartIntegration.GetPartPrices()
 	if err != nil {
-		apierror.GenerateError("Error getting part prices ", err, rw, r)
-		return ""
+		apierror.GenerateError(err.Error(), err, rw, r, http.StatusInternalServerError)
+		return
 	}
 	priceMap := make(map[string]float64)
 	for _, p := range prices {
@@ -107,5 +107,5 @@ func Download(rw http.ResponseWriter, r *http.Request, enc encoding.Encoder) str
 	rw.Header().Set("Content-Disposition", "attachment;filename=data.csv")
 	rw.Write(b.Bytes())
 
-	return ""
+	return
 }

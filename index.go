@@ -42,13 +42,7 @@ func main() {
 	// m.Use(sessions.Sessions("api_sessions", store))
 	// m.Use(encoding.MapEncoder)
 
-	// m.Group("/apiKeyTypes", func(r martini.Router) {
-	// 	r.Get("", apiKeyType.GetApiKeyTypes)
-	// })
-
 	// m.Group("/applicationGuide", func(r martini.Router) {
-	// 	r.Get("/website/:id", applicationGuide.GetApplicationGuidesByWebsite)
-	// 	r.Get("/:id", applicationGuide.GetApplicationGuide)
 	// 	r.Delete("/:id", applicationGuide.DeleteApplicationGuide)
 	// 	r.Post("", applicationGuide.CreateApplicationGuide)
 	// })
@@ -68,17 +62,9 @@ func main() {
 	// })
 
 	// m.Group("/brands", func(r martini.Router) {
-	// 	r.Get("", brand_ctlr.GetAllBrands)
 	// 	r.Post("", brand_ctlr.CreateBrand)
-	// 	r.Get("/:id", brand_ctlr.GetBrand)
 	// 	r.Put("/:id", brand_ctlr.UpdateBrand)
 	// 	r.Delete("/:id", brand_ctlr.DeleteBrand)
-	// })
-
-	// m.Group("/category", func(r martini.Router) {
-	// 	r.Get("/:id/parts", category_ctlr.GetCategoryParts)
-	// 	r.Get("/:id", category_ctlr.GetCategory)
-	// 	r.Get("", category_ctlr.GetCategoryTree)
 	// })
 
 	// m.Group("/contact", func(r martini.Router) {
@@ -103,81 +89,6 @@ func main() {
 	// 	r.Post("/:contactTypeID", contact.AddDealerContact)
 	// 	r.Put("/:id", contact.UpdateContact)
 	// 	r.Delete("/:id", contact.DeleteContact)
-	// })
-
-	// m.Group("/shopify/customers", func(r martini.Router) {
-	// 	// Customers - shop endpoints
-	// 	r.Get("", cart_ctlr.GetCustomers)
-	// 	r.Post("", cart_ctlr.AddCustomer)
-	// 	r.Get("/search", cart_ctlr.SearchCustomer)
-	// 	r.Get("/:id", cart_ctlr.GetCustomer)
-	// 	r.Put("/:id", cart_ctlr.EditCustomer)
-	// 	r.Delete("/:id", cart_ctlr.DeleteCustomer)
-	// 	r.Get("/:id/orders", cart_ctlr.GetCustomerOrders)
-
-	// 	// Addresses
-	// 	r.Get("/:id/addresses", cart_ctlr.GetAddresses)
-	// 	r.Get("/:id/addresses/:address", cart_ctlr.GetAddress)
-	// 	r.Post("/:id/addresses", cart_ctlr.AddAddress)
-	// 	r.Put("/:id/addresses/:address/default", cart_ctlr.SetDefaultAddress)
-	// 	r.Put("/:id/addresses/:address", cart_ctlr.EditAddress)
-	// 	r.Delete("/:id/addresses/:address", cart_ctlr.DeleteAddress)
-
-	// })
-
-	// m.Group("/shopify/order", func(r martini.Router) {
-	// 	// Orders
-	// 	r.Post("/order", cart_ctlr.CreateOrder)
-	// })
-
-	// m.Group("/shopify/account", func(r martini.Router) {
-	// 	// Account - user endpoints
-	// 	r.Get("", cart_ctlr.GetAccount)
-	// 	r.Post("", cart_ctlr.AddAccount)
-	// 	r.Put("", cart_ctlr.EditAccount)
-	// 	r.Post("/login", cart_ctlr.AccountLogin)
-
-	// 	// m.Group("/shopify/account/address", func(r martini.Router) {
-	// 	// 	r.Get("", cart_ctlr.GetAccountAddresses)
-	// 	// 	r.Post("", cart_ctlr.AddAccountAddress)
-	// 	// 	r.Put("", cart_ctlr.EditAccountAddress)
-	// 	// 	r.Delete("", cart_ctlr.DeleteAccountAddress)
-	// 	// })
-
-	// })
-
-	// m.Group("/cartIntegration", func(r martini.Router) {
-	// 	r.Get("/part/:part", cartIntegration.GetPartPricesByPartID)
-	// 	r.Get("/part", cartIntegration.GetAllPartPrices)
-	// 	r.Get("/count", cartIntegration.GetPricingCount)
-	// 	r.Get("", cartIntegration.GetPricing)
-	// 	r.Get("/:page/:count", cartIntegration.GetPricingPaged)
-	// 	r.Post("/part", cartIntegration.CreatePrice)
-	// 	r.Put("/part", cartIntegration.UpdatePrice)
-	// 	r.Get("/priceTypes", cartIntegration.GetAllPriceTypes)
-
-	// 	r.Post("/resetToMap", cartIntegration.ResetAllToMap)
-	// 	r.Post("/global/:type/:percentage", cartIntegration.Global)
-
-	// 	r.Post("/upload", cartIntegration.Upload)
-	// 	r.Post("/download", cartIntegration.Download)
-
-	// })
-
-	// m.Group("/cache", func(r martini.Router) { // different endpoint because partial matching matches this to another excused route
-	// 	r.Get("/key", cache.GetByKey)
-	// 	r.Get("/keys", cache.GetKeys)
-	// 	r.Delete("/keys", cache.DeleteKey)
-	// })
-
-	// m.Group("/cust", func(r martini.Router) { // different endpoint because partial matching matches this to another excused route
-	// 	r.Post("/user/changePassword", customer_ctlr.ChangePassword)
-	// })
-
-	// m.Group("/cache", func(r martini.Router) { // different endpoint because partial matching matches this to another excused route
-	// 	r.Get("/key", cache.GetByKey)
-	// 	r.Get("/keys", cache.GetKeys)
-	// 	r.Delete("/keys", cache.DeleteKey)
 	// })
 
 	// m.Group("/customer", func(r martini.Router) {

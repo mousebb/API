@@ -1,68 +1,46 @@
 package cache
 
 import (
-	"encoding/json"
-	"github.com/curt-labs/API/helpers/redis"
-	"github.com/curt-labs/API/models/customer"
+	"fmt"
 	"net/http"
+
+	"github.com/curt-labs/API/helpers/redis"
+	"github.com/curt-labs/API/middleware"
+	"github.com/curt-labs/API/models/customer"
 )
 
 //TODO check for super user
-func GetKeys(w http.ResponseWriter, r *http.Request) {
+
+// GetKeys ...
+func GetKeys(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	if !approveuser(r) {
-		http.Error(w, "Not authorized", http.StatusUnauthorized)
-		return
-	}
-	namespaces, err := redis.GetNamespaces()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return nil, fmt.Errorf("%s", "unauthorized request")
 	}
 
-	j, err := json.Marshal(namespaces)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.Write([]byte(j))
+	return redis.GetNamespaces()
 }
 
-func GetByKey(w http.ResponseWriter, r *http.Request) {
+// GetByKey ...
+func GetByKey(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	if !approveuser(r) {
-		http.Error(w, "Not authorized", http.StatusUnauthorized)
-		return
-	}
-	redis_key := r.URL.Query().Get("redis_key")
-	redis_namespace := r.URL.Query().Get("redis_namespace")
-
-	key := redis_namespace + ":" + redis_key
-	res, err := redis.GetFullPath(key)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return nil, fmt.Errorf("%s", "unauthorized request")
 	}
 
-	j, err := json.Marshal(res)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Write([]byte(j))
+	key := r.URL.Query().Get("redis_key")
+	namespace := r.URL.Query().Get("redis_namespace")
+
+	return redis.GetFullPath(fmt.Sprintf("%s:%s", namespace, key))
 }
 
-func DeleteKey(w http.ResponseWriter, r *http.Request) {
+// DeleteKey ...
+func DeleteKey(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	if !approveuser(r) {
-		http.Error(w, "Not authorized", http.StatusUnauthorized)
-		return
+		return nil, fmt.Errorf("%s", "unauthorized request")
 	}
-	redis_key := r.URL.Query().Get("redis")
-	err := redis.DeleteFullPath(redis_key)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	return
+
+	key := r.URL.Query().Get("redis")
+
+	return nil, redis.DeleteFullPath(key)
 }
 
 func approveuser(r *http.Request) bool {

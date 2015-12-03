@@ -1,16 +1,17 @@
-package brand_ctlr
+package brandCtlr
 
 import (
 	// "bytes"
 	"encoding/json"
-	"github.com/curt-labs/API/helpers/testThatHttp"
-	"github.com/curt-labs/API/models/brand"
-	. "github.com/smartystreets/goconvey/convey"
 	"net/url"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/curt-labs/API/helpers/testThatHttp"
+	"github.com/curt-labs/API/models/brand"
+	. "github.com/smartystreets/goconvey/convey"
 )
 
 func TestBrand(t *testing.T) {

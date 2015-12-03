@@ -1,4 +1,4 @@
-package cartIntegration
+package pricingCtlr
 
 import (
 	"encoding/json"
@@ -8,12 +8,9 @@ import (
 	"strconv"
 	"time"
 
-	// "github.com/curt-labs/API/helpers/apicontext"
-	"github.com/curt-labs/API/helpers/encoding"
-	"github.com/curt-labs/API/helpers/error"
+	"github.com/curt-labs/API/middleware"
 	"github.com/curt-labs/API/models/cartIntegration"
 	"github.com/curt-labs/API/models/customer"
-	"github.com/go-martini/martini"
 )
 
 func setDB(r *http.Request) error {
@@ -25,7 +22,7 @@ func setDB(r *http.Request) error {
 	return nil
 }
 
-func setCustomerId(r *http.Request) error {
+func setCustomerID(r *http.Request) error {
 	c := customer.Customer{}
 	err := c.GetCustomerIdFromKey(r.URL.Query().Get("key"))
 	if err != nil {
@@ -35,231 +32,177 @@ func setCustomerId(r *http.Request) error {
 	return nil
 }
 
-// Requires APIKEY and brandID in header
-func GetPricing(rw http.ResponseWriter, r *http.Request, enc encoding.Encoder) string {
+// GetPricing Requires APIKEY and brandID in header
+func GetPricing(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
+
 	var err error
 	err = setDB(r)
 	if err != nil {
-		apierror.GenerateError("Trouble getting brandID from query string", err, rw, r)
-		return ""
+		return nil, err
 	}
-	err = setCustomerId(r)
+	err = setCustomerID(r)
 	if err != nil {
-		apierror.GenerateError("Trouble getting customer from api key", err, rw, r)
-		return ""
+		return nil, err
 	}
-	prices, err := cartIntegration.GetCustomerPrices()
-	if err != nil {
-		apierror.GenerateError("Trouble getting prices by customer ID", err, rw, r)
-		return ""
-	}
-	return encoding.Must(enc.Encode(prices))
+
+	return cartIntegration.GetCustomerPrices()
 }
 
-// Requires APIKEY and brandID in header
+// GetPricingPaged Requires APIKEY and brandID in header
 // Requires count and page in params
-func GetPricingPaged(rw http.ResponseWriter, r *http.Request, enc encoding.Encoder, params martini.Params) string {
+func GetPricingPaged(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	var err error
 	err = setDB(r)
 	if err != nil {
-		apierror.GenerateError("Trouble getting brandID from query string", err, rw, r)
-		return ""
+		return nil, err
 	}
-	err = setCustomerId(r)
+	err = setCustomerID(r)
 	if err != nil {
-		apierror.GenerateError("Trouble getting customer from api key", err, rw, r)
-		return ""
+		return nil, err
 	}
 
-	page, err := strconv.Atoi(params["page"])
+	page, err := strconv.Atoi(ctx.Params.ByName("page"))
 	if page < 1 || err != nil {
-		apierror.GenerateError("Trouble getting page number for paged customer pricing", err, rw, r)
-		return ""
+		return nil, err
 	}
 
-	count, err := strconv.Atoi(params["count"])
+	count, err := strconv.Atoi(ctx.Params.ByName("count"))
 	if count < 1 || err != nil {
-		apierror.GenerateError("Trouble getting count for paged customer pricing", err, rw, r)
-		return ""
+		return nil, err
 	}
 
-	prices, err := cartIntegration.GetPricingPaged(page, count)
-	if err != nil {
-		apierror.GenerateError("Trouble getting prices for paged customer pricing", err, rw, r)
-		return ""
-	}
-
-	return encoding.Must(enc.Encode(prices))
+	return cartIntegration.GetPricingPaged(page, count)
 }
 
-//Returns int
-func GetPricingCount(rw http.ResponseWriter, r *http.Request, enc encoding.Encoder) string {
+//GetPricingCount Returns int
+func GetPricingCount(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	var err error
 	err = setDB(r)
 	if err != nil {
-		apierror.GenerateError("Trouble getting brandID from query string", err, rw, r)
-		return ""
+		return nil, err
 	}
-	err = setCustomerId(r)
+	err = setCustomerID(r)
 	if err != nil {
-		apierror.GenerateError("Trouble getting customer from api key", err, rw, r)
-		return ""
+		return nil, err
 	}
-	count, err := cartIntegration.GetPricingCount()
-	if err != nil {
-		apierror.GenerateError("Trouble getting pricing count", err, rw, r)
-		return ""
-	}
-	return encoding.Must(enc.Encode(count))
+
+	return cartIntegration.GetPricingCount()
 }
 
-//Returns Mfr Prices for a part
-func GetPartPricesByPartID(rw http.ResponseWriter, r *http.Request, enc encoding.Encoder, params martini.Params) string {
+// GetPartPricesByPartID Returns Mfr Prices for a part
+func GetPartPricesByPartID(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	var err error
 	err = setDB(r)
 	if err != nil {
-		apierror.GenerateError("Trouble getting brandID from query string", err, rw, r)
-		return ""
+		return nil, err
 	}
-	partID, err := strconv.Atoi(params["part"])
+	partID, err := strconv.Atoi(ctx.Params.ByName("part"))
 	if partID < 1 || err != nil {
-		apierror.GenerateError("Trouble getting part number for part pricing", err, rw, r)
-		return ""
+		return nil, err
 	}
-	prices, err := cartIntegration.GetPartPricesByPartID(partID)
-	if err != nil {
-		apierror.GenerateError("Trouble getting pricing", err, rw, r)
-		return ""
-	}
-	return encoding.Must(enc.Encode(prices))
+
+	return cartIntegration.GetPartPricesByPartID(partID)
 }
 
-//Returns Mfr Prices
-func GetAllPartPrices(rw http.ResponseWriter, r *http.Request, enc encoding.Encoder, params martini.Params) string {
+// GetAllPartPrices Returns Mfr Prices
+func GetAllPartPrices(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
+
+	err := setDB(r)
+	if err != nil {
+		return nil, err
+	}
+
+	return cartIntegration.GetPartPrices()
+}
+
+// CreatePrice ...
+func CreatePrice(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	var err error
 	err = setDB(r)
 	if err != nil {
-		apierror.GenerateError("Trouble getting brandID from query string", err, rw, r)
-		return ""
-	}
-	prices, err := cartIntegration.GetPartPrices()
-	if err != nil {
-		apierror.GenerateError("Trouble getting pricing", err, rw, r)
-		return ""
-	}
-	return encoding.Must(enc.Encode(prices))
-}
-
-func CreatePrice(rw http.ResponseWriter, r *http.Request, enc encoding.Encoder) string {
-	var err error
-	err = setDB(r)
-	if err != nil {
-		apierror.GenerateError("Trouble getting brandID from query string", err, rw, r)
-		return ""
+		return nil, err
 	}
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		apierror.GenerateError("Trouble creating pricing", err, rw, r)
-		return ""
+		return nil, err
 	}
 	var price cartIntegration.CustomerPrice
 	err = json.Unmarshal(body, &price)
 	if err != nil {
-		apierror.GenerateError("Trouble creating pricing", err, rw, r)
-		return ""
+		return nil, err
 	}
-	err = setCustomerId(r)
+	err = setCustomerID(r)
 	if err != nil {
-		apierror.GenerateError("Trouble getting customer from api key", err, rw, r)
-		return ""
+		return nil, err
 	}
 	price.CustID = cartIntegration.Customer_ID
 	err = validatePrice(price)
 	if err != nil {
-		apierror.GenerateError(err.Error(), err, rw, r)
-		return ""
+		return nil, err
 	}
 	err = price.Create()
 	if err != nil {
-		apierror.GenerateError("Trouble creating pricing", err, rw, r)
-		return ""
+		return nil, err
 	}
 	err = price.InsertCartIntegration()
-	if err != nil {
-		apierror.GenerateError("Trouble creating CartIntegration", err, rw, r)
-		return ""
-	}
-	return encoding.Must(enc.Encode(price))
+
+	return price, err
 }
 
-func UpdatePrice(rw http.ResponseWriter, r *http.Request, enc encoding.Encoder) string {
+// UpdatePrice ...
+func UpdatePrice(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	var err error
 	err = setDB(r)
 	if err != nil {
-		apierror.GenerateError("Trouble getting brandID from query string", err, rw, r)
-		return ""
+		return nil, err
 	}
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		apierror.GenerateError("Trouble creating pricing", err, rw, r)
-		return ""
-	}
+
 	var price cartIntegration.CustomerPrice
-	err = json.Unmarshal(body, &price)
+	err = json.NewDecoder(r.Body).Decode(&price)
 	if err != nil {
-		apierror.GenerateError("Trouble creating pricing", err, rw, r)
-		return ""
+		return nil, err
 	}
-	err = setCustomerId(r)
+
+	err = setCustomerID(r)
 	if err != nil {
-		apierror.GenerateError("Trouble getting customer from api key", err, rw, r)
-		return ""
+		return nil, err
 	}
+
 	price.CustID = cartIntegration.Customer_ID
 	err = validatePrice(price)
 	if err != nil {
-		apierror.GenerateError(err.Error(), err, rw, r)
-		return ""
+		return nil, err
 	}
 	err = price.Update()
 	if err != nil {
-		apierror.GenerateError("Trouble updating price", err, rw, r)
-		return ""
+		return nil, err
 	}
 
 	err = price.UpdateCartIntegration()
-	if err != nil {
-		apierror.GenerateError("Trouble updating CartIntegration", err, rw, r)
-		return ""
-	}
 
-	return encoding.Must(enc.Encode(price))
+	return price, err
 }
 
-//set all of a customer's prices to MAP
-func ResetAllToMap(rw http.ResponseWriter, r *http.Request, enc encoding.Encoder) string {
+// ResetAllToMap Set all of a customer's prices to MAP
+func ResetAllToMap(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	var err error
 	err = setDB(r)
 	if err != nil {
-		apierror.GenerateError("Trouble getting brandID from query string", err, rw, r)
-		return ""
+		return nil, err
 	}
-	err = setCustomerId(r)
+	err = setCustomerID(r)
 	if err != nil {
-		apierror.GenerateError("Trouble getting customer from api key", err, rw, r)
-		return ""
+		return nil, err
 	}
 	custPrices, err := cartIntegration.GetCustomerPrices()
 	if err != nil {
-		apierror.GenerateError("Trouble getting prices by customer ID", err, rw, r)
-		return ""
+		return nil, err
 	}
 
 	//create map of MAP prices
 	prices, err := cartIntegration.GetMAPPartPrices()
 	if err != nil {
-		apierror.GenerateError("Trouble getting part prices", err, rw, r)
-		return ""
+		return nil, err
 	}
 	priceMap := make(map[int]cartIntegration.Price)
 	for _, p := range prices {
@@ -267,7 +210,7 @@ func ResetAllToMap(rw http.ResponseWriter, r *http.Request, enc encoding.Encoder
 	}
 
 	//set to MAP
-	for i, _ := range custPrices {
+	for i := range custPrices {
 		custPrices[i].Price = priceMap[custPrices[i].PartID].Price
 		if custPrices[i].CustID == 0 {
 			custPrices[i].CustID = cartIntegration.Customer_ID
@@ -278,40 +221,37 @@ func ResetAllToMap(rw http.ResponseWriter, r *http.Request, enc encoding.Encoder
 			err = custPrices[i].Update()
 		}
 		if err != nil {
-			apierror.GenerateError("Trouble updating price", err, rw, r)
-			return ""
+			return nil, err
 		}
 	}
-	return encoding.Must(enc.Encode(custPrices))
+
+	return custPrices, nil
 }
 
-//sets all of a customer's prices to a percentage of the price type specified in params
-func Global(rw http.ResponseWriter, r *http.Request, enc encoding.Encoder, params martini.Params) string {
+// Global Sets all of a customer's prices to a percentage of the price type specified in params
+func Global(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	var err error
 	err = setDB(r)
 	if err != nil {
-		apierror.GenerateError("Trouble getting brandID from query string", err, rw, r)
-		return ""
+		return nil, err
 	}
-	err = setCustomerId(r)
+	err = setCustomerID(r)
 	if err != nil {
-		apierror.GenerateError("Trouble getting customer from api key", err, rw, r)
-		return ""
+		return nil, err
 	}
-	priceType := params["type"]
-	percent, err := strconv.ParseFloat(params["percentage"], 64)
+	priceType := ctx.Params.ByName("type")
+	percent, err := strconv.ParseFloat(ctx.Params.ByName("percentage"), 64)
 	if err != nil {
-		apierror.GenerateError("Trouble parsing percentage", err, rw, r)
-		return ""
+		return nil, err
 	}
 	percent = percent / 100
 
 	//create partPriceMap
 	prices, err := cartIntegration.GetPartPrices()
 	if err != nil {
-		apierror.GenerateError("Trouble getting part prices", err, rw, r)
-		return ""
+		return nil, err
 	}
+
 	priceMap := make(map[string]float64)
 	for _, p := range prices {
 		key := strconv.Itoa(p.PartID) + p.Type
@@ -321,12 +261,11 @@ func Global(rw http.ResponseWriter, r *http.Request, enc encoding.Encoder, param
 	//get CustPrices
 	custPrices, err := cartIntegration.GetCustomerPrices()
 	if err != nil {
-		apierror.GenerateError("Trouble getting prices by customer ID", err, rw, r)
-		return ""
+		return nil, err
 	}
 
 	//set to percentage
-	for i, _ := range custPrices {
+	for i := range custPrices {
 		if custPrices[i].CustID == 0 {
 			custPrices[i].CustID = cartIntegration.Customer_ID
 		}
@@ -338,27 +277,22 @@ func Global(rw http.ResponseWriter, r *http.Request, enc encoding.Encoder, param
 
 		}
 		if err != nil {
-			apierror.GenerateError("Trouble updating price", err, rw, r)
-			return ""
+			return nil, err
 		}
 	}
-	return encoding.Must(enc.Encode(custPrices))
+
+	return custPrices, nil
 }
 
-//Get those price types
-func GetAllPriceTypes(rw http.ResponseWriter, r *http.Request, enc encoding.Encoder) string {
+// GetAllPriceTypes Get those price types
+func GetAllPriceTypes(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	var err error
 	err = setDB(r)
 	if err != nil {
-		apierror.GenerateError("Trouble getting brandID from query string", err, rw, r)
-		return ""
+		return nil, err
 	}
-	types, err := cartIntegration.GetAllPriceTypes()
-	if err != nil {
-		apierror.GenerateError("Trouble getting price types", err, rw, r)
-		return ""
-	}
-	return encoding.Must(enc.Encode(types))
+
+	return cartIntegration.GetAllPriceTypes()
 }
 
 //Utility
