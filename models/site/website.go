@@ -1,11 +1,7 @@
 package site
 
 import (
-	"database/sql"
-	"github.com/curt-labs/API/helpers/apicontext"
-	"github.com/curt-labs/API/helpers/database"
-	// "github.com/curt-labs/API/helpers/redis"
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/curt-labs/API/middleware"
 )
 
 type Website struct {
@@ -29,17 +25,14 @@ var (
 	getBrands       = `select brandID from WebsiteToBrand where WebsiteID = ?`
 )
 
-func (w *Website) Get() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getSite)
+func (w *Website) Get(ctx *middleware.APIContext) (err error) {
+
+	stmt, err := ctx.DB.Prepare(getSite)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
+
 	var url, desc *string
 	err = stmt.QueryRow(w.ID).Scan(
 		&w.ID,
@@ -56,7 +49,7 @@ func (w *Website) Get() (err error) {
 		w.Description = *desc
 	}
 	//get brands
-	stmt, err = db.Prepare(getBrands)
+	stmt, err = ctx.DB.Prepare(getBrands)
 	if err != nil {
 		return err
 	}
@@ -76,19 +69,19 @@ func (w *Website) Get() (err error) {
 	return err
 }
 
-func (w *Website) GetDetails(dtx *apicontext.DataContext) (err error) {
-	err = w.Get()
+func (w *Website) GetDetails(ctx *middleware.APIContext) (err error) {
+	err = w.Get(ctx)
 	if err != nil {
 		return err
 	}
 
-	menus, err := GetAllMenus(dtx)
-	menuMap := menus.ToMap()
+	menus, err := GetAllMenus(ctx)
+	menuMap := menus.toMap()
 
 	for _, menu := range menuMap {
 
 		if menu.WebsiteId == w.ID {
-			err = menu.GetContents()
+			err = menu.GetContents(ctx)
 			w.Menus = append(w.Menus, menu)
 		}
 	}
@@ -96,18 +89,19 @@ func (w *Website) GetDetails(dtx *apicontext.DataContext) (err error) {
 	return err
 }
 
-func GetAllWebsites() (ws Websites, err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return ws, err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getAllSites)
+func GetAllWebsites(ctx *middleware.APIContext) (ws Websites, err error) {
+
+	stmt, err := ctx.DB.Prepare(getAllSites)
 	if err != nil {
 		return ws, err
 	}
 	defer stmt.Close()
+
 	res, err := stmt.Query()
+	if err != nil {
+		return ws, err
+	}
+
 	var w Website
 	var url, desc *string
 	for res.Next() {
@@ -128,16 +122,17 @@ func GetAllWebsites() (ws Websites, err error) {
 		ws = append(ws, w)
 	}
 	defer res.Close()
-	return ws, err
+
+	return ws, nil
 }
 
-func (w *Website) Create() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
+func (w *Website) Create(ctx *middleware.APIContext) (err error) {
+
+	tx, err := ctx.DB.Begin()
 	if err != nil {
 		return err
 	}
-	defer db.Close()
-	tx, err := db.Begin()
+
 	stmt, err := tx.Prepare(createSite)
 	if err != nil {
 		return err
@@ -154,31 +149,31 @@ func (w *Website) Create() (err error) {
 	if err != nil {
 		return err
 	}
-	err = w.JoinToBrand()
+	err = w.joinToBrand(ctx)
 	if err != nil {
 		return err
 	}
 	return err
 }
 
-func (w *Website) Update() error {
+func (w *Website) Update(ctx *middleware.APIContext) error {
 	var err error
 	for _, brandId := range w.BrandIDs {
-		err = w.DeleteBrandJoin(brandId)
+		err = w.deleteBrandJoin(brandId, ctx)
 		if err != nil {
 			return err
 		}
 	}
-	err = w.JoinToBrand()
+	err = w.joinToBrand(ctx)
 	if err != nil {
 		return err
 	}
-	db, err := sql.Open("mysql", database.ConnectionString())
+
+	tx, err := ctx.DB.Begin()
 	if err != nil {
 		return err
 	}
-	defer db.Close()
-	tx, err := db.Begin()
+
 	stmt, err := tx.Prepare(updateSite)
 	if err != nil {
 		return err
@@ -193,20 +188,19 @@ func (w *Website) Update() error {
 	return err
 }
 
-func (w *Website) Delete() (err error) {
+func (w *Website) Delete(ctx *middleware.APIContext) (err error) {
 	for _, brandId := range w.BrandIDs {
-		err = w.DeleteBrandJoin(brandId)
+		err = w.deleteBrandJoin(brandId, ctx)
 		if err != nil {
 			return err
 		}
 	}
 
-	db, err := sql.Open("mysql", database.ConnectionString())
+	tx, err := ctx.DB.Begin()
 	if err != nil {
 		return err
 	}
-	defer db.Close()
-	tx, err := db.Begin()
+
 	stmt, err := tx.Prepare(deleteSite)
 	if err != nil {
 		return err
@@ -225,37 +219,27 @@ func (w *Website) Delete() (err error) {
 	return err
 }
 
-func (w *Website) JoinToBrand() error {
-	var err error
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
+func (w *Website) joinToBrand(ctx *middleware.APIContext) error {
 
-	stmt, err := db.Prepare(joinToBrand)
+	stmt, err := ctx.DB.Prepare(joinToBrand)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
-	for _, brandId := range w.BrandIDs {
-		_, err = stmt.Exec(w.ID, brandId)
+
+	for _, brandID := range w.BrandIDs {
+		_, err = stmt.Exec(w.ID, brandID)
 		if err != nil {
 			return err
 		}
 	}
-	return err
+
+	return nil
 }
 
-func (w *Website) DeleteBrandJoin(brandId int) error {
-	var err error
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
+func (w *Website) deleteBrandJoin(brandId int, ctx *middleware.APIContext) error {
 
-	stmt, err := db.Prepare(deleteBrandJoin)
+	stmt, err := ctx.DB.Prepare(deleteBrandJoin)
 	if err != nil {
 		return err
 	}
@@ -268,7 +252,7 @@ func (w *Website) DeleteBrandJoin(brandId int) error {
 }
 
 //mapping
-func (c Contents) ToMap() map[int]Content {
+func (c Contents) toMap() map[int]Content {
 	theMap := make(map[int]Content)
 	for _, v := range c {
 		theMap[v.Id] = v
@@ -276,7 +260,7 @@ func (c Contents) ToMap() map[int]Content {
 	return theMap
 }
 
-func (m Menus) ToMap() map[int]Menu {
+func (m Menus) toMap() map[int]Menu {
 	theMap := make(map[int]Menu)
 	for _, v := range m {
 		theMap[v.Id] = v

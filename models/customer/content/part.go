@@ -1,13 +1,13 @@
 package custcontent
 
 import (
-	"database/sql"
-	"github.com/curt-labs/API/helpers/api"
-	"github.com/curt-labs/API/helpers/database"
-	_ "github.com/go-sql-driver/mysql"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/curt-labs/API/helpers/api"
+	"github.com/curt-labs/API/middleware"
+	_ "github.com/go-sql-driver/mysql"
 )
 
 var (
@@ -52,26 +52,25 @@ type PartContent struct {
 }
 
 // Retrieves all part content for this customer
-func GetAllPartContent(key string) (content []PartContent, err error) {
+func GetAllPartContent(ctx *middleware.APIContext) (content []PartContent, err error) {
 
-	db, err := sql.Open("mysql", database.ConnectionString())
+	stmt, err := ctx.DB.Prepare(allCustomerPartContent)
 	if err != nil {
-		return content, err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(allCustomerPartContent)
-	if err != nil {
-		return content, err
+		return
 	}
 
-	res, err := stmt.Query(key)
+	res, err := stmt.Query(ctx.DataContext.APIKey)
+	if err != nil {
+		return
+	}
+	defer res.Close()
 
 	rawContent := make(map[int][]CustomerContent, 0)
 	var partId int
 	var deleted *bool
 	var added, modified *time.Time
 	var ctype string
+
 	for res.Next() {
 		var cc CustomerContent
 		err = res.Scan(
@@ -103,7 +102,6 @@ func GetAllPartContent(key string) (content []PartContent, err error) {
 		}
 
 	}
-	defer res.Close()
 
 	for k, _ := range rawContent {
 		pCon := PartContent{
@@ -112,30 +110,31 @@ func GetAllPartContent(key string) (content []PartContent, err error) {
 		}
 		content = append(content, pCon)
 	}
-	return
 
+	return
 }
 
 // Retrieves specific part content for this customer
-func GetPartContent(partID int, key string) (content []CustomerContent, err error) {
+func GetPartContent(partID int, ctx *middleware.APIContext) (content []CustomerContent, err error) {
 	content = make([]CustomerContent, 0) // initializer
 
-	db, err := sql.Open("mysql", database.ConnectionString())
+	stmt, err := ctx.DB.Prepare(customerPartContent)
 	if err != nil {
 		return content, err
 	}
-	defer db.Close()
+	defer stmt.Close()
 
-	stmt, err := db.Prepare(customerPartContent)
+	res, err := stmt.Query(ctx.DataContext.APIKey, partID)
 	if err != nil {
-		return content, err
+		return
 	}
+	defer res.Close()
 
-	res, err := stmt.Query(key, partID)
 	var partId int
 	var deleted *bool
 	var added, modified *time.Time
 	var ctype string
+
 	for res.Next() {
 		var cc CustomerContent
 		err = res.Scan(
@@ -167,7 +166,7 @@ func GetPartContent(partID int, key string) (content []CustomerContent, err erro
 	return
 }
 
-func GetGroupedPartContent(ids []string, key string) (content map[int][]CustomerContent, err error) {
+func GetGroupedPartContent(ids []string, ctx *middleware.APIContext) (content map[int][]CustomerContent, err error) {
 	content = make(map[int][]CustomerContent, len(ids))
 
 	for i := 0; i < len(ids); i++ {
@@ -176,24 +175,25 @@ func GetGroupedPartContent(ids []string, key string) (content map[int][]Customer
 			content[intId] = make([]CustomerContent, 0)
 		}
 	}
-	escaped_key := api_helpers.Escape(key)
+	escaped_key := api_helpers.Escape(ctx.DataContext.APIKey)
 
-	db, err := sql.Open("mysql", database.ConnectionString())
+	stmt, err := ctx.DB.Prepare(customerPartContent_Grouped)
 	if err != nil {
-		return content, err
+		return
 	}
-	defer db.Close()
+	defer stmt.Close()
 
-	stmt, err := db.Prepare(customerPartContent_Grouped)
-	if err != nil {
-		return content, err
-	}
 	var partId int
 	var deleted *bool
 	var added, modified *time.Time
 	var ctype string
 
 	res, err := stmt.Query(escaped_key, strings.Join(ids, ","))
+	if err != nil {
+		return
+	}
+	defer res.Close()
+
 	for res.Next() {
 		var cc CustomerContent
 		err = res.Scan(
@@ -221,6 +221,6 @@ func GetGroupedPartContent(ids []string, key string) (content map[int][]Customer
 		}
 		content[partId] = append(content[partId], cc)
 	}
-	defer res.Close()
+
 	return
 }

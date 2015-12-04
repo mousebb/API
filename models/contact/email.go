@@ -6,6 +6,7 @@ import (
 	"text/template"
 
 	"github.com/curt-labs/API/helpers/email"
+	"github.com/curt-labs/API/middleware"
 )
 
 type SmtpTemplateData struct {
@@ -16,9 +17,9 @@ type SmtpTemplateData struct {
 
 const emailTemplate = "To: {{.To}}}\nSubject: {{.Subject}}\n{{.Body}}\n"
 
-func SendEmail(ct ContactType, subject string, body string) (err error) {
+func SendEmail(ct ContactType, subject string, body string, ctx *middleware.APIContext) (err error) {
 	var tos []string
-	receivers, err := ct.GetReceivers()
+	receivers, err := ct.GetReceivers(ctx)
 	if err != nil {
 		return err
 	}

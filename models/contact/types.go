@@ -1,12 +1,11 @@
 package contact
 
 import (
-	"database/sql"
 	"errors"
-	"github.com/curt-labs/API/helpers/apicontext"
-	"github.com/curt-labs/API/helpers/database"
-	_ "github.com/go-sql-driver/mysql"
 	"strings"
+
+	"github.com/curt-labs/API/middleware"
+	_ "github.com/go-sql-driver/mysql"
 )
 
 var (
@@ -18,8 +17,8 @@ var (
 	addContactTypeStmt    = `insert into ContactType(name,showOnWebsite, brandID) values (?,?,?)`
 	updateContactTypeStmt = `update ContactType set name = ?, showOnWebsite = ?, brandID = ? where contactTypeID = ?`
 	deleteContactTypeStmt = `delete from ContactType where contactTypeID = ?`
-	getReceiverByType     = `select cr.contactReceiverID, cr.first_name, cr.last_name, cr.email from ContactReceiver_ContactType as crct 
-								left join ContactReceiver as cr on crct.contactReceiverID = cr.contactReceiverID 
+	getReceiverByType     = `select cr.contactReceiverID, cr.first_name, cr.last_name, cr.email from ContactReceiver_ContactType as crct
+								left join ContactReceiver as cr on crct.contactReceiverID = cr.contactReceiverID
 								where crct.contactTypeID = ?`
 	getTypeNameFromId = `select name from ContactType where contactTypeID = ?`
 )
@@ -32,20 +31,15 @@ type ContactType struct {
 	BrandID       int    `json:"brandId" xml:"brandId"`
 }
 
-func GetAllContactTypes(dtx *apicontext.DataContext) (types ContactTypes, err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return
-	}
-	defer db.Close()
+func GetAllContactTypes(ctx *middleware.APIContext) (types ContactTypes, err error) {
 
-	stmt, err := db.Prepare(getAllContactTypesStmt)
+	stmt, err := ctx.DB.Prepare(getAllContactTypesStmt)
 	if err != nil {
 		return
 	}
 	defer stmt.Close()
 
-	rows, err := stmt.Query(dtx.APIKey, dtx.BrandID, dtx.BrandID)
+	rows, err := stmt.Query(ctx.DataContext.APIKey, ctx.DataContext.BrandID, ctx.DataContext.BrandID)
 	if err != nil {
 		return
 	}
@@ -66,60 +60,47 @@ func GetAllContactTypes(dtx *apicontext.DataContext) (types ContactTypes, err er
 	return
 }
 
-func (ct *ContactType) Get() error {
-	if ct.ID > 0 {
-		db, err := sql.Open("mysql", database.ConnectionString())
-		if err != nil {
-			return err
-		}
-		defer db.Close()
+func (ct *ContactType) Get(ctx *middleware.APIContext) error {
+	if ct.ID == 0 {
+		return errors.New("invalid type identifier")
+	}
 
-		stmt, err := db.Prepare(getContactTypeStmt)
-		if err != nil {
-			return err
-		}
-		defer stmt.Close()
-
-		err = stmt.QueryRow(ct.ID).Scan(
-			&ct.ID,
-			&ct.Name,
-			&ct.ShowOnWebsite,
-		)
+	stmt, err := ctx.DB.Prepare(getContactTypeStmt)
+	if err != nil {
 		return err
 	}
-	return errors.New("Invalid ContactType ID")
+	defer stmt.Close()
+
+	return stmt.QueryRow(ct.ID).Scan(
+		&ct.ID,
+		&ct.Name,
+		&ct.ShowOnWebsite,
+	)
 }
 
-func GetContactTypeNameFromId(id int) (string, error) {
-	var err error
+func GetContactTypeNameFromId(id int, ctx *middleware.APIContext) (string, error) {
 	var name string
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return name, err
-	}
-	defer db.Close()
 
-	stmt, err := db.Prepare(getTypeNameFromId)
+	stmt, err := ctx.DB.Prepare(getTypeNameFromId)
 	if err != nil {
-		return name, err
+		return "", err
 	}
 	defer stmt.Close()
+
 	err = stmt.QueryRow(id).Scan(&name)
-	return name, err
+	if err != nil {
+		return "", err
+	}
+
+	return name, nil
 }
 
-func (ct *ContactType) Add() error {
+func (ct *ContactType) Add(ctx *middleware.APIContext) error {
 	if strings.TrimSpace(ct.Name) == "" {
 		return errors.New("Invalid contact name.")
 	}
 
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(addContactTypeStmt)
+	stmt, err := ctx.DB.Prepare(addContactTypeStmt)
 	if err != nil {
 		return err
 	}
@@ -139,22 +120,21 @@ func (ct *ContactType) Add() error {
 	return nil
 }
 
-func (ct *ContactType) GetReceivers() (crs ContactReceivers, err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return crs, err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getReceiverByType)
+func (ct *ContactType) GetReceivers(ctx *middleware.APIContext) (crs ContactReceivers, err error) {
+
+	stmt, err := ctx.DB.Prepare(getReceiverByType)
 	if err != nil {
 		return crs, err
 	}
 	defer stmt.Close()
+
 	var cr ContactReceiver
 	res, err := stmt.Query(ct.ID)
 	if err != nil {
 		return crs, err
 	}
+	defer res.Close()
+
 	for res.Next() {
 		err = res.Scan(
 			&cr.ID,
@@ -167,11 +147,11 @@ func (ct *ContactType) GetReceivers() (crs ContactReceivers, err error) {
 		}
 		crs = append(crs, cr)
 	}
-	defer res.Close()
-	return crs, err
+
+	return crs, nil
 }
 
-func (ct *ContactType) Update() error {
+func (ct *ContactType) Update(ctx *middleware.APIContext) error {
 	if ct.ID == 0 {
 		return errors.New("Invalid ContactType ID")
 	}
@@ -179,13 +159,7 @@ func (ct *ContactType) Update() error {
 		return errors.New("Invalid contact name.")
 	}
 
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(updateContactTypeStmt)
+	stmt, err := ctx.DB.Prepare(updateContactTypeStmt)
 	if err != nil {
 		return err
 	}
@@ -196,23 +170,18 @@ func (ct *ContactType) Update() error {
 	return err
 }
 
-func (ct *ContactType) Delete() error {
-	if ct.ID > 0 {
-		db, err := sql.Open("mysql", database.ConnectionString())
-		if err != nil {
-			return err
-		}
-		defer db.Close()
+func (ct *ContactType) Delete(ctx *middleware.APIContext) error {
+	if ct.ID == 0 {
+		return errors.New("invalid type identifier")
+	}
 
-		stmt, err := db.Prepare(deleteContactTypeStmt)
-		if err != nil {
-			return err
-		}
-		defer stmt.Close()
-
-		_, err = stmt.Exec(ct.ID)
-
+	stmt, err := ctx.DB.Prepare(deleteContactTypeStmt)
+	if err != nil {
 		return err
 	}
-	return errors.New("Invalid ContactType ID")
+	defer stmt.Close()
+
+	_, err = stmt.Exec(ct.ID)
+
+	return err
 }

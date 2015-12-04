@@ -5,7 +5,6 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/curt-labs/API/helpers/apicontext"
 	"github.com/curt-labs/API/helpers/database"
 	"github.com/curt-labs/API/models/brand"
 	"github.com/curt-labs/API/models/products"

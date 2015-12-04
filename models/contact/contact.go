@@ -3,20 +3,20 @@ package contact
 import (
 	"database/sql"
 	"errors"
-	"github.com/curt-labs/API/helpers/apicontext"
-	"github.com/curt-labs/API/helpers/database"
-	"github.com/curt-labs/API/helpers/email"
-	"github.com/curt-labs/API/models/brand"
-	"github.com/curt-labs/API/models/customer"
-	_ "github.com/go-sql-driver/mysql"
+	"fmt"
 	"strings"
 	"time"
+
+	"github.com/curt-labs/API/helpers/email"
+	"github.com/curt-labs/API/middleware"
+	"github.com/curt-labs/API/models/brand"
+	"github.com/curt-labs/API/models/customer"
 )
 
 var (
 	getAllContactsStmt = `select contactID, first_name, last_name, email, phone, subject, message,
                           createdDate, type, address1, address2, city, state, postalcode, country, Contact.brandID
-                          from Contact 
+                          from Contact
                           join ApiKeyToBrand as akb on akb.brandID = Contact.brandID
 						  join ApiKey as ak on ak.id = akb.keyID
                           where  ak.api_key = ? && (Contact.BrandID = ? or 0 = ?)
@@ -55,20 +55,15 @@ type DealerContact struct {
 	BusinessType customer.DealerType
 }
 
-func GetAllContacts(page, count int, dtx *apicontext.DataContext) (contacts Contacts, err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return
-	}
-	defer db.Close()
+func GetAllContacts(page, count int, ctx *middleware.APIContext) (contacts Contacts, err error) {
 
-	stmt, err := db.Prepare(getAllContactsStmt)
+	stmt, err := ctx.DB.Prepare(getAllContactsStmt)
 	if err != nil {
 		return
 	}
 	defer stmt.Close()
 
-	rows, err := stmt.Query(dtx.APIKey, dtx.BrandID, dtx.BrandID, page, count)
+	rows, err := stmt.Query(ctx.DataContext.APIKey, ctx.DataContext.BrandID, ctx.DataContext.BrandID, page, count)
 	if err != nil {
 		return
 	}
@@ -122,69 +117,65 @@ func GetAllContacts(page, count int, dtx *apicontext.DataContext) (contacts Cont
 	return
 }
 
-func (c *Contact) Get() error {
+func (c *Contact) Get(ctx *middleware.APIContext) error {
 	if c.ID > 0 {
-		db, err := sql.Open("mysql", database.ConnectionString())
-		if err != nil {
-			return err
-		}
-		defer db.Close()
+		return fmt.Errorf("%s", "contact identifier must be greater than zero")
+	}
 
-		stmt, err := db.Prepare(getContactStmt)
-		if err != nil {
-			return err
-		}
-		defer stmt.Close()
+	stmt, err := ctx.DB.Prepare(getContactStmt)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
 
-		var addr1, addr2, city, state, postalCode, country *string
+	var addr1, addr2, city, state, postalCode, country *string
 
-		err = stmt.QueryRow(c.ID).Scan(
-			&c.ID,
-			&c.FirstName,
-			&c.LastName,
-			&c.Email,
-			&c.Phone,
-			&c.Subject,
-			&c.Message,
-			&c.Created,
-			&c.Type,
-			&addr1,
-			&addr2,
-			&city,
-			&state,
-			&postalCode,
-			&country,
-		)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				return nil
-			}
-			return err
-		}
-		if addr1 != nil {
-			c.Address1 = *addr1
-		}
-		if addr2 != nil {
-			c.Address2 = *addr2
-		}
-		if city != nil {
-			c.City = *city
-		}
-		if state != nil {
-			c.State = *state
-		}
-		if postalCode != nil {
-			c.PostalCode = *postalCode
-		}
-		if country != nil {
-			c.Country = *country
+	err = stmt.QueryRow(c.ID).Scan(
+		&c.ID,
+		&c.FirstName,
+		&c.LastName,
+		&c.Email,
+		&c.Phone,
+		&c.Subject,
+		&c.Message,
+		&c.Created,
+		&c.Type,
+		&addr1,
+		&addr2,
+		&city,
+		&state,
+		&postalCode,
+		&country,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil
 		}
 		return err
 	}
-	return errors.New("Invalid Contact ID")
+	if addr1 != nil {
+		c.Address1 = *addr1
+	}
+	if addr2 != nil {
+		c.Address2 = *addr2
+	}
+	if city != nil {
+		c.City = *city
+	}
+	if state != nil {
+		c.State = *state
+	}
+	if postalCode != nil {
+		c.PostalCode = *postalCode
+	}
+	if country != nil {
+		c.Country = *country
+	}
+
+	return err
 }
 
-func (c *Contact) Add(dtx *apicontext.DataContext) error {
+func (c *Contact) Add(ctx *middleware.APIContext) error {
 	if strings.TrimSpace(c.FirstName) == "" {
 		return errors.New("First name is required")
 	}
@@ -204,13 +195,7 @@ func (c *Contact) Add(dtx *apicontext.DataContext) error {
 		return errors.New("Message can't be empty")
 	}
 
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(addContactStmt)
+	stmt, err := ctx.DB.Prepare(addContactStmt)
 	if err != nil {
 		return err
 	}
@@ -232,14 +217,9 @@ func (c *Contact) Add(dtx *apicontext.DataContext) error {
 	return nil
 }
 
-func (c *Contact) AddButLessRestrictiveYouFieldValidatinFool() error {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
+func (c *Contact) AddButLessRestrictiveYouFieldValidatinFool(ctx *middleware.APIContext) error {
 
-	stmt, err := db.Prepare(addContactStmt)
+	stmt, err := ctx.DB.Prepare(addContactStmt)
 	if err != nil {
 		return err
 	}
@@ -260,7 +240,7 @@ func (c *Contact) AddButLessRestrictiveYouFieldValidatinFool() error {
 	return nil
 }
 
-func (c *Contact) Update() error {
+func (c *Contact) Update(ctx *middleware.APIContext) error {
 	if c.ID == 0 {
 		return errors.New("Invalid Contact ID")
 	}
@@ -283,13 +263,7 @@ func (c *Contact) Update() error {
 		return errors.New("Message can't be empty")
 	}
 
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(updateContactStmt)
+	stmt, err := ctx.DB.Prepare(updateContactStmt)
 	if err != nil {
 		return err
 	}
@@ -301,23 +275,18 @@ func (c *Contact) Update() error {
 	return err
 }
 
-func (c *Contact) Delete() error {
+func (c *Contact) Delete(ctx *middleware.APIContext) error {
 	if c.ID > 0 {
-		db, err := sql.Open("mysql", database.ConnectionString())
-		if err != nil {
-			return err
-		}
-		defer db.Close()
+		return fmt.Errorf("%s", "contact identifier must be greater than zero")
+	}
 
-		stmt, err := db.Prepare(deleteContactStmt)
-		if err != nil {
-			return err
-		}
-		defer stmt.Close()
-
-		_, err = stmt.Exec(c.ID)
-
+	stmt, err := ctx.DB.Prepare(deleteContactStmt)
+	if err != nil {
 		return err
 	}
-	return errors.New("Invalid Contact ID")
+	defer stmt.Close()
+
+	_, err = stmt.Exec(c.ID)
+
+	return err
 }

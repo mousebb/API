@@ -13,7 +13,7 @@ import (
 
 // GetKeys ...
 func GetKeys(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	if !approveuser(r) {
+	if !approveuser(ctx) {
 		return nil, fmt.Errorf("%s", "unauthorized request")
 	}
 
@@ -22,7 +22,7 @@ func GetKeys(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request
 
 // GetByKey ...
 func GetByKey(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	if !approveuser(r) {
+	if !approveuser(ctx) {
 		return nil, fmt.Errorf("%s", "unauthorized request")
 	}
 
@@ -34,7 +34,7 @@ func GetByKey(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Reques
 
 // DeleteKey ...
 func DeleteKey(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	if !approveuser(r) {
+	if !approveuser(ctx) {
 		return nil, fmt.Errorf("%s", "unauthorized request")
 	}
 
@@ -43,13 +43,10 @@ func DeleteKey(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Reque
 	return nil, redis.DeleteFullPath(key)
 }
 
-func approveuser(r *http.Request) bool {
-	api := r.URL.Query().Get("key")
-	if api == "" {
-		return false
-	}
+func approveuser(ctx *middleware.APIContext) bool {
+
 	c := customer.Customer{}
-	err := c.GetCustomerIdFromKey(api)
+	err := c.GetCustomerIdFromKey(ctx)
 	if err != nil || c.Id == 0 {
 		return false
 	}

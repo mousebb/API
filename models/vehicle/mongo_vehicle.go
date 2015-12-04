@@ -2,7 +2,7 @@ package vehicle
 
 import (
 	"github.com/curt-labs/API/helpers/database"
-	"gopkg.in/mgo.v2"
+	"github.com/curt-labs/API/middleware"
 	"gopkg.in/mgo.v2/bson"
 )
 
@@ -18,14 +18,9 @@ const (
 	AriesDb = "aries"
 )
 
-func ReverseMongoLookup(partId int) (vehicles []MgoVehicle, err error) {
-	session, err := mgo.DialWithInfo(database.AriesMongoConnectionString())
-	if err != nil {
-		return
-	}
-	defer session.Close()
+func ReverseMongoLookup(partId int, ctx *middleware.APIContext) (vehicles []MgoVehicle, err error) {
 
-	collections, err := session.DB(AriesDb).CollectionNames()
+	collections, err := ctx.AriesSession.DB(database.AriesMongoDatabase).CollectionNames()
 	if err != nil {
 		return
 	}
@@ -34,7 +29,7 @@ func ReverseMongoLookup(partId int) (vehicles []MgoVehicle, err error) {
 		query := bson.M{
 			"parts": partId,
 		}
-		err = session.DB(AriesDb).C(collection).Find(query).All(&temps)
+		err = ctx.AriesSession.DB(database.AriesMongoDatabase).C(collection).Find(query).All(&temps)
 		if err != nil {
 			return
 		}

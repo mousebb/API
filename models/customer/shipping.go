@@ -1,10 +1,9 @@
 package customer
 
 import (
-	"github.com/curt-labs/API/helpers/database"
+	"github.com/curt-labs/API/middleware"
 	_ "github.com/go-sql-driver/mysql"
 
-	"database/sql"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -63,7 +62,7 @@ func (c *Customer) GetShippingInfo() (err error) {
 
 //works like GetShippingInfo, but updates records
 //TODO switch  user.getCustomer getShippingInfo over to use this
-func (c *Customer) GetAndCompareCustomerShippingInfo() (err error) {
+func (c *Customer) GetAndCompareCustomerShippingInfo(ctx *middleware.APIContext) (err error) {
 	//get mysql shipping info
 	//get mapics shipping info
 	//if mysql is different, update
@@ -71,7 +70,7 @@ func (c *Customer) GetAndCompareCustomerShippingInfo() (err error) {
 	var warehouseId int
 	var ok bool
 
-	warehouseMap, err := getWarehouseCodes()
+	warehouseMap, err := getWarehouseCodes(ctx)
 
 	shipChan := make(chan error)
 	accountChan := make(chan error)
@@ -80,7 +79,7 @@ func (c *Customer) GetAndCompareCustomerShippingInfo() (err error) {
 		shipChan <- c.GetShippingInfo()
 	}()
 	go func() {
-		accountChan <- c.GetAccounts()
+		accountChan <- c.GetAccounts(ctx)
 	}()
 
 	err = <-shipChan
@@ -99,7 +98,7 @@ func (c *Customer) GetAndCompareCustomerShippingInfo() (err error) {
 	for i, account := range accounts {
 		//adjust account freight
 		if account.FreightLimit != shippingInfo.Threshold.FreeF && shippingInfo.Threshold.FreeF > 0 {
-			err = account.adjustFreight(shippingInfo.Threshold.FreeF)
+			err = account.adjustFreight(shippingInfo.Threshold.FreeF, ctx)
 			if err != nil {
 				return err
 			}
@@ -111,7 +110,7 @@ func (c *Customer) GetAndCompareCustomerShippingInfo() (err error) {
 		}
 		//adjust account defwh
 		if account.DefaultWarehouseID != warehouseId && warehouseId != 0 {
-			err = account.adjustWarehouse(warehouseId)
+			err = account.adjustWarehouse(warehouseId, ctx)
 			if err != nil {
 				return err
 			}
@@ -121,39 +120,30 @@ func (c *Customer) GetAndCompareCustomerShippingInfo() (err error) {
 	return err
 }
 
-func (a *Account) adjustFreight(limit float64) error {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	_, err = db.Exec(updateFreightLimit, limit, a.ID)
+func (a *Account) adjustFreight(limit float64, ctx *middleware.APIContext) error {
+
+	_, err := ctx.DB.Exec(updateFreightLimit, limit, a.ID)
+
 	return err
 }
 
-func (a *Account) adjustWarehouse(id int) error {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	_, err = db.Exec(updateDefaultWarehouse, id, a.ID)
+func (a *Account) adjustWarehouse(id int, ctx *middleware.APIContext) error {
+
+	_, err := ctx.DB.Exec(updateDefaultWarehouse, id, a.ID)
+
 	return err
 }
 
 //makes warehouse map
-func getWarehouseCodes() (map[string]int, error) {
+func getWarehouseCodes(ctx *middleware.APIContext) (map[string]int, error) {
 	warehouses := make(map[string]int)
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return warehouses, err
-	}
-	defer db.Close()
 
-	rows, err := db.Query(warehouseMap)
+	rows, err := ctx.DB.Query(warehouseMap)
 	if err != nil {
 		return warehouses, err
 	}
+	defer rows.Close()
+
 	var id *int
 	var code *string
 	for rows.Next() {

@@ -4,15 +4,17 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"github.com/curt-labs/API/helpers/apicontext"
-	"github.com/curt-labs/API/helpers/database"
-	"github.com/curt-labs/API/helpers/sortutil"
-	"github.com/curt-labs/API/models/contact"
-	_ "github.com/go-sql-driver/mysql"
 	"math"
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/curt-labs/API/helpers/database"
+	"github.com/curt-labs/API/helpers/sortutil"
+	"github.com/curt-labs/API/models/contact"
+
+	// Background usage for mysql driver.
+	_ "github.com/go-sql-driver/mysql"
 )
 
 var (
@@ -194,7 +196,7 @@ func (l *Lookup) LoadParts(ch chan []Part, page int, count int, dtx *apicontext.
 	perChan := make(chan int)
 	for i, p := range pagedParts {
 		go func(j int, prt Part) {
-			if err := prt.Get(dtx); err == nil && prt.ShortDesc != "" {
+			if err := prt.Get(ctx); err == nil && prt.ShortDesc != "" {
 				l.Parts = append(l.Parts, prt)
 			}
 			perChan <- 1

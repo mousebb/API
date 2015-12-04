@@ -4,24 +4,23 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/pborman/uuid"
-	"golang.org/x/crypto/bcrypt"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/pborman/uuid"
+	"golang.org/x/crypto/bcrypt"
+
 	"github.com/curt-labs/API/helpers/api"
-	"github.com/curt-labs/API/helpers/apicontext"
 	"github.com/curt-labs/API/helpers/conversions"
-	"github.com/curt-labs/API/helpers/database"
 	"github.com/curt-labs/API/helpers/email"
 	"github.com/curt-labs/API/helpers/encryption"
 	"github.com/curt-labs/API/helpers/redis"
+	"github.com/curt-labs/API/middleware"
 	"github.com/curt-labs/API/models/brand"
 	"github.com/curt-labs/API/models/geography"
-	_ "github.com/go-sql-driver/mysql"
 )
 
 type CustomerUser struct {
@@ -94,127 +93,6 @@ const (
 	customerUserFields = ` cu.id, cu.name, cu.email, cu.password, cu.customerID, cu.date_added, cu.active, cu.locationID, cu.isSudo, cu.cust_ID, cu.NotCustomer, cu.passwordConverted `
 )
 
-var (
-	userCustomer = `select ` + customerFields + `, ` + stateFields + `, ` + countryFields + `, ` + dealerTypeFields + `, ` + dealerTierFields + `, ` + mapIconFields + `, ` + mapixCodeFields + `, ` + salesRepFields + `
-						from Customer as c
-						join CustomerUser as cu on c.cust_id = cu.cust_ID
-						left join States as s on c.stateID = s.stateID
-						left join Country as cty on s.countryID = cty.countryID
-						left join DealerTypes as dt on c.dealer_type = dt.dealer_type
-						left join MapIcons as mi on dt.dealer_type = mi.dealer_type
-						left join DealerTiers dtr on c.tier = dtr.ID
-						left join MapixCode as mpx on c.mCodeID = mpx.mCodeID
-						left join SalesRepresentative as sr on c.salesRepID = sr.salesRepID
-						where cu.id = ?`
-
-	getRegisteredUsersId = `select cu.id from CustomerUser as cu
-								where cu.email = ? && cu.password = ?
-								limit 1`
-
-	customerUserAuth = `select cu.id, cu.name, cu.email, cu.password, cu.customerID, cu.date_added, cu.active,cu.locationID, cu.isSudo, cu.cust_ID, cu.passwordConverted 
-						from CustomerUser as cu
-						where email = ? && active = 1
-						limit 1`
-	getUserPassword        = `SELECT password, COUNT(password) AS quantity from CustomerUser where email = ?`
-	updateCustomerUserPass = `update CustomerUser set password = ?, passwordConverted = 1
-								where id = ? && active = 1`
-	customerUserKeyAuth = `select cu.* from CustomerUser as cu
-								join ApiKey as ak on cu.id = ak.user_id
-								join ApiKeyType as akt on ak.type_id = akt.id
-								where UPPER(akt.type) != ?
-								&& ak.api_key = UPPER(?)
-								&& cu.active = 1 && ak.date_added >= ?`
-	customerUserKeys = `select ak.api_key, akt.type, ak.date_added from ApiKey as ak
-								join ApiKeyType as akt on ak.type_id = akt.id
-								where user_id = ? && UPPER(akt.type) NOT IN (?)`
-	userLocation = `select cl.locationID, cl.name, cl.email, cl.address, cl.city,
-									cl.postalCode, cl.phone, cl.fax, cl.latitude, cl.longitude,
-									cl.cust_id, cl.contact_person, cl.isprimary, cl.ShippingDefault,
-									s.stateID, s.state, s.abbr as state_abbr, cty.countryID, cty.name as cty_name, cty.abbr as cty_abbr
-									from CustomerUser as cu
-									join CustomerLocations as cl on cu.locationID = cl.locationID
-									left join States as s on cl.stateID = s.stateID
-									left join Country as cty on s.countryID = cty.countryID
-									where cu.id = ?`
-
-	userAuthenticationKey = `select ak.api_key, akt.type, akt.id, CAST(ak.date_added as char(255)) as date_added from ApiKey as ak
-									join ApiKeyType as akt on ak.type_id = akt.id
-									where UPPER(akt.type) = ?
-									&& ak.user_id = ?`
-
-	resetUserAuthentication = `update ApiKey as ak
-									set ak.date_added = NOW()
-									where ak.type_id = ?
-									&& ak.user_id = ?`
-
-	customerUserFromKey = `select cu.* from CustomerUser as cu
-								join ApiKey as ak on cu.id = ak.user_id
-								join ApiKeyType as akt on ak.type_id = akt.id
-								where UPPER(akt.type) != ? && UPPER(ak.api_key) = UPPER(?)
-								limit 1`
-
-	customerUserFromId = `select cu.* from CustomerUser as cu
-							join ApiKey as ak on cu.id = ak.user_id
-							join ApiKeyType as akt on ak.type_id = akt.id
-							where cu.id = ?
-							limit 1`
-
-	insertCustomerUser = `INSERT into CustomerUser(id, name, email, password, customerID, date_added, active, locationID, isSudo, cust_ID, NotCustomer, passwordConverted)
-							VALUES(UUID(),?,?,?,?,NOW(),?,?,?,?,?,1)`
-
-	insertAPIKey = `insert into ApiKey(user_id, type_id, api_key, date_added)
-						values(?,?,UUID(),NOW())` //DB schema DOES auto increment table id
-	insertAPIKeyToBrand = `insert into ApiKeyToBrand(keyID, brandID)
-						values(?,?)`
-	deleteAPIKeyToBrand      = `delete from ApiKeyToBrand where keyID in (select id from ApiKey where user_id = ? && type_id = ?)`
-	deleteAPIKeyToBrandByKey = `delete from ApiKeyToBrand where keyID in (select id from ApiKey where api_key = ?)`
-
-	getCustomerUserKeysWithoutAuth = `select ak.api_key, akt.type from ApiKey as ak
-										join ApiKeyType as akt on ak.type_id = akt.id
-										where ak.user_id = ? && UPPER(akt.type) = ?`
-	getAPIKeyTypeID               = `select id from ApiKeyType where UPPER(type) = UPPER(?) limit 1`
-	setCustomerUserPassword       = `update CustomerUser set password = ?, passwordConverted = 1 WHERE email = ?`
-	setCustomerUserPasswordWithID = `update CustomerUser set password = ?, passwordConverted = 1 WHERE email = ? AND cust_ID = ?`
-	deleteCustomerUser            = `DELETE FROM CustomerUser WHERE id = ?`
-	deleteAPIkey                  = `DELETE FROM ApiKey WHERE user_id = ? AND type_id = ?`
-	deleteAPIkeyByKey             = `DELETE FROM ApiKey WHERE api_key = ?`
-	deleteUserAPIkeys             = `DELETE FROM ApiKey WHERE user_id = ?`
-	getCustomerUserKeysWithAuth   = `select ak.api_key, akt.type from ApiKey as ak
-										join ApiKeyType as akt on ak.type_id = akt.id
-										where ak.user_id = ? && (UPPER(akt.type) = ? || UPPER(akt.type) = ? || UPPER(akt.type) = ?)`
-	getCustomerUserLocation = `select cl.locationID, cl.name, cl.address, cl.city,
-								s.stateID, s.state,
-								s.abbr, cun.countryID, cun.name as countryName, cun.abbr as countryAbbr,
-								cl.email, cl.phone, cl.fax, cl.latitude, cl.longitude,
-								cl.cust_id, cl.contact_person, cl.isprimary, cl.postalCode,
-								cl.ShippingDefault from CustomerLocations as cl
-								join CustomerUser as cu on cl.locationID = cu.locationID
-								left join States as s on cl.stateID = s.stateID
-								left join Country as cun on s.countryID = cun.countryID
-								where cu.id = ?
-								limit 1`
-
-	updateCustomerUser   = `UPDATE CustomerUser SET name = ?, email = ?, active = ?, locationID = ?, isSudo = ?, NotCustomer = ? WHERE id = ?`
-	getUsersByCustomerID = `SELECT id FROM CustomerUser WHERE cust_id = ?`
-	getUserByEmail       = `SELECT cust_id FROM CustomerUser WHERE email = ?`
-
-	getUserAccounts = `select 
-						cua.username, cua.password, 
-						ac.accountNumber, ac.freightLimit, 
-						act.id, act.type, act.comnet_url,
-						w.id, w.name, w.code, w.address, w.city, w.postalCode, w.tollFreePhone, w.fax, w.localPhone, w.manager, w.longitude, w.latitude,
-						s.stateID, s.state, s.abbr, c.countryID, c.name, c.abbr from ComnetUserAccounts as cua
-						join Accounts as ac on cua.account_id = ac.id
-						join AccountTypes as act on ac.type_id = act.id
-						left join Warehouses as w on ac.defaultWarehouseID = w.id
-						left join State as s on w.stateID = s.stateID
-						left join Country as c on s.countryID = c.countryID
-						where cua.user_id = ?
-						order by act.type`
-
-	AuthError = errors.New("failed to authenticate")
-)
-
 func ScanUser(res Scanner) (*CustomerUser, error) {
 	var cu CustomerUser
 	var err error
@@ -258,14 +136,9 @@ func ScanUser(res Scanner) (*CustomerUser, error) {
 	return &cu, err
 }
 
-func AuthenticateUserByKey(key string, dtx *apicontext.DataContext) (u CustomerUser, err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return u, err
-	}
-	defer db.Close()
+func AuthenticateUserByKey(ctx *middleware.APIContext) (u CustomerUser, err error) {
 
-	stmt, err := db.Prepare(customerUserKeyAuth)
+	stmt, err := ctx.DB.Prepare(customerUserKeyAuth)
 	if err != nil {
 		return u, err
 	}
@@ -277,7 +150,7 @@ func AuthenticateUserByKey(key string, dtx *apicontext.DataContext) (u CustomerU
 	KeyType := api_helpers.AUTH_KEY_TYPE
 	params := []interface{}{
 		KeyType,
-		key,
+		ctx.DataContext.APIKey,
 		Timer,
 	}
 	res := stmt.QueryRow(params...)
@@ -292,7 +165,7 @@ func AuthenticateUserByKey(key string, dtx *apicontext.DataContext) (u CustomerU
 
 	resetChan := make(chan int)
 	go func() {
-		if resetErr := u.ResetAuthentication(dtx.BrandArray); resetErr != nil {
+		if resetErr := u.ResetAuthentication(ctx.DataContext.BrandArray, ctx); resetErr != nil {
 			err = resetErr
 		}
 		resetChan <- 1
@@ -302,8 +175,8 @@ func AuthenticateUserByKey(key string, dtx *apicontext.DataContext) (u CustomerU
 	return
 }
 
-func AuthenticateAndGetCustomer(key string, dtx *apicontext.DataContext) (cust Customer, err error) {
-	u, err := AuthenticateUserByKey(key, dtx)
+func AuthenticateAndGetCustomer(ctx *middleware.APIContext) (cust Customer, err error) {
+	u, err := AuthenticateUserByKey(ctx)
 	if err != nil {
 		return cust, AuthError
 	}
@@ -311,19 +184,19 @@ func AuthenticateAndGetCustomer(key string, dtx *apicontext.DataContext) (cust C
 	keyChan := make(chan int)
 	locChan := make(chan int)
 	go func() {
-		if kErr := u.GetKeys(); kErr != nil {
+		if kErr := u.GetKeys(ctx); kErr != nil {
 			err = kErr
 		}
 		keyChan <- 1
 	}()
 
 	go func() {
-		if lErr := u.GetLocation(); lErr != nil {
+		if lErr := u.GetLocation(ctx); lErr != nil {
 			err = lErr
 		}
 		locChan <- 1
 	}()
-	cust, err = u.GetCustomer(key)
+	cust, err = u.GetCustomer(ctx)
 	if err != sql.ErrNoRows {
 		if err != nil {
 			return cust, AuthError
@@ -337,14 +210,9 @@ func AuthenticateAndGetCustomer(key string, dtx *apicontext.DataContext) (cust C
 	return cust, nil
 }
 
-func (u *CustomerUser) AuthenticateUser() error {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return AuthError
-	}
-	defer db.Close()
+func (u *CustomerUser) AuthenticateUser(ctx *middleware.APIContext) error {
 
-	stmt, err := db.Prepare(customerUserAuth)
+	stmt, err := ctx.DB.Prepare(customerUserAuth)
 	if err != nil {
 		return AuthError
 	}
@@ -425,7 +293,7 @@ func (u *CustomerUser) AuthenticateUser() error {
 		}
 
 		var stmtPass *sql.Stmt
-		stmtPass, err = db.Prepare(updateCustomerUserPass)
+		stmtPass, err = ctx.DB.Prepare(updateCustomerUserPass)
 		if err != nil {
 			return err
 		}
@@ -433,7 +301,7 @@ func (u *CustomerUser) AuthenticateUser() error {
 		return errors.New("Incorrect password.")
 	}
 
-	u.Brands, err = brand.GetUserBrands(u.CustID)
+	u.Brands, err = brand.GetUserBrands(u.CustID, ctx.DB)
 	if err != nil {
 		return err
 	}
@@ -442,7 +310,7 @@ func (u *CustomerUser) AuthenticateUser() error {
 	for _, brand := range u.Brands {
 		brandIds = append(brandIds, brand.ID)
 	}
-	if resetErr := u.ResetAuthentication(brandIds); resetErr != nil {
+	if resetErr := u.ResetAuthentication(brandIds, ctx); resetErr != nil {
 		err = resetErr
 	}
 
@@ -452,21 +320,15 @@ func (u *CustomerUser) AuthenticateUser() error {
 }
 
 //like AuthenticateUserByKey, but does not update the timestamp - seems REDUNDANT
-func GetCustomerUserFromKey(key string) (u CustomerUser, err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return u, err
-	}
-	defer db.Close()
+func GetCustomerUserFromKey(key string, ctx *middleware.APIContext) (u CustomerUser, err error) {
 
-	stmt, err := db.Prepare(customerUserFromKey)
+	stmt, err := ctx.DB.Prepare(customerUserFromKey)
 	if err != nil {
 		return u, err
 	}
 	defer stmt.Close()
 
-	res := stmt.QueryRow(api_helpers.AUTH_KEY_TYPE, key)
-	user, err := ScanUser(res)
+	user, err := ScanUser(stmt.QueryRow(api_helpers.AUTH_KEY_TYPE, key))
 	if err != nil {
 		err = fmt.Errorf("error: %s", "user does not exist")
 		return
@@ -475,12 +337,12 @@ func GetCustomerUserFromKey(key string) (u CustomerUser, err error) {
 	u = *user
 	locChan := make(chan error)
 	go func() {
-		locChan <- u.GetLocation()
+		locChan <- u.GetLocation(ctx)
 	}()
 
-	u.GetKeys()
+	u.GetKeys(ctx)
 
-	u.Brands, err = brand.GetUserBrands(u.CustID)
+	u.Brands, err = brand.GetUserBrands(u.CustID, ctx.DB)
 	if err != nil {
 		close(locChan)
 		return
@@ -491,14 +353,9 @@ func GetCustomerUserFromKey(key string) (u CustomerUser, err error) {
 }
 
 //Takes UUID CustomerID; deletes all CustomerUser with that CustID and their API Keys
-func DeleteCustomerUsersByCustomerID(customerID int) error {
+func DeleteCustomerUsersByCustomerID(customerID int, ctx *middleware.APIContext) error {
 
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getUsersByCustomerID)
+	stmt, err := ctx.DB.Prepare(getUsersByCustomerID)
 	if err != nil {
 		return err
 	}
@@ -513,18 +370,18 @@ func DeleteCustomerUsersByCustomerID(customerID int) error {
 		if err != nil {
 			return err
 		}
-		err = tempCustUser.GetKeys()
+		err = tempCustUser.GetKeys(ctx)
 		if err != nil {
 			return err
 		}
 		for _, key := range tempCustUser.Keys {
-			err = tempCustUser.deleteApiKeyByType(key.Type)
+			err = tempCustUser.deleteApiKeyByType(key.Type, ctx)
 			if err != nil {
 				return err
 			}
 		}
 
-		err = tempCustUser.Delete()
+		err = tempCustUser.Delete(ctx)
 		if err != nil {
 			return err
 		}
@@ -532,21 +389,16 @@ func DeleteCustomerUsersByCustomerID(customerID int) error {
 	return nil
 }
 
-func (u CustomerUser) GetCustomer(key string) (c Customer, err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return c, err
-	}
-	defer db.Close()
+func (u CustomerUser) GetCustomer(ctx *middleware.APIContext) (c Customer, err error) {
 
-	stmt, err := db.Prepare(userCustomer)
+	stmt, err := ctx.DB.Prepare(userCustomer)
 	if err != nil {
 		return c, err
 	}
 	defer stmt.Close()
 
 	res := stmt.QueryRow(u.Id)
-	if err := c.ScanCustomer(res, key); err != nil {
+	if err := c.ScanCustomer(res, ctx); err != nil {
 
 		if err == sql.ErrNoRows {
 			err = fmt.Errorf("error: %s", "user not bound to customer")
@@ -558,7 +410,7 @@ func (u CustomerUser) GetCustomer(key string) (c Customer, err error) {
 	locChan := make(chan error)
 	brandChan := make(chan error)
 	go func() {
-		locChan <- c.GetLocations()
+		locChan <- c.GetLocations(ctx)
 	}()
 	timeout := make(chan bool, 1)
 	go func() {
@@ -566,13 +418,13 @@ func (u CustomerUser) GetCustomer(key string) (c Customer, err error) {
 		timeout <- true
 	}()
 	go func() {
-		shippingInfoChan <- c.GetAndCompareCustomerShippingInfo()
+		shippingInfoChan <- c.GetAndCompareCustomerShippingInfo(ctx)
 	}()
 	go func() {
-		accountsChan <- c.GetAccounts()
+		accountsChan <- c.GetAccounts(ctx)
 	}()
 	go func() {
-		brands, err := brand.GetUserBrands(c.Id)
+		brands, err := brand.GetUserBrands(c.Id, ctx.DB)
 		if err != nil {
 			brandChan <- err
 			return
@@ -584,7 +436,7 @@ func (u CustomerUser) GetCustomer(key string) (c Customer, err error) {
 	}()
 
 	if u.Sudo {
-		c.GetUsers(key)
+		c.GetUsers(ctx)
 	} else {
 		c.Users = append(c.Users, u)
 	}
@@ -601,15 +453,10 @@ func (u CustomerUser) GetCustomer(key string) (c Customer, err error) {
 	return
 }
 
-func (u *CustomerUser) GetKeys() error {
+func (u *CustomerUser) GetKeys(ctx *middleware.APIContext) error {
 	var keys []ApiCredentials
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
 
-	stmt, err := db.Prepare(customerUserKeys)
+	stmt, err := ctx.DB.Prepare(customerUserKeys)
 	if err != nil {
 		return err
 	}
@@ -629,14 +476,9 @@ func (u *CustomerUser) GetKeys() error {
 	return nil
 }
 
-func (u *CustomerUser) GetLocation() error {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
+func (u *CustomerUser) GetLocation(ctx *middleware.APIContext) error {
 
-	stmt, err := db.Prepare(userLocation)
+	stmt, err := ctx.DB.Prepare(userLocation)
 	if err != nil {
 		return err
 	}
@@ -698,14 +540,9 @@ func (u *CustomerUser) GetLocation() error {
 }
 
 // GetComnetAccounts ...
-func (u *CustomerUser) GetComnetAccounts() error {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
+func (u *CustomerUser) GetComnetAccounts(ctx *middleware.APIContext) error {
 
-	stmt, err := db.Prepare(getUserAccounts)
+	stmt, err := ctx.DB.Prepare(getUserAccounts)
 	if err != nil {
 		return err
 	}
@@ -848,15 +685,9 @@ func (u *CustomerUser) GetComnetAccounts() error {
 }
 
 //updates auth key dateAdded to Now()
-func (u *CustomerUser) ResetAuthentication(brandIds []int) error {
-	var err error
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
+func (u *CustomerUser) ResetAuthentication(ids []int, ctx *middleware.APIContext) error {
 
-	stmt, err := db.Prepare(userAuthenticationKey)
+	stmt, err := ctx.DB.Prepare(userAuthenticationKey)
 	if err != nil {
 		return err
 	}
@@ -868,7 +699,7 @@ func (u *CustomerUser) ResetAuthentication(brandIds []int) error {
 	}
 	var a ApiCredentials
 
-	a.TypeId, err = getAPIKeyTypeReference(api_helpers.AUTH_KEY_TYPE)
+	a.TypeId, err = getAPIKeyTypeReference(api_helpers.AUTH_KEY_TYPE, ctx)
 	if err != nil {
 		return fmt.Errorf("error: %s", "failed to retrieve key type reference")
 	}
@@ -876,7 +707,7 @@ func (u *CustomerUser) ResetAuthentication(brandIds []int) error {
 	var dateAdded string
 	err = stmt.QueryRow(params...).Scan(&a.Key, &a.Type, &a.TypeId, &dateAdded)
 	if err != nil {
-		apiCredentials, err := u.GenerateAPIKey(api_helpers.AUTH_KEY_TYPE, brandIds)
+		apiCredentials, err := u.GenerateAPIKey(api_helpers.AUTH_KEY_TYPE, ids, ctx)
 		if err != nil {
 			return err
 		}
@@ -889,7 +720,7 @@ func (u *CustomerUser) ResetAuthentication(brandIds []int) error {
 			u.Id,
 		}
 
-		stmtNew, err := db.Prepare(resetUserAuthentication)
+		stmtNew, err := ctx.DB.Prepare(resetUserAuthentication)
 		_, err = stmtNew.Exec(paramsNew...)
 		if err != nil {
 			return err
@@ -898,16 +729,14 @@ func (u *CustomerUser) ResetAuthentication(brandIds []int) error {
 	return nil
 }
 
-func (cu *CustomerUser) GenerateAPIKey(keyType string, brandIds []int) (*ApiCredentials, error) {
-	// var brandID = 1 // this will have to be changed massivly because customers can have more than 1 brand, so each api key needs to be assigned to the brands that it needs. for now everything will be set to 1 (curt brand)
-	db, err := sql.Open("mysql", database.ConnectionString())
+func (cu *CustomerUser) GenerateAPIKey(keyType string, brandIds []int, ctx *middleware.APIContext) (*ApiCredentials, error) {
+
+	tx, err := ctx.DB.Begin()
 	if err != nil {
 		return nil, err
 	}
-	defer db.Close()
-	tx, err := db.Begin()
 
-	typeID, err := getAPIKeyTypeReference(keyType)
+	typeID, err := getAPIKeyTypeReference(keyType, ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -940,7 +769,7 @@ func (cu *CustomerUser) GenerateAPIKey(keyType string, brandIds []int) (*ApiCred
 	tx.Commit()
 
 	var apiKey string
-	stmt, err = db.Prepare(getCustomerUserKeysWithoutAuth)
+	stmt, err = ctx.DB.Prepare(getCustomerUserKeysWithoutAuth)
 	if err != nil {
 		return nil, err
 	}
@@ -972,31 +801,29 @@ func (cu *CustomerUser) GenerateAPIKey(keyType string, brandIds []int) (*ApiCred
 	return nil, fmt.Errorf("%s", "failed to generate new key")
 }
 
-func getAPIKeyTypeReference(keyType string) (string, error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
+func getAPIKeyTypeReference(keyType string, ctx *middleware.APIContext) (string, error) {
+
+	stmt, err := ctx.DB.Prepare(getAPIKeyTypeID)
 	if err != nil {
 		return "", err
 	}
-	defer db.Close()
-	stmt, err := db.Prepare(getAPIKeyTypeID)
+
 	var apiKeyTypeId string
 	err = stmt.QueryRow(keyType).Scan(&apiKeyTypeId)
 	if err != nil {
 		return uuid.NIL.String(), errors.New("failed to retrieve auth type")
 	}
+
 	return apiKeyTypeId, nil
 }
 
-func (cu *CustomerUser) ResetPass() (string, error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
+func (cu *CustomerUser) ResetPass(ctx *middleware.APIContext) (string, error) {
+
+	tx, err := ctx.DB.Begin()
 	if err != nil {
 		return "", err
 	}
-	defer db.Close()
-	tx, err := db.Begin()
-	if err != nil {
-		return "", err
-	}
+
 	stmt, err := tx.Prepare(setCustomerUserPasswordWithID)
 	if err != nil {
 		return "", err
@@ -1030,18 +857,23 @@ func (cu *CustomerUser) ResetPass() (string, error) {
 	return randPass, nil
 }
 
-func (cu *CustomerUser) ChangePass(oldPass, newPass string, dtx *apicontext.DataContext) error {
+func (cu *CustomerUser) ChangePass(oldPass, newPass string, ctx *middleware.APIContext) error {
 	cu.Password = oldPass
-	db, err := sql.Open("mysql", database.ConnectionString())
+
+	tx, err := ctx.DB.Begin()
 	if err != nil {
 		return err
 	}
-	defer db.Close()
-	tx, err := db.Begin()
 	stmt, err := tx.Prepare(setCustomerUserPassword)
+	if err != nil {
+		return err
+	}
 	encryptNewPass, err := bcrypt.GenerateFromPassword([]byte(newPass), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
 
-	err = cu.AuthenticateUser()
+	err = cu.AuthenticateUser(ctx)
 	if err != nil {
 		return errors.New("Old password is incorrect.")
 	}
@@ -1055,14 +887,9 @@ func (cu *CustomerUser) ChangePass(oldPass, newPass string, dtx *apicontext.Data
 	return err
 }
 
-func (cu *CustomerUser) Get(key string) error {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
+func (cu *CustomerUser) Get(key string, ctx *middleware.APIContext) error {
 
-	stmt, err := db.Prepare(customerUserFromId)
+	stmt, err := ctx.DB.Prepare(customerUserFromId)
 	if err != nil {
 		return err
 	}
@@ -1092,7 +919,7 @@ func (cu *CustomerUser) Get(key string) error {
 
 	keyChan := make(chan error)
 	go func() {
-		err := cu.GetKeys()
+		err := cu.GetKeys(ctx)
 		if err == nil {
 			for _, k := range cu.Keys {
 				if strings.ToLower(k.Key) == strings.ToLower(key) {
@@ -1104,20 +931,19 @@ func (cu *CustomerUser) Get(key string) error {
 		keyChan <- err
 	}()
 
-	cu.GetLocation()
+	cu.GetLocation(ctx)
 
 	<-keyChan
 
 	return nil
 }
 
-func (c *CustomerUser) FindByEmail() error {
-	db, err := sql.Open("mysql", database.ConnectionString())
+func (c *CustomerUser) FindByEmail(ctx *middleware.APIContext) error {
+
+	tx, err := ctx.DB.Begin()
 	if err != nil {
 		return err
 	}
-	defer db.Close()
-	tx, err := db.Begin()
 
 	stmt, err := tx.Prepare(getUserByEmail)
 	if err != nil {
@@ -1134,13 +960,12 @@ func (c *CustomerUser) FindByEmail() error {
 }
 
 //Update customerUser
-func (cu *CustomerUser) UpdateCustomerUser() error {
-	db, err := sql.Open("mysql", database.ConnectionString())
+func (cu *CustomerUser) UpdateCustomerUser(ctx *middleware.APIContext) error {
+
+	tx, err := ctx.DB.Begin()
 	if err != nil {
 		return err
 	}
-	defer db.Close()
-	tx, err := db.Begin()
 
 	stmt, err := tx.Prepare(updateCustomerUser)
 	if err != nil {
@@ -1164,19 +989,17 @@ func (cu *CustomerUser) UpdateCustomerUser() error {
 }
 
 //Create CustomerUser
-func (cu *CustomerUser) Create(brandIds []int) error {
+func (cu *CustomerUser) Create(brandIds []int, ctx *middleware.APIContext) error {
 	var err error
 	encryptPass, err := bcrypt.GenerateFromPassword([]byte(cu.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return errors.New("Failed to generate encrypted password.")
 	}
 
-	db, err := sql.Open("mysql", database.ConnectionString())
+	tx, err := ctx.DB.Begin()
 	if err != nil {
 		return err
 	}
-	defer db.Close()
-	tx, err := db.Begin()
 
 	stmt, err := tx.Prepare(insertCustomerUser)
 	if err != nil {
@@ -1191,7 +1014,7 @@ func (cu *CustomerUser) Create(brandIds []int) error {
 		return err
 	}
 
-	stmt, err = db.Prepare(getRegisteredUsersId) // needs to be set on the customer user object in order to generate the keys
+	stmt, err = ctx.DB.Prepare(getRegisteredUsersId) // needs to be set on the customer user object in order to generate the keys
 	if err != nil {
 		return err
 	}
@@ -1210,7 +1033,7 @@ func (cu *CustomerUser) Create(brandIds []int) error {
 
 	// Public key:
 	go func() {
-		pub, err := cu.GenerateAPIKey(PUBLIC_KEY_TYPE, brandIds)
+		pub, err := cu.GenerateAPIKey(PUBLIC_KEY_TYPE, brandIds, ctx)
 		if pub != nil {
 			cu.Keys = append(cu.Keys, *pub)
 		}
@@ -1219,7 +1042,7 @@ func (cu *CustomerUser) Create(brandIds []int) error {
 
 	// Private key:
 	go func() {
-		pri, err := cu.GenerateAPIKey(PRIVATE_KEY_TYPE, brandIds)
+		pri, err := cu.GenerateAPIKey(PRIVATE_KEY_TYPE, brandIds, ctx)
 		if pri != nil {
 			cu.Keys = append(cu.Keys, *pri)
 		}
@@ -1228,7 +1051,7 @@ func (cu *CustomerUser) Create(brandIds []int) error {
 
 	// Auth Key:
 	go func() {
-		auth, err := cu.GenerateAPIKey(AUTH_KEY_TYPE, brandIds)
+		auth, err := cu.GenerateAPIKey(AUTH_KEY_TYPE, brandIds, ctx)
 		if auth != nil {
 			cu.Keys = append(cu.Keys, *auth)
 		}
@@ -1249,14 +1072,13 @@ func (cu *CustomerUser) Create(brandIds []int) error {
 	return nil
 }
 
-func (cu *CustomerUser) Delete() error {
-	//delete CustomerUser
-	db, err := sql.Open("mysql", database.ConnectionString())
+func (cu *CustomerUser) Delete(ctx *middleware.APIContext) error {
+
+	tx, err := ctx.DB.Begin()
 	if err != nil {
 		return err
 	}
-	defer db.Close()
-	tx, err := db.Begin()
+
 	stmt, err := tx.Prepare(deleteUserAPIkeys)
 	if err != nil {
 		return err
@@ -1275,6 +1097,7 @@ func (cu *CustomerUser) Delete() error {
 		return err
 	}
 	tx.Commit()
+
 	return nil
 }
 
@@ -1293,7 +1116,7 @@ func (cu *CustomerUser) SendRegistrationEmail() error {
                 <span>The username is: <strong>` + cu.Email + `</strong></span><br />
                 <span>The password is: <strong>` + cu.Password + `</strong></span><br />
                 <hr /><br />
-                <p>Since you did not know your CURT Customer ID number, you will not have access to the 
+                <p>Since you did not know your CURT Customer ID number, you will not have access to the
                 entire dealer area until we can validate who you are. You can however in the meantime add Web Properties.</p>
                 <p style='font-size:11px'>If you feel this was a mistake please contact us.</p>`
 	return email.Send(tos, subject, body, true)
@@ -1309,19 +1132,14 @@ func (cu *CustomerUser) SendRegistrationRequestEmail() error {
 	return email.Send(tos, subject, body, true)
 }
 
-func (cu *CustomerUser) deleteApiKeyByType(keyType string) error {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
+func (cu *CustomerUser) deleteApiKeyByType(keyType string, ctx *middleware.APIContext) error {
 
-	typeID, err := getAPIKeyTypeReference(keyType)
+	typeID, err := getAPIKeyTypeReference(keyType, ctx)
 	if err != nil {
 		return err
 	}
 
-	tx, err := db.Begin()
+	tx, err := ctx.DB.Begin()
 	if err != nil {
 		return err
 	}
@@ -1352,14 +1170,9 @@ func (cu *CustomerUser) deleteApiKeyByType(keyType string) error {
 	return err
 }
 
-func (key *ApiCredentials) DeleteApiKey() error {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
+func (key *ApiCredentials) DeleteApiKey(ctx *middleware.APIContext) error {
 
-	tx, err := db.Begin()
+	tx, err := ctx.DB.Begin()
 	if err != nil {
 		return err
 	}
@@ -1410,3 +1223,124 @@ func (u *CustomerUser) LogApiRequest(r *http.Request) {
 
 	redis.Lpush(fmt.Sprintf("log:%s", ar.User.Id), ar)
 }
+
+var (
+	userCustomer = `select ` + customerFields + `, ` + stateFields + `, ` + countryFields + `, ` + dealerTypeFields + `, ` + dealerTierFields + `, ` + mapIconFields + `, ` + mapixCodeFields + `, ` + salesRepFields + `
+						from Customer as c
+						join CustomerUser as cu on c.cust_id = cu.cust_ID
+						left join States as s on c.stateID = s.stateID
+						left join Country as cty on s.countryID = cty.countryID
+						left join DealerTypes as dt on c.dealer_type = dt.dealer_type
+						left join MapIcons as mi on dt.dealer_type = mi.dealer_type
+						left join DealerTiers dtr on c.tier = dtr.ID
+						left join MapixCode as mpx on c.mCodeID = mpx.mCodeID
+						left join SalesRepresentative as sr on c.salesRepID = sr.salesRepID
+						where cu.id = ?`
+
+	getRegisteredUsersId = `select cu.id from CustomerUser as cu
+								where cu.email = ? && cu.password = ?
+								limit 1`
+
+	customerUserAuth = `select cu.id, cu.name, cu.email, cu.password, cu.customerID, cu.date_added, cu.active,cu.locationID, cu.isSudo, cu.cust_ID, cu.passwordConverted
+						from CustomerUser as cu
+						where email = ? && active = 1
+						limit 1`
+	getUserPassword        = `SELECT password, COUNT(password) AS quantity from CustomerUser where email = ?`
+	updateCustomerUserPass = `update CustomerUser set password = ?, passwordConverted = 1
+								where id = ? && active = 1`
+	customerUserKeyAuth = `select cu.* from CustomerUser as cu
+								join ApiKey as ak on cu.id = ak.user_id
+								join ApiKeyType as akt on ak.type_id = akt.id
+								where UPPER(akt.type) != ?
+								&& ak.api_key = UPPER(?)
+								&& cu.active = 1 && ak.date_added >= ?`
+	customerUserKeys = `select ak.api_key, akt.type, ak.date_added from ApiKey as ak
+								join ApiKeyType as akt on ak.type_id = akt.id
+								where user_id = ? && UPPER(akt.type) NOT IN (?)`
+	userLocation = `select cl.locationID, cl.name, cl.email, cl.address, cl.city,
+									cl.postalCode, cl.phone, cl.fax, cl.latitude, cl.longitude,
+									cl.cust_id, cl.contact_person, cl.isprimary, cl.ShippingDefault,
+									s.stateID, s.state, s.abbr as state_abbr, cty.countryID, cty.name as cty_name, cty.abbr as cty_abbr
+									from CustomerUser as cu
+									join CustomerLocations as cl on cu.locationID = cl.locationID
+									left join States as s on cl.stateID = s.stateID
+									left join Country as cty on s.countryID = cty.countryID
+									where cu.id = ?`
+
+	userAuthenticationKey = `select ak.api_key, akt.type, akt.id, CAST(ak.date_added as char(255)) as date_added from ApiKey as ak
+									join ApiKeyType as akt on ak.type_id = akt.id
+									where UPPER(akt.type) = ?
+									&& ak.user_id = ?`
+
+	resetUserAuthentication = `update ApiKey as ak
+									set ak.date_added = NOW()
+									where ak.type_id = ?
+									&& ak.user_id = ?`
+
+	customerUserFromKey = `select cu.* from CustomerUser as cu
+								join ApiKey as ak on cu.id = ak.user_id
+								join ApiKeyType as akt on ak.type_id = akt.id
+								where UPPER(akt.type) != ? && UPPER(ak.api_key) = UPPER(?)
+								limit 1`
+
+	customerUserFromId = `select cu.* from CustomerUser as cu
+							join ApiKey as ak on cu.id = ak.user_id
+							join ApiKeyType as akt on ak.type_id = akt.id
+							where cu.id = ?
+							limit 1`
+
+	insertCustomerUser = `INSERT into CustomerUser(id, name, email, password, customerID, date_added, active, locationID, isSudo, cust_ID, NotCustomer, passwordConverted)
+							VALUES(UUID(),?,?,?,?,NOW(),?,?,?,?,?,1)`
+
+	insertAPIKey = `insert into ApiKey(user_id, type_id, api_key, date_added)
+						values(?,?,UUID(),NOW())` //DB schema DOES auto increment table id
+	insertAPIKeyToBrand = `insert into ApiKeyToBrand(keyID, brandID)
+						values(?,?)`
+	deleteAPIKeyToBrand      = `delete from ApiKeyToBrand where keyID in (select id from ApiKey where user_id = ? && type_id = ?)`
+	deleteAPIKeyToBrandByKey = `delete from ApiKeyToBrand where keyID in (select id from ApiKey where api_key = ?)`
+
+	getCustomerUserKeysWithoutAuth = `select ak.api_key, akt.type from ApiKey as ak
+										join ApiKeyType as akt on ak.type_id = akt.id
+										where ak.user_id = ? && UPPER(akt.type) = ?`
+	getAPIKeyTypeID               = `select id from ApiKeyType where UPPER(type) = UPPER(?) limit 1`
+	setCustomerUserPassword       = `update CustomerUser set password = ?, passwordConverted = 1 WHERE email = ?`
+	setCustomerUserPasswordWithID = `update CustomerUser set password = ?, passwordConverted = 1 WHERE email = ? AND cust_ID = ?`
+	deleteCustomerUser            = `DELETE FROM CustomerUser WHERE id = ?`
+	deleteAPIkey                  = `DELETE FROM ApiKey WHERE user_id = ? AND type_id = ?`
+	deleteAPIkeyByKey             = `DELETE FROM ApiKey WHERE api_key = ?`
+	deleteUserAPIkeys             = `DELETE FROM ApiKey WHERE user_id = ?`
+	getCustomerUserKeysWithAuth   = `select ak.api_key, akt.type from ApiKey as ak
+										join ApiKeyType as akt on ak.type_id = akt.id
+										where ak.user_id = ? && (UPPER(akt.type) = ? || UPPER(akt.type) = ? || UPPER(akt.type) = ?)`
+	getCustomerUserLocation = `select cl.locationID, cl.name, cl.address, cl.city,
+								s.stateID, s.state,
+								s.abbr, cun.countryID, cun.name as countryName, cun.abbr as countryAbbr,
+								cl.email, cl.phone, cl.fax, cl.latitude, cl.longitude,
+								cl.cust_id, cl.contact_person, cl.isprimary, cl.postalCode,
+								cl.ShippingDefault from CustomerLocations as cl
+								join CustomerUser as cu on cl.locationID = cu.locationID
+								left join States as s on cl.stateID = s.stateID
+								left join Country as cun on s.countryID = cun.countryID
+								where cu.id = ?
+								limit 1`
+
+	updateCustomerUser   = `UPDATE CustomerUser SET name = ?, email = ?, active = ?, locationID = ?, isSudo = ?, NotCustomer = ? WHERE id = ?`
+	getUsersByCustomerID = `SELECT id FROM CustomerUser WHERE cust_id = ?`
+	getUserByEmail       = `SELECT cust_id FROM CustomerUser WHERE email = ?`
+
+	getUserAccounts = `select
+						cua.username, cua.password,
+						ac.accountNumber, ac.freightLimit,
+						act.id, act.type, act.comnet_url,
+						w.id, w.name, w.code, w.address, w.city, w.postalCode, w.tollFreePhone, w.fax, w.localPhone, w.manager, w.longitude, w.latitude,
+						s.stateID, s.state, s.abbr, c.countryID, c.name, c.abbr from ComnetUserAccounts as cua
+						join Accounts as ac on cua.account_id = ac.id
+						join AccountTypes as act on ac.type_id = act.id
+						left join Warehouses as w on ac.defaultWarehouseID = w.id
+						left join State as s on w.stateID = s.stateID
+						left join Country as c on s.countryID = c.countryID
+						where cua.user_id = ?
+						order by act.type`
+
+	AuthError = errors.New("failed to authenticate")
+)

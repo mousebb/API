@@ -1,12 +1,10 @@
 package site
 
 import (
-	"github.com/curt-labs/API/helpers/apicontext"
-	"github.com/curt-labs/API/helpers/database"
-	_ "github.com/go-sql-driver/mysql"
-
 	"database/sql"
 	"time"
+
+	"github.com/curt-labs/API/middleware"
 )
 
 type Content struct {
@@ -45,7 +43,7 @@ type ContentRevision struct {
 type ContentRevisions []ContentRevision
 
 const (
-	siteContentColumns = "s.contentID, s.content_type, s.page_title, s.createdDate, s.lastModified, s.meta_title, s.meta_description, s.keywords, s.isPrimary, s.published, s.active, s.slug, s.requireAuthentication, s.canonical, s.websiteID" //as s
+	siteContentColumns = `s.contentID, s.content_type, s.page_title, s.createdDate, s.lastModified, s.meta_title, s.meta_description, s.keywords, s.isPrimary, s.published, s.active, s.slug, s.requireAuthentication, s.canonical, s.websiteID`
 )
 
 var (
@@ -55,7 +53,7 @@ var (
 								Join ApiKeyToBrand as akb on akb.brandID = wub.brandID
 								Join ApiKey as ak on akb.keyID = ak.id
 								where s.contentID = ? && (ak.api_key = ? && (wub.brandID = ? OR 0=?))`
-	getAllContent = `SELECT ` + siteContentColumns + ` FROM SiteContent AS s  
+	getAllContent = `SELECT ` + siteContentColumns + ` FROM SiteContent AS s
 								Join WebsiteToBrand as wub on wub.WebsiteID = s.websiteID
 								Join ApiKeyToBrand as akb on akb.brandID = wub.brandID
 								Join ApiKey as ak on akb.keyID = ak.id
@@ -63,7 +61,7 @@ var (
 	getContentRevisions    = `SELECT revisionID, content_text, createdOn, active FROM SiteContentRevision AS scr WHERE scr.contentID = ? `
 	getAllContentRevisions = `SELECT revisionID, content_text, createdOn, active FROM SiteContentRevision AS scr `
 	getContentRevision     = `SELECT revisionID, content_text, createdOn, active FROM SiteContentRevision AS scr WHERE revisionID = ?`
-	getContentBySlug       = `SELECT ` + siteContentColumns + ` FROM SiteContent AS s 
+	getContentBySlug       = `SELECT ` + siteContentColumns + ` FROM SiteContent AS s
 								Join WebsiteToBrand as wub on wub.WebsiteID = s.websiteID
 								Join ApiKeyToBrand as akb on akb.brandID = wub.brandID
 								Join ApiKey as ak on akb.keyID = ak.id
@@ -71,9 +69,7 @@ var (
 
 	//operations
 	createRevision = `INSERT INTO SiteContentRevision (contentID, content_text, createdOn, active) VALUES (?,?,?,?)`
-	createContent  = `INSERT INTO SiteContent
-						(content_type, page_title, createdDate, meta_title, meta_description, keywords, isPrimary, published, active, slug, requireAuthentication, canonical, websiteID)
-						VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`
+	createContent  = `INSERT INTO SiteContent (content_type, page_title, createdDate, meta_title, meta_description, keywords, isPrimary, published, active, slug, requireAuthentication, canonical, websiteID) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`
 	updateRevision = `UPDATE SiteContentRevision SET contentID = ?, content_text = ?, active = ? WHERE revisionID = ?`
 	updateContent  = `UPDATE SiteContent SET
 					content_type = ?, page_title = ?,  meta_title = ?, meta_description = ?, keywords = ?, isPrimary = ?, published = ?, active = ?, slug = ?, requireAuthentication = ?, canonical  = ?, websiteID = ?
@@ -86,20 +82,16 @@ var (
 )
 
 //Fetch content by id
-func (c *Content) Get(dtx *apicontext.DataContext) (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getContent)
+func (c *Content) Get(ctx *middleware.APIContext) (err error) {
+
+	stmt, err := ctx.DB.Prepare(getContent)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 
 	var cType, title, mTitle, mDesc, slug, canon *string
-	err = stmt.QueryRow(c.Id, dtx.APIKey, dtx.BrandID, dtx.BrandID).Scan(
+	err = stmt.QueryRow(c.Id, ctx.DataContext.APIKey, ctx.DataContext.BrandID, ctx.DataContext.BrandID).Scan(
 		&c.Id,
 		&cType,
 		&title,
@@ -138,25 +130,21 @@ func (c *Content) Get(dtx *apicontext.DataContext) (err error) {
 	if canon != nil {
 		c.Canonical = *canon
 	}
+
 	//get latest revision
-	err = c.GetLatestRevision()
-	return err
+	return c.GetLatestRevision(ctx)
 }
 
 //Fetch content by slug
-func (c *Content) GetBySlug(dtx *apicontext.DataContext) (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getContentBySlug)
+func (c *Content) GetBySlug(ctx *middleware.APIContext) (err error) {
+
+	stmt, err := ctx.DB.Prepare(getContentBySlug)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 	var cType, title, mTitle, mDesc, slug, canon *string
-	err = stmt.QueryRow(c.Slug, dtx.APIKey, dtx.BrandID, dtx.BrandID).Scan(
+	err = stmt.QueryRow(c.Slug, ctx.DataContext.APIKey, ctx.DataContext.BrandID, ctx.DataContext.BrandID).Scan(
 		&c.Id,
 		&cType,
 		&title,
@@ -196,7 +184,7 @@ func (c *Content) GetBySlug(dtx *apicontext.DataContext) (err error) {
 		c.Canonical = *canon
 	}
 	//get latest revision
-	err = c.GetLatestRevision()
+	err = c.GetLatestRevision(ctx)
 	if err == sql.ErrNoRows {
 		err = nil
 	}
@@ -204,13 +192,9 @@ func (c *Content) GetBySlug(dtx *apicontext.DataContext) (err error) {
 }
 
 //Fetch a great many contents
-func GetAllContents(dtx *apicontext.DataContext) (cs Contents, err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return cs, err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getAllContent)
+func GetAllContents(ctx *middleware.APIContext) (cs Contents, err error) {
+
+	stmt, err := ctx.DB.Prepare(getAllContent)
 	if err != nil {
 		return cs, err
 	}
@@ -218,7 +202,7 @@ func GetAllContents(dtx *apicontext.DataContext) (cs Contents, err error) {
 
 	var cType, title, mTitle, mDesc, slug, canon, keywords *string
 	var c Content
-	res, err := stmt.Query(dtx.APIKey, dtx.BrandID, dtx.BrandID)
+	res, err := stmt.Query(ctx.DataContext.APIKey, ctx.DataContext.BrandID, ctx.DataContext.BrandID)
 	for res.Next() {
 		err = res.Scan(
 			&c.Id,
@@ -269,13 +253,9 @@ func GetAllContents(dtx *apicontext.DataContext) (cs Contents, err error) {
 }
 
 //Fetch a content's most recent revision
-func (c *Content) GetLatestRevision() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getLatestRevision)
+func (c *Content) GetLatestRevision(ctx *middleware.APIContext) (err error) {
+
+	stmt, err := ctx.DB.Prepare(getLatestRevision)
 	if err != nil {
 		return err
 	}
@@ -289,19 +269,15 @@ func (c *Content) GetLatestRevision() (err error) {
 		&rev.Active,
 	)
 
-	c.ContentRevisions = nil //refresh contentrevision array
-	c.ContentRevisions = append(c.ContentRevisions, rev)
+	c.ContentRevisions = []ContentRevision{rev}
+
 	return err
 }
 
 //Fetch all of thine content's revisions
-func (c *Content) GetContentRevisions() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getContentRevisions)
+func (c *Content) GetContentRevisions(ctx *middleware.APIContext) (err error) {
+
+	stmt, err := ctx.DB.Prepare(getContentRevisions)
 	if err != nil {
 		return err
 	}
@@ -322,17 +298,14 @@ func (c *Content) GetContentRevisions() (err error) {
 		c.ContentRevisions = append(c.ContentRevisions, rev)
 	}
 	defer res.Close()
-	return err
+
+	return nil
 }
 
 //Fetch a single revision by Id
-func (rev *ContentRevision) Get() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getContentRevision)
+func (rev *ContentRevision) Get(ctx *middleware.APIContext) (err error) {
+
+	stmt, err := ctx.DB.Prepare(getContentRevision)
 	if err != nil {
 		return err
 	}
@@ -351,13 +324,9 @@ func (rev *ContentRevision) Get() (err error) {
 }
 
 //Fetch a great many revisions
-func GetAllContentRevisions() (cr ContentRevisions, err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return cr, err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getAllContentRevisions)
+func GetAllContentRevisions(ctx *middleware.APIContext) (cr ContentRevisions, err error) {
+
+	stmt, err := ctx.DB.Prepare(getAllContentRevisions)
 	if err != nil {
 		return cr, err
 	}
@@ -365,6 +334,11 @@ func GetAllContentRevisions() (cr ContentRevisions, err error) {
 
 	var rev ContentRevision
 	res, err := stmt.Query()
+	if err != nil {
+		return cr, err
+	}
+	defer res.Close()
+
 	for res.Next() {
 		err = res.Scan(
 			&rev.Id,
@@ -377,18 +351,18 @@ func GetAllContentRevisions() (cr ContentRevisions, err error) {
 		}
 		cr = append(cr, rev)
 	}
-	defer res.Close()
+
 	return cr, err
 }
 
 //creatin' content
-func (c *Content) Create() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
+func (c *Content) Create(ctx *middleware.APIContext) (err error) {
+
+	tx, err := ctx.DB.Begin()
 	if err != nil {
 		return err
 	}
-	defer db.Close()
-	tx, err := db.Begin()
+
 	stmt, err := tx.Prepare(createContent)
 	if err != nil {
 		return err
@@ -415,10 +389,12 @@ func (c *Content) Create() (err error) {
 		tx.Rollback()
 		return err
 	}
+
 	err = tx.Commit()
 	if err != nil {
 		return err
 	}
+
 	id, err := res.LastInsertId()
 	if err != nil {
 		return err
@@ -427,22 +403,21 @@ func (c *Content) Create() (err error) {
 	//create content revisions
 	for _, cr := range c.ContentRevisions {
 		cr.ContentId = c.Id
-		err = cr.Create()
+		err = cr.Create(ctx)
 		if err != nil {
 			return err
 		}
 	}
-	return err
+	return nil
 }
 
 //updatin' content
-func (c *Content) Update() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
+func (c *Content) Update(ctx *middleware.APIContext) (err error) {
+
+	tx, err := ctx.DB.Begin()
 	if err != nil {
 		return err
 	}
-	defer db.Close()
-	tx, err := db.Begin()
 	stmt, err := tx.Prepare(updateContent)
 	if err != nil {
 		return err
@@ -476,9 +451,9 @@ func (c *Content) Update() (err error) {
 	for _, cr := range c.ContentRevisions {
 		cr.ContentId = c.Id
 		if cr.Id > 0 {
-			err = cr.Update()
+			err = cr.Update(ctx)
 		} else {
-			err = cr.Create()
+			err = cr.Create(ctx)
 		}
 		if err != nil {
 			return err
@@ -488,13 +463,12 @@ func (c *Content) Update() (err error) {
 }
 
 //deletin' content, brings joined revisions and menu join with
-func (c *Content) Delete() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
+func (c *Content) Delete(ctx *middleware.APIContext) (err error) {
+
+	tx, err := ctx.DB.Begin()
 	if err != nil {
 		return err
 	}
-	defer db.Close()
-	tx, err := db.Begin()
 
 	//adios revisions
 	stmt, err := tx.Prepare(deleteRevisionbyContentID)
@@ -533,18 +507,17 @@ func (c *Content) Delete() (err error) {
 		return err
 	}
 
-	err = tx.Commit()
-	return err
+	return tx.Commit()
 }
 
 //creatin' a revision, requires content to exist
-func (rev *ContentRevision) Create() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
+func (rev *ContentRevision) Create(ctx *middleware.APIContext) (err error) {
+
+	tx, err := ctx.DB.Begin()
 	if err != nil {
 		return err
 	}
-	defer db.Close()
-	tx, err := db.Begin()
+
 	stmt, err := tx.Prepare(createRevision)
 	if err != nil {
 		return err
@@ -562,17 +535,18 @@ func (rev *ContentRevision) Create() (err error) {
 		return err
 	}
 	rev.Id = int(id)
-	return err
+
+	return nil
 }
 
 //updatin' a revision, requires content to exisi
-func (rev *ContentRevision) Update() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
+func (rev *ContentRevision) Update(ctx *middleware.APIContext) (err error) {
+
+	tx, err := ctx.DB.Begin()
 	if err != nil {
 		return err
 	}
-	defer db.Close()
-	tx, err := db.Begin()
+
 	stmt, err := tx.Prepare(updateRevision)
 	if err != nil {
 		return err
@@ -592,13 +566,13 @@ func (rev *ContentRevision) Update() (err error) {
 }
 
 //deletin' a revision
-func (rev *ContentRevision) Delete() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
+func (rev *ContentRevision) Delete(ctx *middleware.APIContext) (err error) {
+
+	tx, err := ctx.DB.Begin()
 	if err != nil {
 		return err
 	}
-	defer db.Close()
-	tx, err := db.Begin()
+
 	stmt, err := tx.Prepare(deleteRevision)
 	if err != nil {
 		return err

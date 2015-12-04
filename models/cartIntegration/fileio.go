@@ -1,7 +1,7 @@
 package cartIntegration
 
 import (
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/curt-labs/API/middleware"
 
 	"encoding/csv"
 	"mime/multipart"
@@ -14,7 +14,7 @@ const (
 	DATE_FORMAT = "2006-01-02"
 )
 
-func UploadFile(file multipart.File, api_key string) error {
+func UploadFile(file multipart.File, ctx *middleware.APIContext) error {
 	defer file.Close()
 	csvfile := csv.NewReader(file)
 
@@ -23,11 +23,11 @@ func UploadFile(file multipart.File, api_key string) error {
 		return err
 	}
 
-	priceLookup, err := GetCustomerPrices()
+	priceLookup, err := GetCustomerPrices(ctx)
 	if err != nil {
 		return err
 	}
-	integrationLookup, err := GetCustomerCartIntegrations(api_key)
+	integrationLookup, err := GetCustomerCartIntegrations(ctx)
 	if err != nil {
 		return err
 	}
@@ -35,7 +35,7 @@ func UploadFile(file multipart.File, api_key string) error {
 	for i, line := range lines {
 		//Curt Part ID,	Customer Part ID, Sale Price, Sale Start Date, Sale End Date
 		var cp CustomerPrice
-		cp.CustID = Customer_ID
+		cp.CustID = ctx.DataContext.CustomerID
 
 		partID, err := strconv.Atoi(line[0])
 		if err != nil && i == 0 {
@@ -79,9 +79,9 @@ func UploadFile(file multipart.File, api_key string) error {
 		cp.priceExists(priceLookup) //determine if update or create
 
 		if cp.ID > 0 {
-			err = cp.Update()
+			err = cp.Update(ctx)
 		} else {
-			err = cp.Create()
+			err = cp.Create(ctx)
 		}
 		if err != nil {
 			return err
@@ -90,9 +90,9 @@ func UploadFile(file multipart.File, api_key string) error {
 		custPartNum := cp.integrationExists(integrationLookup)
 		if custPartNum != cp.CustomerPartID {
 			if custPartNum > 0 {
-				err = cp.UpdateCartIntegration()
+				err = cp.UpdateCartIntegration(ctx)
 			} else {
-				err = cp.InsertCartIntegration()
+				err = cp.InsertCartIntegration(ctx)
 			}
 			if err != nil {
 				return err

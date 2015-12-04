@@ -1,33 +1,30 @@
 package customer
 
 import (
-	"database/sql"
-	"github.com/curt-labs/API/helpers/apicontext"
-	"github.com/curt-labs/API/helpers/database"
-	"github.com/curt-labs/API/helpers/redis"
-	_ "github.com/go-sql-driver/mysql"
-	// "log"
 	"strconv"
+
+	"github.com/curt-labs/API/helpers/redis"
+	"github.com/curt-labs/API/middleware"
 )
 
 var (
 	getDealerTypes = `select dt.dealer_type, ` + dealerTypeFields + ` from DealerTypes as dt
 			join ApiKeyToBrand as atb on atb.brandID = dt.brandID
-			join ApiKey as a on a.id = atb.keyID 
+			join ApiKey as a on a.id = atb.keyID
 			&&(a.api_key = ? && (dt.brandID = ? or 0 = ?))`
 	getDealerTiers = `select dtr.ID, ` + dealerTierFields + ` from DealerTiers as dtr
 			join ApiKeyToBrand as atb on atb.brandID = dtr.brandID
-			join ApiKey as a on a.id = atb.keyID 
+			join ApiKey as a on a.id = atb.keyID
 			&&(a.api_key = ? && (dtr.brandID = ? or 0 = ?))`
 	getMapIcons   = `select mi.ID, mi.tier, mi.dealer_type, ` + mapIconFields + ` from MapIcons as mi`
 	getMapixCodes = ` select mpx.mCodeID, ` + mapixCodeFields + ` from MapixCode as mpx`
 	getSalesReps  = ` select sr.salesRepID, ` + salesRepFields + ` from salesRepresentative as sr`
 )
 
-func DealerTypeMap(dtx *apicontext.DataContext) (map[int]DealerType, error) {
+func DealerTypeMap(ctx *middleware.APIContext) (map[int]DealerType, error) {
 	typeMap := make(map[int]DealerType)
 	var err error
-	dTypes, err := GetDealerTypes(dtx)
+	dTypes, err := GetDealerTypes(ctx)
 	if err != nil {
 		return typeMap, err
 	}
@@ -40,20 +37,16 @@ func DealerTypeMap(dtx *apicontext.DataContext) (map[int]DealerType, error) {
 	return typeMap, err
 }
 
-func GetDealerTypes(dtx *apicontext.DataContext) ([]DealerType, error) {
+func GetDealerTypes(ctx *middleware.APIContext) ([]DealerType, error) {
 	var dType DealerType
 	var dTypes []DealerType
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return dTypes, err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getDealerTypes)
+
+	stmt, err := ctx.DB.Prepare(getDealerTypes)
 	if err != nil {
 		return dTypes, err
 	}
 	defer stmt.Close()
-	res, err := stmt.Query(dtx.APIKey, dtx.BrandID, dtx.BrandID)
+	res, err := stmt.Query(ctx.DataContext.APIKey, ctx.DataContext.BrandID, ctx.DataContext.BrandID)
 	if err != nil {
 		return dTypes, err
 	}
@@ -74,10 +67,10 @@ func GetDealerTypes(dtx *apicontext.DataContext) ([]DealerType, error) {
 	return dTypes, err
 }
 
-func DealerTierMap(dtx *apicontext.DataContext) (map[int]DealerTier, error) {
+func DealerTierMap(ctx *middleware.APIContext) (map[int]DealerTier, error) {
 	tierMap := make(map[int]DealerTier)
 	var err error
-	dTiers, err := GetDealerTiers(dtx)
+	dTiers, err := GetDealerTiers(ctx)
 	if err != nil {
 		return tierMap, err
 	}
@@ -90,20 +83,17 @@ func DealerTierMap(dtx *apicontext.DataContext) (map[int]DealerTier, error) {
 	return tierMap, err
 }
 
-func GetDealerTiers(dtx *apicontext.DataContext) ([]DealerTier, error) {
+func GetDealerTiers(ctx *middleware.APIContext) ([]DealerTier, error) {
 	var dTier DealerTier
 	var dTiers []DealerTier
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return dTiers, err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getDealerTiers)
+
+	stmt, err := ctx.DB.Prepare(getDealerTiers)
 	if err != nil {
 		return dTiers, err
 	}
 	defer stmt.Close()
-	res, err := stmt.Query(dtx.APIKey, dtx.BrandID, dtx.BrandID)
+
+	res, err := stmt.Query(ctx.DataContext.APIKey, ctx.DataContext.BrandID, ctx.DataContext.BrandID)
 	if err != nil {
 		return dTiers, err
 	}
@@ -123,20 +113,16 @@ func GetDealerTiers(dtx *apicontext.DataContext) ([]DealerTier, error) {
 	return dTiers, err
 }
 
-func GetMapIcons() ([]MapIcon, error) {
+func GetMapIcons(ctx *middleware.APIContext) ([]MapIcon, error) {
 	var mi MapIcon
 	var mis []MapIcon
-	var err error
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return mis, err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getMapIcons)
+
+	stmt, err := ctx.DB.Prepare(getMapIcons)
 	if err != nil {
 		return mis, err
 	}
 	defer stmt.Close()
+
 	res, err := stmt.Query()
 	for res.Next() {
 		err = res.Scan(
@@ -155,9 +141,9 @@ func GetMapIcons() ([]MapIcon, error) {
 	return mis, err
 }
 
-func MapixMap() (map[int]MapixCode, error) {
+func MapixMap(ctx *middleware.APIContext) (map[int]MapixCode, error) {
 	mapixMap := make(map[int]MapixCode)
-	mcs, err := GetMapixCodes()
+	mcs, err := GetMapixCodes(ctx)
 	if err != nil {
 		return mapixMap, err
 	}
@@ -170,16 +156,11 @@ func MapixMap() (map[int]MapixCode, error) {
 	return mapixMap, err
 }
 
-func GetMapixCodes() ([]MapixCode, error) {
+func GetMapixCodes(ctx *middleware.APIContext) ([]MapixCode, error) {
 	var mc MapixCode
 	var mcs []MapixCode
-	var err error
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return mcs, err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getMapixCodes)
+
+	stmt, err := ctx.DB.Prepare(getMapixCodes)
 	if err != nil {
 		return mcs, err
 	}
@@ -203,9 +184,9 @@ func GetMapixCodes() ([]MapixCode, error) {
 	return mcs, err
 }
 
-func SalesRepMap() (map[int]SalesRepresentative, error) {
+func SalesRepMap(ctx *middleware.APIContext) (map[int]SalesRepresentative, error) {
 	repMap := make(map[int]SalesRepresentative)
-	reps, err := GetSalesReps()
+	reps, err := GetSalesReps(ctx)
 	if err != nil {
 		return repMap, err
 	}
@@ -218,16 +199,11 @@ func SalesRepMap() (map[int]SalesRepresentative, error) {
 	return repMap, err
 }
 
-func GetSalesReps() ([]SalesRepresentative, error) {
+func GetSalesReps(ctx *middleware.APIContext) ([]SalesRepresentative, error) {
 	var sr SalesRepresentative
 	var srs []SalesRepresentative
-	var err error
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return srs, err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getSalesReps)
+
+	stmt, err := ctx.DB.Prepare(getSalesReps)
 	if err != nil {
 		return srs, err
 	}

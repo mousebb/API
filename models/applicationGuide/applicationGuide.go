@@ -2,7 +2,7 @@ package applicationGuide
 
 import (
 	"database/sql"
-	"github.com/curt-labs/API/helpers/apicontext"
+
 	"github.com/curt-labs/API/helpers/database"
 	"github.com/curt-labs/API/models/products"
 	"github.com/curt-labs/API/models/site"
@@ -25,19 +25,19 @@ const (
 var (
 	createApplicationGuide = `insert into ApplicationGuides (url, websiteID, fileType, catID, icon, brandID) values (?,?,?,?,?,?)`
 	deleteApplicationGuide = `delete from ApplicationGuides where ID = ?`
-	getApplicationGuide    = `select ag.ID, ` + fields + `, c.catTitle from ApplicationGuides as ag 
+	getApplicationGuide    = `select ag.ID, ` + fields + `, c.catTitle from ApplicationGuides as ag
 										left join Categories as c on c.catID = ag.catID
 										Join ApiKeyToBrand as akb on akb.brandID = ag.brandID
 										Join ApiKey as ak on akb.keyID = ak.id
 										where (ak.api_key = ? && (ag.brandID = ? OR 0=?)) && ag.ID = ? `
-	getApplicationGuides = `select ag.ID, ` + fields + `, c.catTitle from ApplicationGuides as ag 
+	getApplicationGuides = `select ag.ID, ` + fields + `, c.catTitle from ApplicationGuides as ag
 										left join Categories as c on c.catID = ag.catID
 										Join ApiKeyToBrand as akb on akb.brandID = ag.brandID
 										Join ApiKey as ak on akb.keyID = ak.id
 										where ak.api_key = ? && (ag.brandID = ? OR 0=?)
 										`
-	getApplicationGuidesBySite = `select ag.ID, ` + fields + `, c.catTitle from ApplicationGuides as ag 
-										left join Categories as c on c.catID = ag.catID 
+	getApplicationGuidesBySite = `select ag.ID, ` + fields + `, c.catTitle from ApplicationGuides as ag
+										left join Categories as c on c.catID = ag.catID
 										Join ApiKeyToBrand as akb on akb.brandID = ag.brandID
 										Join ApiKey as ak on akb.keyID = ak.id
 										where (ak.api_key = ? && (ag.brandID = ? OR 0=?)) && websiteID = ?`

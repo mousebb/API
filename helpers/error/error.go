@@ -3,11 +3,11 @@ package apierror
 import (
 	"encoding/json"
 	"encoding/xml"
-	"github.com/curt-labs/API/helpers/database"
-	"gopkg.in/mgo.v2"
 	"io/ioutil"
 	"net/http"
 	"net/url"
+
+	"github.com/curt-labs/API/helpers/database"
 )
 
 type ApiErr struct {
@@ -77,12 +77,8 @@ func GenerateError(msg string, err error, res http.ResponseWriter, r *http.Reque
 }
 
 func logError(e ApiErr) error {
-	session, err := mgo.DialWithInfo(database.MongoConnectionString())
-	if err != nil {
-		return err
-	}
-	defer session.Close()
-	c := session.DB("errorDB").C("errors")
-	err = c.Insert(e)
-	return err
+	session := database.ErrorMongoSession.Copy()
+	c := session.DB(database.ErrorMongoDatabase).C("errors")
+
+	return c.Insert(e)
 }

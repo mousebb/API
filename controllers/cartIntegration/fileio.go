@@ -16,7 +16,6 @@ import (
 
 // Upload ...
 func Upload(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	key := r.URL.Query().Get("key")
 	file, fileHeader, err := r.FormFile("file")
 	if err != nil {
 		return nil, err
@@ -33,7 +32,7 @@ func Upload(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	err = cartIntegration.UploadFile(file, key)
+	err = cartIntegration.UploadFile(file, ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -47,14 +46,14 @@ func Download(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Reques
 	b := &bytes.Buffer{}
 	wr := csv.NewWriter(b)
 
-	customerPrices, err := cartIntegration.GetCustomerPrices()
+	customerPrices, err := cartIntegration.GetCustomerPrices(ctx)
 	if err != nil {
 		apierror.GenerateError(err.Error(), err, rw, r, http.StatusInternalServerError)
 		return
 	}
 
 	//Price map
-	prices, err := cartIntegration.GetPartPrices()
+	prices, err := cartIntegration.GetPartPrices(ctx)
 	if err != nil {
 		apierror.GenerateError(err.Error(), err, rw, r, http.StatusInternalServerError)
 		return

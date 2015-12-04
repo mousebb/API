@@ -47,6 +47,7 @@ func Identifiers(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Req
 	return products.Identifiers(b, ctx.DataContext, ctx.Session)
 }
 
+// All Returns a slice of all Part.
 func All(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	page := 0
 	count := 10
@@ -72,6 +73,7 @@ func All(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (i
 	return products.All(page, count, ctx.DataContext, ctx.Session)
 }
 
+// Featured Returns a given amount of featured Part.
 func Featured(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	count := 10
 	qs := r.URL.Query()
@@ -97,6 +99,7 @@ func Featured(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Reques
 	return products.Featured(count, dtx, brand)
 }
 
+// Latest Returns the latest slice of Part.
 func Latest(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	count := 10
 	qs := r.URL.Query()
@@ -141,6 +144,7 @@ func Latest(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request)
 // 	return encoding.Must(enc.Encode(p))
 // }
 
+// GetRelated Retrieves the related Part to a given Part.
 func GetRelated(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	id, _ := strconv.Atoi(ctx.Params.ByName("part"))
 	p := products.Part{
@@ -150,6 +154,8 @@ func GetRelated(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Requ
 	return p.GetRelated(ctx)
 }
 
+// GetWithVehicle Gets a Part with attributes relative to the fitment
+// to a Vehicle.
 func GetWithVehicle(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	var err error
 	err = errors.New("Not Implemented")
@@ -192,6 +198,7 @@ func GetWithVehicle(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.
 	// return encoding.Must(enc.Encode(part))
 }
 
+// Vehicles Returns the vehicles that fit a given Part.
 func Vehicles(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	id, err := strconv.Atoi(ctx.Params.ByName("part"))
 	if err != nil {
@@ -342,7 +349,7 @@ func InstallSheet(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Re
 	w.Write(data)
 }
 
-//Redundant
+// Categories Returns product categories.
 func Categories(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	id, err := strconv.Atoi(ctx.Params.ByName("part"))
 	if err != nil {

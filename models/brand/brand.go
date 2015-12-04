@@ -4,9 +4,6 @@ import (
 	"database/sql"
 	"errors"
 	"net/url"
-
-	"github.com/curt-labs/API/helpers/database"
-	_ "github.com/go-sql-driver/mysql"
 )
 
 var (
@@ -89,12 +86,8 @@ func ScanBrand(res Scanner) (Brand, error) {
 	}
 	return b, err
 }
-func GetAllBrands() (brands Brands, err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return
-	}
-	defer db.Close()
+
+func GetAllBrands(db *sql.DB) (brands Brands, err error) {
 
 	stmt, err := db.Prepare(getAllBrandsStmt)
 	if err != nil {
@@ -120,16 +113,10 @@ func GetAllBrands() (brands Brands, err error) {
 	return
 }
 
-func (b *Brand) Get() error {
+func (b *Brand) Get(db *sql.DB) error {
 	if b.ID == 0 {
 		return errors.New("Invalid Brand ID")
 	}
-
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
 
 	stmt, err := db.Prepare(getBrandStmt)
 	if err != nil {
@@ -145,18 +132,13 @@ func (b *Brand) Get() error {
 	return nil
 }
 
-func (b *Brand) Create() error {
+func (b *Brand) Create(db *sql.DB) error {
 	if b.Name == "" {
 		return errors.New("Brand must have a name.")
 	}
 	if b.Code == "" {
 		return errors.New("Brand must have a code.")
 	}
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
 
 	stmt, err := db.Prepare(insertBrandStmt)
 	if err != nil {
@@ -174,18 +156,13 @@ func (b *Brand) Create() error {
 	return err
 }
 
-func (b *Brand) Update() error {
+func (b *Brand) Update(db *sql.DB) error {
 	if b.Name == "" {
 		return errors.New("Brand must have a name.")
 	}
 	if b.Code == "" {
 		return errors.New("Brand must have a code.")
 	}
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
 
 	stmt, err := db.Prepare(updateBrandStmt)
 	if err != nil {
@@ -197,12 +174,7 @@ func (b *Brand) Update() error {
 	return err
 }
 
-func (b *Brand) Delete() error {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
+func (b *Brand) Delete(db *sql.DB) error {
 
 	stmt, err := db.Prepare(deleteBrandStmt)
 	if err != nil {
@@ -214,16 +186,10 @@ func (b *Brand) Delete() error {
 	return err
 }
 
-func getWebsites(brandID int) ([]Website, error) {
+func getWebsites(brandID int, db *sql.DB) ([]Website, error) {
 	sites := make([]Website, 0)
+
 	var err error
-
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return sites, err
-	}
-	defer db.Close()
-
 	var rows *sql.Rows
 
 	if brandID > 0 {
@@ -267,15 +233,9 @@ func getWebsites(brandID int) ([]Website, error) {
 	return sites, nil
 }
 
-func GetUserBrands(id int) ([]Brand, error) {
+func GetUserBrands(id int, db *sql.DB) ([]Brand, error) {
 	brands := make([]Brand, 0)
 	var err error
-
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return brands, err
-	}
-	defer db.Close()
 
 	stmt, err := db.Prepare(getCustomerUserBrands)
 	if err != nil {
@@ -288,7 +248,7 @@ func GetUserBrands(id int) ([]Brand, error) {
 		return brands, err
 	}
 
-	sites, err := getWebsites(0)
+	sites, err := getWebsites(0, db)
 	if err != nil {
 		return brands, err
 	}

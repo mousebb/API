@@ -4,11 +4,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"github.com/curt-labs/API/helpers/apicontext"
+	"net/url"
+
 	"github.com/curt-labs/API/helpers/database"
 	"github.com/curt-labs/API/helpers/redis"
 	_ "github.com/go-sql-driver/mysql"
-	"net/url"
 )
 
 type PartVideo struct {

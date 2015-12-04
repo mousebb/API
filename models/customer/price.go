@@ -1,11 +1,9 @@
 package customer
 
 import (
-	"github.com/curt-labs/API/helpers/database"
 	"github.com/curt-labs/API/helpers/redis"
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/curt-labs/API/middleware"
 
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -45,7 +43,7 @@ const (
 	allPricesRedisKey = "prices"
 )
 
-func (p *Price) Get() error {
+func (p *Price) Get(ctx *middleware.APIContext) error {
 	redis_key := "price:" + strconv.Itoa(p.ID)
 	data, err := redis.Get(redis_key)
 	if err == nil && len(data) > 0 {
@@ -53,13 +51,7 @@ func (p *Price) Get() error {
 		return err
 	}
 
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(getPrice)
+	stmt, err := ctx.DB.Prepare(getPrice)
 	if err != nil {
 		return err
 	}
@@ -73,7 +65,7 @@ func (p *Price) Get() error {
 	return nil
 }
 
-func GetAllPrices() (Prices, error) {
+func GetAllPrices(ctx *middleware.APIContext) (Prices, error) {
 	var ps Prices
 	var err error
 	data, err := redis.Get(allPricesRedisKey)
@@ -82,13 +74,7 @@ func GetAllPrices() (Prices, error) {
 		return ps, err
 	}
 
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return ps, err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(getPrices)
+	stmt, err := ctx.DB.Prepare(getPrices)
 	if err != nil {
 		return ps, err
 	}
@@ -104,18 +90,18 @@ func GetAllPrices() (Prices, error) {
 	return ps, nil
 }
 
-func (p *Price) Create() error {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	tx, err := db.Begin()
+func (p *Price) Create(ctx *middleware.APIContext) error {
+
+	tx, err := ctx.DB.Begin()
 	if err != nil {
 		return err
 	}
 
 	stmt, err := tx.Prepare(createPrice)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
 	res, err := stmt.Exec(p.CustID, p.PartID, p.Price, p.IsSale, p.SaleStart, p.SaleEnd)
 	if err != nil {
 		tx.Rollback()
@@ -133,19 +119,21 @@ func (p *Price) Create() error {
 	}
 	go redis.Delete(allPricesRedisKey)
 	go redis.Setex("price:"+strconv.Itoa(p.ID), p, 86400)
+
 	return nil
 }
-func (p *Price) Update() error {
-	db, err := sql.Open("mysql", database.ConnectionString())
+func (p *Price) Update(ctx *middleware.APIContext) error {
+
+	tx, err := ctx.DB.Begin()
 	if err != nil {
 		return err
 	}
-	defer db.Close()
-	tx, err := db.Begin()
-	if err != nil {
-		return err
-	}
+
 	stmt, err := tx.Prepare(updatePrice)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
 
 	_, err = stmt.Exec(p.CustID, p.PartID, p.Price, p.IsSale, p.SaleStart, p.SaleEnd, p.ID)
 	if err != nil {
@@ -156,39 +144,44 @@ func (p *Price) Update() error {
 	if err != nil {
 		return err
 	}
+
 	go redis.Setex("price:"+strconv.Itoa(p.ID), p, 86400)
 	go redis.Delete(fmt.Sprintf("prices:part:%d", strconv.Itoa(p.PartID)))
 	go redis.Delete(fmt.Sprintf("customers:prices:%d", strconv.Itoa(p.CustID)))
 	return nil
 }
 
-func (p *Price) Delete() error {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	tx, err := db.Begin()
+func (p *Price) Delete(ctx *middleware.APIContext) error {
+
+	tx, err := ctx.DB.Begin()
 	if err != nil {
 		return err
 	}
 	stmt, err := tx.Prepare(deletePrice)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
 	_, err = stmt.Exec(p.ID)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
+
 	err = tx.Commit()
 	if err != nil {
 		return err
 	}
+
 	go redis.Delete("price:" + strconv.Itoa(p.ID))
 	go redis.Delete(fmt.Sprintf("prices:part:%d", strconv.Itoa(p.PartID)))
 	go redis.Delete(fmt.Sprintf("customers:prices:%d", strconv.Itoa(p.CustID)))
+
 	return nil
 }
 
-func (c *Customer) GetPricesByCustomer() (CustomerPrices, error) {
+func (c *Customer) GetPricesByCustomer(ctx *middleware.APIContext) (CustomerPrices, error) {
 	var cps CustomerPrices
 	redis_key := "customers:prices:" + strconv.Itoa(c.Id)
 	data, err := redis.Get(redis_key)
@@ -197,17 +190,12 @@ func (c *Customer) GetPricesByCustomer() (CustomerPrices, error) {
 		return cps, err
 	}
 
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return cps, err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(getPricesByCustomer)
+	stmt, err := ctx.DB.Prepare(getPricesByCustomer)
 	if err != nil {
 		return cps, err
 	}
 	defer stmt.Close()
+
 	res, err := stmt.Query(c.Id)
 	for res.Next() {
 		var p Price
@@ -219,7 +207,7 @@ func (c *Customer) GetPricesByCustomer() (CustomerPrices, error) {
 	return cps, err
 }
 
-func GetPricesByPart(partID int) (Prices, error) {
+func GetPricesByPart(partID int, ctx *middleware.APIContext) (Prices, error) {
 	var ps Prices
 	redis_key := "prices:part:" + strconv.Itoa(partID)
 	data, err := redis.Get(redis_key)
@@ -228,42 +216,45 @@ func GetPricesByPart(partID int) (Prices, error) {
 		return ps, err
 	}
 
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return ps, err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(getPricesByPart)
+	stmt, err := ctx.DB.Prepare(getPricesByPart)
 	if err != nil {
 		return ps, err
 	}
 	defer stmt.Close()
+
 	res, err := stmt.Query(partID)
+	if err != nil {
+		return ps, err
+	}
+	defer res.Close()
+
 	for res.Next() {
 		var p Price
 		res.Scan(&p.ID, &p.CustID, &p.PartID, &p.Price, &p.IsSale, &p.SaleStart, &p.SaleEnd)
 		ps = append(ps, p)
 	}
+
 	go redis.Setex(redis_key, ps, 86400)
+
 	return ps, nil
 }
 
-func (c *Customer) GetPricesBySaleRange(startDate, endDate time.Time) (Prices, error) {
+func (c *Customer) GetPricesBySaleRange(startDate, endDate time.Time, ctx *middleware.APIContext) (Prices, error) {
 	var err error
 	var ps Prices
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return ps, err
-	}
 
-	defer db.Close()
-	stmt, err := db.Prepare(getPricesBySaleRange)
+	stmt, err := ctx.DB.Prepare(getPricesBySaleRange)
 	if err != nil {
 		return ps, err
 	}
 	defer stmt.Close()
+
 	res, err := stmt.Query(startDate, endDate, c.Id)
+	if err != nil {
+		return ps, err
+	}
+	defer res.Close()
+
 	for res.Next() {
 		var p Price
 		res.Scan(&p.ID, &p.CustID, &p.PartID, &p.Price, &p.IsSale, &p.SaleStart, &p.SaleEnd)

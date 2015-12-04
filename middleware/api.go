@@ -8,7 +8,6 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"gopkg.in/mgo.v2"
 
-	"github.com/curt-labs/API/helpers/apicontext"
 	"github.com/curt-labs/API/helpers/error"
 )
 
@@ -26,8 +25,7 @@ type APIContext struct {
 	AriesSession *mgo.Session
 	Encoder      interface{}
 	Params       httprouter.Params
-	DataContext  *apicontext.DataContext
-	Key          string
+	DataContext  *DataContext
 }
 
 // Middleware Gives the ability to add Middleware capability to APIHandler

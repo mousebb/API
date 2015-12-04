@@ -1,9 +1,8 @@
 package video
 
 import (
-	"github.com/curt-labs/API/helpers/apicontext"
-	"github.com/curt-labs/API/helpers/database"
 	"github.com/curt-labs/API/helpers/redis"
+	"github.com/curt-labs/API/middleware"
 	"github.com/curt-labs/API/models/brand"
 	_ "github.com/go-sql-driver/mysql"
 
@@ -124,13 +123,13 @@ var (
 	getAllCdnFiles   = `SELECT ` + cdnFileFields + `,` + cdnFileTypeFields + ` FROM CdnFile AS cf LEFT JOIN CdnFileType AS cft ON cft.ID = cf.typeID `
 	getAllChannels   = `SELECT ` + channelFields + `, ` + channelTypeFields + ` FROM Channel AS c LEFT JOIN ChannelType AS ct ON ct.ID = c.typeID `
 	getAllVideoTypes = `SELECT vt.vTypeID, ` + videoTypeFields + ` FROM videoType AS vt`
-	getVideoChannels = `SELECT ` + channelFields + `, ` + channelTypeFields + ` FROM VideoChannels AS vc 
+	getVideoChannels = `SELECT ` + channelFields + `, ` + channelTypeFields + ` FROM VideoChannels AS vc
 					  JOIN Channel AS c on c.ID = vc.channelID
 					 LEFT JOIN ChannelType AS ct ON ct.ID = c.typeID
 					WHERE vc.videoID = ?`
-	getVideoCdns = `SELECT ` + cdnFileFields + `, ` + cdnFileTypeFields + ` FROM CdnFile AS cf 
-						LEFT JOIN CdnFileType AS cft ON cft.ID = cf.typeID 
-						LEFT JOIN VideoCdnFiles AS vcf ON vcf.cdnID = cf.ID 
+	getVideoCdns = `SELECT ` + cdnFileFields + `, ` + cdnFileTypeFields + ` FROM CdnFile AS cf
+						LEFT JOIN CdnFileType AS cft ON cft.ID = cf.typeID
+						LEFT JOIN VideoCdnFiles AS vcf ON vcf.cdnID = cf.ID
 						WHERE vcf.videoID = ? `
 	getVideoParts      = `select partID from VideoJoin where videoID = ?`
 	getVideoIdFromPart = `select videoID from VideoJoin where partID = ?`
@@ -144,19 +143,15 @@ var (
 )
 
 // Retrieves a base video file. This does not grab all the associated channels or CDN files.
-func (v *Video) Get() error {
+func (v *Video) Get(ctx *middleware.APIContext) error {
 	redis_key := "video:" + strconv.Itoa(v.ID)
 	data, err := redis.Get(redis_key)
 	if err == nil && len(data) > 0 {
 		err = json.Unmarshal(data, &v)
 		return err
 	}
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getVideo)
+
+	stmt, err := ctx.DB.Prepare(getVideo)
 	if err != nil {
 		return err
 	}
@@ -174,7 +169,7 @@ func (v *Video) Get() error {
 }
 
 // GetVideoDetails grabs a video's more advance information such as, Brands, CDN files, associated channels(youtube videos), and any products associated with the video.
-func (v *Video) GetVideoDetails() error {
+func (v *Video) GetVideoDetails(ctx *middleware.APIContext) error {
 	redis_key := "video:details:" + strconv.Itoa(v.ID)
 	data, err := redis.Get(redis_key)
 	if err == nil && len(data) > 0 {
@@ -187,13 +182,13 @@ func (v *Video) GetVideoDetails() error {
 	cdnChan := make(chan error)
 	partChan := make(chan error)
 
-	err = v.Get()
+	err = v.Get(ctx)
 	if err != nil {
 		return err
 	}
 
 	go func() {
-		err = v.GetBrands()
+		err = v.GetBrands(ctx)
 		if err != nil {
 			brandChan <- err
 		}
@@ -201,7 +196,7 @@ func (v *Video) GetVideoDetails() error {
 
 	}()
 	go func() {
-		chs, err := v.GetChannels()
+		chs, err := v.GetChannels(ctx)
 		if err != nil {
 			chanChan <- err
 		}
@@ -210,7 +205,7 @@ func (v *Video) GetVideoDetails() error {
 
 	}()
 	go func() {
-		cdns, err := v.GetCdnFiles()
+		cdns, err := v.GetCdnFiles(ctx)
 		if err != nil {
 			cdnChan <- err
 		}
@@ -220,7 +215,7 @@ func (v *Video) GetVideoDetails() error {
 	}()
 
 	go func() {
-		err := v.GetParts()
+		err := v.GetParts(ctx)
 		if err != nil {
 			partChan <- err
 		}
@@ -257,23 +252,20 @@ func (v *Video) GetVideoDetails() error {
 }
 
 // GetAllVideos This grabs all the videos given a certain Brand. Videos are  Base Videos and do not have advanced information.
-func GetAllVideos(dtx *apicontext.DataContext) (vs Videos, err error) {
-	data, err := redis.Get(AllVideosRedisKey + ":" + dtx.BrandString)
+func GetAllVideos(ctx *middleware.APIContext) (vs Videos, err error) {
+	data, err := redis.Get(AllVideosRedisKey + ":" + ctx.DataContext.BrandString)
 	if err == nil && len(data) > 0 {
 		err = json.Unmarshal(data, &vs)
 		return
 	}
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getAllVideos)
+
+	stmt, err := ctx.DB.Prepare(getAllVideos)
 	if err != nil {
 		return
 	}
 	defer stmt.Close()
-	rows, err := stmt.Query(dtx.APIKey, dtx.BrandID, dtx.BrandID)
+
+	rows, err := stmt.Query(ctx.DataContext.APIKey, ctx.DataContext.BrandID, ctx.DataContext.BrandID)
 	if err != nil {
 		return
 	}
@@ -289,28 +281,25 @@ func GetAllVideos(dtx *apicontext.DataContext) (vs Videos, err error) {
 		return
 	}
 
-	go redis.Setex(AllVideosRedisKey+":"+dtx.BrandString, vs, 86400)
+	go redis.Setex(AllVideosRedisKey+":"+ctx.DataContext.BrandString, vs, 86400)
 
 	return
 }
 
 // GetBrands Gets all the brands associated to a specific base video.
-func (v *Video) GetBrands() error {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
+func (v *Video) GetBrands(ctx *middleware.APIContext) error {
 
-	stmt, err := db.Prepare(getBrands)
+	stmt, err := ctx.DB.Prepare(getBrands)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
+
 	res, err := stmt.Query(v.ID)
 	if err != nil {
 		return err
 	}
+
 	var b brand.Brand
 	for res.Next() {
 		err = res.Scan(&b.ID)
@@ -319,23 +308,20 @@ func (v *Video) GetBrands() error {
 		}
 		v.Brands = append(v.Brands, b)
 	}
-	return err
+
+	return nil
 }
 
 // GetChannels Gets all the Video's channels.
-func (v *Video) GetChannels() (chs Channels, err error) {
+func (v *Video) GetChannels(ctx *middleware.APIContext) (chs Channels, err error) {
 	redis_key := "video:channels:" + strconv.Itoa(v.ID)
 	data, err := redis.Get(redis_key)
 	if err == nil && len(data) > 0 {
 		err = json.Unmarshal(data, &chs)
 		return
 	}
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getVideoChannels)
+
+	stmt, err := ctx.DB.Prepare(getVideoChannels)
 	if err != nil {
 		return
 	}
@@ -357,19 +343,15 @@ func (v *Video) GetChannels() (chs Channels, err error) {
 }
 
 // GetParts Gets all the Video's associated products.
-func (v *Video) GetParts() (err error) {
+func (v *Video) GetParts(ctx *middleware.APIContext) (err error) {
 	redis_key := "video:parts:" + strconv.Itoa(v.ID)
 	data, err := redis.Get(redis_key)
 	if err == nil && len(data) > 0 {
 		err = json.Unmarshal(data, &v.PartIds)
 		return
 	}
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getVideoParts)
+
+	stmt, err := ctx.DB.Prepare(getVideoParts)
 	if err != nil {
 		return
 	}
@@ -395,19 +377,15 @@ func (v *Video) GetParts() (err error) {
 }
 
 // GetCdnFiles Gets all of the CdnFiles for the specific video.
-func (v *Video) GetCdnFiles() (cdns CdnFiles, err error) {
+func (v *Video) GetCdnFiles(ctx *middleware.APIContext) (cdns CdnFiles, err error) {
 	redis_key := "video:cdnFiles:" + strconv.Itoa(v.ID)
 	data, err := redis.Get(redis_key)
 	if err == nil && len(data) > 0 {
 		err = json.Unmarshal(data, &cdns)
 		return
 	}
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getVideoCdns)
+
+	stmt, err := ctx.DB.Prepare(getVideoCdns)
 	if err != nil {
 		return
 	}
@@ -429,14 +407,9 @@ func (v *Video) GetCdnFiles() (cdns CdnFiles, err error) {
 }
 
 // Get Get a gven Channel
-func (c *Channel) Get() error {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
+func (c *Channel) Get(ctx *middleware.APIContext) error {
 
-	stmt, err := db.Prepare(getChannel)
+	stmt, err := ctx.DB.Prepare(getChannel)
 	if err != nil {
 		return err
 	}
@@ -470,18 +443,14 @@ func (c *Channel) Get() error {
 }
 
 // GetAllChannels Retrieves all Channels from the DB
-func GetAllChannels() (cs Channels, err error) {
+func GetAllChannels(ctx *middleware.APIContext) (cs Channels, err error) {
 	data, err := redis.Get(AllChannelsRedisKey)
 	if err == nil && len(data) > 0 {
 		err = json.Unmarshal(data, &cs)
 		return
 	}
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getAllChannels)
+
+	stmt, err := ctx.DB.Prepare(getAllChannels)
 	if err != nil {
 		return
 	}
@@ -504,14 +473,9 @@ func GetAllChannels() (cs Channels, err error) {
 }
 
 // Get Retrieves a given CdnFile
-func (c *CdnFile) Get() error {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
+func (c *CdnFile) Get(ctx *middleware.APIContext) error {
 
-	stmt, err := db.Prepare(getCdn)
+	stmt, err := ctx.DB.Prepare(getCdn)
 	if err != nil {
 		return err
 	}
@@ -560,18 +524,14 @@ func (c *CdnFile) Get() error {
 }
 
 // GetAllCdnFiles Retrieves all CdnFiles
-func GetAllCdnFiles() (cs CdnFiles, err error) {
+func GetAllCdnFiles(ctx *middleware.APIContext) (cs CdnFiles, err error) {
 	data, err := redis.Get(AllCdnFilesRedisKey)
 	if err == nil && len(data) > 0 {
 		err = json.Unmarshal(data, &cs)
 		return
 	}
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getAllCdnFiles)
+
+	stmt, err := ctx.DB.Prepare(getAllCdnFiles)
 	if err != nil {
 		return
 	}
@@ -593,14 +553,9 @@ func GetAllCdnFiles() (cs CdnFiles, err error) {
 }
 
 // Get Retrieves a given CdnFileType
-func (c *CdnFileType) Get() error {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
+func (c *CdnFileType) Get(ctx *middleware.APIContext) error {
 
-	stmt, err := db.Prepare(getCdnType)
+	stmt, err := ctx.DB.Prepare(getCdnType)
 	if err != nil {
 		return err
 	}
@@ -623,19 +578,14 @@ func (c *CdnFileType) Get() error {
 }
 
 // GetAllCdnFileTypes Retrieves all CdnFileTypes
-func GetAllCdnFileTypes() (cts []CdnFileType, err error) {
+func GetAllCdnFileTypes(ctx *middleware.APIContext) (cts []CdnFileType, err error) {
 	data, err := redis.Get(AllCdnFileTypeRedisKey)
 	if err == nil && len(data) > 0 {
 		err = json.Unmarshal(data, &cts)
 		return
 	}
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return
-	}
-	defer db.Close()
 
-	stmt, err := db.Prepare(getAllCdnTypes)
+	stmt, err := ctx.DB.Prepare(getAllCdnTypes)
 	if err != nil {
 		return
 	}
@@ -669,14 +619,9 @@ func GetAllCdnFileTypes() (cts []CdnFileType, err error) {
 }
 
 // Get Retrieves a given VideoType
-func (c *VideoType) Get() error {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
+func (c *VideoType) Get(ctx *middleware.APIContext) error {
 
-	stmt, err := db.Prepare(getVideoType)
+	stmt, err := ctx.DB.Prepare(getVideoType)
 	if err != nil {
 		return err
 	}
@@ -694,18 +639,14 @@ func (c *VideoType) Get() error {
 }
 
 // GetAllVideoTypes Retrieves all VideoTypes
-func GetAllVideoTypes() (vts []VideoType, err error) {
+func GetAllVideoTypes(ctx *middleware.APIContext) (vts []VideoType, err error) {
 	data, err := redis.Get(AllVideoTypesRedisKey)
 	if err == nil && len(data) > 0 {
 		err = json.Unmarshal(data, &vts)
 		return
 	}
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getAllVideoTypes)
+
+	stmt, err := ctx.DB.Prepare(getAllVideoTypes)
 	if err != nil {
 		return
 	}
@@ -735,14 +676,9 @@ func GetAllVideoTypes() (vts []VideoType, err error) {
 }
 
 // Get Retrieves a given ChannelType
-func (c *ChannelType) Get() error {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
+func (c *ChannelType) Get(ctx *middleware.APIContext) error {
 
-	stmt, err := db.Prepare(getChannelType)
+	stmt, err := ctx.DB.Prepare(getChannelType)
 	if err != nil {
 		return err
 	}
@@ -760,19 +696,14 @@ func (c *ChannelType) Get() error {
 }
 
 // GetAllChannelTypes Retrieves all ChannelType
-func GetAllChannelTypes() (cts []ChannelType, err error) {
+func GetAllChannelTypes(ctx *middleware.APIContext) (cts []ChannelType, err error) {
 	data, err := redis.Get(AllChannelTypesRedisKey)
 	if err == nil && len(data) > 0 {
 		err = json.Unmarshal(data, &cts)
 		return
 	}
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return
-	}
-	defer db.Close()
 
-	stmt, err := db.Prepare(getAllChannelTypes)
+	stmt, err := ctx.DB.Prepare(getAllChannelTypes)
 	if err != nil {
 		return
 	}

@@ -1,16 +1,12 @@
 package customer
 
 import (
-	"database/sql"
-
-	"github.com/curt-labs/API/helpers/apicontext"
-	"github.com/curt-labs/API/helpers/database"
 	"github.com/curt-labs/API/helpers/sortutil"
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/curt-labs/API/middleware"
 )
 
 var (
-	getBusinessClassesStmt = `select b.BusinessClassID, b.name, b.sort, b.showOnWebsite from BusinessClass as b 
+	getBusinessClassesStmt = `select b.BusinessClassID, b.name, b.sort, b.showOnWebsite from BusinessClass as b
 		join ApiKeyToBrand as atb on atb.brandID = b.brandID
 		join ApiKey as a on a.id = atb.keyID
 		where a.api_key = ? && (atb.brandID = ? or 0 = ?) && b.showOnWebsite = 1
@@ -29,20 +25,15 @@ type BusinessClass struct {
 	BrandID       int    `json:"brandID omitempty" xml:"brandID omitempty"`
 }
 
-func GetAllBusinessClasses(dtx *apicontext.DataContext) (classes BusinessClasses, err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return
-	}
-	defer db.Close()
+func GetAllBusinessClasses(ctx *middleware.APIContext) (classes BusinessClasses, err error) {
 
-	stmt, err := db.Prepare(getBusinessClassesStmt)
+	stmt, err := ctx.DB.Prepare(getBusinessClassesStmt)
 	if err != nil {
 		return
 	}
 	defer stmt.Close()
 
-	rows, err := stmt.Query(dtx.APIKey, dtx.BrandID, dtx.BrandID)
+	rows, err := stmt.Query(ctx.DataContext.APIKey, ctx.DataContext.BrandID, ctx.DataContext.BrandID)
 	if err != nil {
 		return
 	}
@@ -66,15 +57,9 @@ func GetAllBusinessClasses(dtx *apicontext.DataContext) (classes BusinessClasses
 	return
 }
 
-func (b *BusinessClass) Create() error {
-	var err error
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
+func (b *BusinessClass) Create(ctx *middleware.APIContext) error {
 
-	stmt, err := db.Prepare(createBusinessClass)
+	stmt, err := ctx.DB.Prepare(createBusinessClass)
 	if err != nil {
 		return err
 	}
@@ -91,15 +76,9 @@ func (b *BusinessClass) Create() error {
 	return err
 }
 
-func (b *BusinessClass) Delete() error {
-	var err error
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
+func (b *BusinessClass) Delete(ctx *middleware.APIContext) error {
 
-	stmt, err := db.Prepare(deleteBusinessClass)
+	stmt, err := ctx.DB.Prepare(deleteBusinessClass)
 	if err != nil {
 		return err
 	}

@@ -7,7 +7,7 @@ import (
 	"github.com/gorilla/context"
 )
 
-// Mongo http.HandlerFunc middleware that will initiate
+// DB http.HandlerFunc middleware that will initiate
 // a MongoDB session and bind to APIContext.
 type DB struct {
 	http.Handler
@@ -20,15 +20,14 @@ func (db DB) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ctx = &APIContext{}
 	}
 
-	sess := database.ProductMongoSession.Copy()
-	defer sess.Close()
+	ctx.Session = database.ProductMongoSession.Copy()
+	defer ctx.Session.Close()
 
-	ariesSess := database.AriesMongoSession.Copy()
-	defer ariesSess.Close()
+	ctx.AriesSession = database.AriesMongoSession.Copy()
+	defer ctx.AriesSession.Close()
 
-	ctx.Session = sess
-	ctx.AriesSession = ariesSess
 	ctx.DB = database.DB
+	defer ctx.DB.Close()
 
 	context.Set(r, apiContext, ctx)
 }

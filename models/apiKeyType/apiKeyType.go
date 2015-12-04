@@ -1,10 +1,10 @@
 package apiKeyType
 
 import (
-	"database/sql"
-	"github.com/curt-labs/API/helpers/database"
-	_ "github.com/go-sql-driver/mysql"
 	"time"
+
+	"github.com/curt-labs/API/middleware"
+	_ "github.com/go-sql-driver/mysql"
 )
 
 var (
@@ -29,13 +29,9 @@ const (
 	timeFormat = "2006-01-02 03:04:05"
 )
 
-func (a *ApiKeyType) Get() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getApiKeyType)
+func (a *ApiKeyType) Get(ctx *middleware.APIContext) (err error) {
+
+	stmt, err := ctx.DB.Prepare(getApiKeyType)
 	if err != nil {
 		return
 	}
@@ -46,13 +42,9 @@ func (a *ApiKeyType) Get() (err error) {
 	return
 }
 
-func GetAllApiKeyTypes() (as []ApiKeyType, err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getAllApiKeyTypes)
+func GetAllApiKeyTypes(ctx *middleware.APIContext) (as []ApiKeyType, err error) {
+
+	stmt, err := ctx.DB.Prepare(getAllApiKeyTypes)
 	if err != nil {
 		return
 	}
@@ -79,13 +71,9 @@ func ScanKey(s Scanner) (*ApiKeyType, error) {
 	return a, err
 }
 
-func (a *ApiKeyType) Create() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(createApiKeyType)
+func (a *ApiKeyType) Create(ctx *middleware.APIContext) (err error) {
+
+	stmt, err := ctx.DB.Prepare(createApiKeyType)
 	if err != nil {
 		return
 	}
@@ -96,7 +84,7 @@ func (a *ApiKeyType) Create() (err error) {
 		return
 	}
 
-	stmt, err = db.Prepare(getKeyByDateType)
+	stmt, err = ctx.DB.Prepare(getKeyByDateType)
 	if err != nil {
 		return err
 	}
@@ -110,13 +98,9 @@ func (a *ApiKeyType) Create() (err error) {
 	return
 }
 
-func (a *ApiKeyType) Delete() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(deleteApiKeyType)
+func (a *ApiKeyType) Delete(ctx *middleware.APIContext) (err error) {
+
+	stmt, err := ctx.DB.Prepare(deleteApiKeyType)
 	if err != nil {
 		return err
 	}

@@ -1,22 +1,19 @@
 package customer
 
 import (
-	"database/sql"
 	"encoding/json"
 	"strconv"
 
-	"github.com/curt-labs/API/helpers/apicontext"
 	"github.com/curt-labs/API/helpers/conversions"
-	"github.com/curt-labs/API/helpers/database"
 	"github.com/curt-labs/API/helpers/redis"
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/curt-labs/API/middleware"
 )
 
 type CustomerLocations []CustomerLocation
 
 var (
 	getLocation  = "SELECT locationID, name, address, city, stateID, email, phone, fax, latitude, longitude, cust_id, contact_person, isprimary, postalCode, ShippingDefault FROM CustomerLocations WHERE locationID= ? "
-	getLocations = `SELECT cl.locationID, cl.name, cl.address, cl.city, cl.stateID, cl.email,cl.phone, cl.fax, cl.latitude, cl.longitude, cl.cust_id, cl.contact_person, cl.isprimary, cl.postalCode, cl.ShippingDefault 
+	getLocations = `SELECT cl.locationID, cl.name, cl.address, cl.city, cl.stateID, cl.email,cl.phone, cl.fax, cl.latitude, cl.longitude, cl.cust_id, cl.contact_person, cl.isprimary, cl.postalCode, cl.ShippingDefault
 			FROM CustomerLocations as cl
 			join CustomerToBrand as ctb on ctb.cust_id = cl.cust_id
 			join ApiKeyToBrand as akb on akb.brandID = ctb.brandID
@@ -27,15 +24,9 @@ var (
 	deleteLocation = "DELETE FROM CustomerLocations WHERE locationID = ? "
 )
 
-func (l *CustomerLocation) Get() error {
+func (l *CustomerLocation) Get(ctx *middleware.APIContext) error {
 
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(getLocation)
+	stmt, err := ctx.DB.Prepare(getLocation)
 	if err != nil {
 		return err
 	}
@@ -77,28 +68,28 @@ func (l *CustomerLocation) Get() error {
 	return err
 }
 
-func GetAllLocations(dtx *apicontext.DataContext) (CustomerLocations, error) {
+func GetAllLocations(ctx *middleware.APIContext) (CustomerLocations, error) {
 	var ls CustomerLocations
 	var err error
-	redis_key := "customers:locations:" + dtx.BrandString
+	redis_key := "customers:locations:" + ctx.DataContext.BrandString
 	data, err := redis.Get(redis_key)
 	if err == nil && len(data) > 0 {
 		err = json.Unmarshal(data, &ls)
 		return ls, err
 	}
 
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return ls, err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(getLocations)
+	stmt, err := ctx.DB.Prepare(getLocations)
 	if err != nil {
 		return ls, err
 	}
 	defer stmt.Close()
-	res, err := stmt.Query(dtx.APIKey, dtx.BrandID, dtx.BrandID)
+
+	res, err := stmt.Query(ctx.DataContext.APIKey, ctx.DataContext.BrandID, ctx.DataContext.BrandID)
+	if err != nil {
+		return ls, err
+	}
+	defer res.Close()
+
 	var name, address, city, email, phone, fax, contactPerson, postal []byte
 	for res.Next() {
 		var l CustomerLocation
@@ -135,21 +126,19 @@ func GetAllLocations(dtx *apicontext.DataContext) (CustomerLocations, error) {
 		}
 		ls = append(ls, l)
 	}
-	defer res.Close()
+
 	go redis.Setex(redis_key, ls, 86400)
+
 	return ls, err
 }
 
-func (l *CustomerLocation) Create(dtx *apicontext.DataContext) error {
-	db, err := sql.Open("mysql", database.ConnectionString())
+func (l *CustomerLocation) Create(ctx *middleware.APIContext) error {
+
+	tx, err := ctx.DB.Begin()
 	if err != nil {
 		return err
 	}
-	defer db.Close()
-	tx, err := db.Begin()
-	if err != nil {
-		return err
-	}
+
 	stmt, err := tx.Prepare(createLocation)
 	if err != nil {
 		return err
@@ -181,17 +170,14 @@ func (l *CustomerLocation) Create(dtx *apicontext.DataContext) error {
 		return err
 	}
 	err = tx.Commit()
-	go redis.Delete("customers:locations:" + dtx.BrandString)
+	go redis.Delete("customers:locations:" + ctx.DataContext.BrandString)
 	go redis.Delete("customerLocations:" + strconv.Itoa(l.CustomerId))
 	return err
 }
-func (l *CustomerLocation) Update(dtx *apicontext.DataContext) error {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	tx, err := db.Begin()
+
+func (l *CustomerLocation) Update(ctx *middleware.APIContext) error {
+
+	tx, err := ctx.DB.Begin()
 	if err != nil {
 		return err
 	}
@@ -222,18 +208,14 @@ func (l *CustomerLocation) Update(dtx *apicontext.DataContext) error {
 		return err
 	}
 	err = tx.Commit()
-	go redis.Delete("customers:locations:" + dtx.BrandString)
+	go redis.Delete("customers:locations:" + ctx.DataContext.BrandString)
 	go redis.Delete("customerLocations:" + strconv.Itoa(l.CustomerId))
 	return err
 }
 
-func (l *CustomerLocation) Delete(dtx *apicontext.DataContext) error {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	tx, err := db.Begin()
+func (l *CustomerLocation) Delete(ctx *middleware.APIContext) error {
+
+	tx, err := ctx.DB.Begin()
 	if err != nil {
 		return err
 	}
@@ -247,7 +229,7 @@ func (l *CustomerLocation) Delete(dtx *apicontext.DataContext) error {
 		return err
 	}
 	err = tx.Commit()
-	go redis.Delete("customers:locations:" + dtx.BrandString)
+	go redis.Delete("customers:locations:" + ctx.DataContext.BrandString)
 	go redis.Delete("customerLocations:" + strconv.Itoa(l.CustomerId))
 	return err
 }

@@ -11,7 +11,7 @@ import (
 // GetAllBrands Returns an a slice of Brand.
 // /brands
 func GetAllBrands(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	return brand.GetAllBrands()
+	return brand.GetAllBrands(ctx.DB)
 }
 
 // GetBrand Returns a specific Brand based off
@@ -24,7 +24,7 @@ func GetBrand(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Reques
 	if br.ID, err = strconv.Atoi(ctx.Params.ByName("id")); err != nil {
 		return nil, err
 	}
-	err = br.Get()
+	err = br.Get(ctx.DB)
 
 	return br, err
 }

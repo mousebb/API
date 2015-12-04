@@ -1,10 +1,8 @@
 package customer
 
 import (
-	"github.com/curt-labs/API/helpers/database"
+	"github.com/curt-labs/API/middleware"
 	_ "github.com/go-sql-driver/mysql"
-
-	"database/sql"
 )
 
 var (
@@ -13,62 +11,40 @@ var (
 	deleteAllCustomerBrands = `delete from CustomerToBrand where cust_id = ?`
 )
 
-func (c *Customer) CreateCustomerBrand(brandID int) error {
+func (c *Customer) CreateCustomerBrand(brandID int, ctx *middleware.APIContext) error {
 	var err error
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
 
-	stmt, err := db.Prepare(createCustomerBrand)
+	stmt, err := ctx.DB.Prepare(createCustomerBrand)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 	_, err = stmt.Exec(c.Id, brandID)
-	if err != nil {
-		return err
-	}
+
 	return err
 }
 
-func (c *Customer) DeleteCustomerBrand(brandID int) error {
-	var err error
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
+func (c *Customer) DeleteCustomerBrand(brandID int, ctx *middleware.APIContext) error {
 
-	stmt, err := db.Prepare(deleteCustomerBrand)
+	stmt, err := ctx.DB.Prepare(deleteCustomerBrand)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 	_, err = stmt.Exec(c.Id, brandID)
-	if err != nil {
-		return err
-	}
+
 	return err
 }
 
-func (c *Customer) DeleteAllCustomerBrands() error {
-	var err error
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
+func (c *Customer) DeleteAllCustomerBrands(ctx *middleware.APIContext) error {
 
-	stmt, err := db.Prepare(deleteAllCustomerBrands)
+	stmt, err := ctx.DB.Prepare(deleteAllCustomerBrands)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
+
 	_, err = stmt.Exec(c.Id)
-	if err != nil {
-		return err
-	}
+
 	return err
 }

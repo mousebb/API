@@ -2,10 +2,10 @@ package products
 
 import (
 	"database/sql"
-	"github.com/curt-labs/API/helpers/apicontext"
-	"github.com/curt-labs/API/helpers/database"
 	"strconv"
 	"strings"
+
+	"github.com/curt-labs/API/helpers/database"
 )
 
 var (

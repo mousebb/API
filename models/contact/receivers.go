@@ -1,11 +1,10 @@
 package contact
 
 import (
-	"database/sql"
 	"errors"
 
-	"github.com/curt-labs/API/helpers/database"
 	"github.com/curt-labs/API/helpers/email"
+	"github.com/curt-labs/API/middleware"
 	_ "github.com/go-sql-driver/mysql"
 )
 
@@ -18,7 +17,7 @@ var (
 	createReceiverContactTypeJoin           = `insert into ContactReceiver_ContactType (ContactReceiverID, ContactTypeID) values (?,?)`
 	deleteReceiverContactTypeJoin           = `delete from ContactReceiver_ContactType where ContactReceiverID = ? and  ContactTypeID = ?`
 	deleteReceiverContactTypeJoinByReceiver = `delete from ContactReceiver_ContactType where ContactReceiverID = ?`
-	getContactTypesByReceiver               = `select crct.contactTypeID, ct.name, ct.showOnWebsite, ct.brandID from ContactReceiver_ContactType as crct 
+	getContactTypesByReceiver               = `select crct.contactTypeID, ct.name, ct.showOnWebsite, ct.brandID from ContactReceiver_ContactType as crct
 												left join ContactType as ct on crct.ContactTypeID = ct.contactTypeID where crct.contactReceiverID = ?`
 )
 
@@ -31,14 +30,9 @@ type ContactReceiver struct {
 	ContactTypes ContactTypes
 }
 
-func GetAllContactReceivers() (receivers ContactReceivers, err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return
-	}
-	defer db.Close()
+func GetAllContactReceivers(ctx *middleware.APIContext) (receivers ContactReceivers, err error) {
 
-	stmt, err := db.Prepare(getAllContactReceiversStmt)
+	stmt, err := ctx.DB.Prepare(getAllContactReceiversStmt)
 	if err != nil {
 		return
 	}
@@ -60,7 +54,7 @@ func GetAllContactReceivers() (receivers ContactReceivers, err error) {
 		if err != nil {
 			return
 		}
-		err = cr.GetContactTypes()
+		err = cr.GetContactTypes(ctx)
 		if err != nil {
 			return
 		}
@@ -71,45 +65,33 @@ func GetAllContactReceivers() (receivers ContactReceivers, err error) {
 	return
 }
 
-func (cr *ContactReceiver) Get() error {
-	if cr.ID > 0 {
-		db, err := sql.Open("mysql", database.ConnectionString())
-		if err != nil {
-			return err
-		}
-		defer db.Close()
+func (cr *ContactReceiver) Get(ctx *middleware.APIContext) error {
+	if cr.ID == 0 {
+		return errors.New("invalid receiver identifier")
+	}
 
-		stmt, err := db.Prepare(getContactReceiverStmt)
-		if err != nil {
-			return err
-		}
-		defer stmt.Close()
-
-		err = stmt.QueryRow(cr.ID).Scan(
-			&cr.ID,
-			&cr.FirstName,
-			&cr.LastName,
-			&cr.Email,
-		)
-		err = cr.GetContactTypes()
-
+	stmt, err := ctx.DB.Prepare(getContactReceiverStmt)
+	if err != nil {
 		return err
 	}
-	return errors.New("Invalid ContactReceiver ID")
+	defer stmt.Close()
+
+	err = stmt.QueryRow(cr.ID).Scan(
+		&cr.ID,
+		&cr.FirstName,
+		&cr.LastName,
+		&cr.Email,
+	)
+
+	return cr.GetContactTypes(ctx)
 }
 
-func (cr *ContactReceiver) Add() error {
+func (cr *ContactReceiver) Add(ctx *middleware.APIContext) error {
 	if !email.IsEmail(cr.Email) {
 		return errors.New("Empty or invalid email address.")
 	}
 
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(addContactReceiverStmt)
+	stmt, err := ctx.DB.Prepare(addContactReceiverStmt)
 	if err != nil {
 		return err
 	}
@@ -128,7 +110,7 @@ func (cr *ContactReceiver) Add() error {
 	//add contact types
 	if len(cr.ContactTypes) > 0 {
 		for _, ct := range cr.ContactTypes {
-			err = cr.CreateTypeJoin(ct)
+			err = cr.CreateTypeJoin(ct, ctx)
 			if err != nil {
 				return err
 			}
@@ -137,7 +119,7 @@ func (cr *ContactReceiver) Add() error {
 	return nil
 }
 
-func (cr *ContactReceiver) Update() error {
+func (cr *ContactReceiver) Update(ctx *middleware.APIContext) error {
 	if cr.ID == 0 {
 		return errors.New("Invalid ContactReceiver ID")
 	}
@@ -145,13 +127,7 @@ func (cr *ContactReceiver) Update() error {
 		return errors.New("Empty or invalid email address.")
 	}
 
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(updateContactReceiverStmt)
+	stmt, err := ctx.DB.Prepare(updateContactReceiverStmt)
 	if err != nil {
 		return err
 	}
@@ -160,60 +136,60 @@ func (cr *ContactReceiver) Update() error {
 	_, err = stmt.Exec(cr.FirstName, cr.LastName, cr.Email, cr.ID)
 
 	//update type joins
-	if len(cr.ContactTypes) > 0 {
-		err = cr.DeleteTypeJoinByReceiver()
-		if err != nil {
-			return err
-		}
-		for _, ct := range cr.ContactTypes {
-			err = cr.CreateTypeJoin(ct)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	return err
-}
-
-func (cr *ContactReceiver) Delete() error {
-	if cr.ID > 0 {
-		db, err := sql.Open("mysql", database.ConnectionString())
-		if err != nil {
-			return err
-		}
-		defer db.Close()
-
-		stmt, err := db.Prepare(deleteContactReceiverStmt)
-		if err != nil {
-			return err
-		}
-		defer stmt.Close()
-
-		_, err = stmt.Exec(cr.ID)
-
-		//delete receiver-type join
-		err = cr.DeleteTypeJoinByReceiver()
-
+	if len(cr.ContactTypes) == 0 {
 		return err
 	}
-	return errors.New("Invalid ContactReceiver ID")
-}
 
-//get a contact receiver's contact types
-func (cr *ContactReceiver) GetContactTypes() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
+	err = cr.DeleteTypeJoinByReceiver(ctx)
 	if err != nil {
 		return err
 	}
-	defer db.Close()
-	stmt, err := db.Prepare(getContactTypesByReceiver)
+	for _, ct := range cr.ContactTypes {
+		err = cr.CreateTypeJoin(ct, ctx)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (cr *ContactReceiver) Delete(ctx *middleware.APIContext) error {
+	if cr.ID == 0 {
+		return errors.New("invalid reciever identifier")
+	}
+
+	stmt, err := ctx.DB.Prepare(deleteContactReceiverStmt)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
+
+	_, err = stmt.Exec(cr.ID)
+	if err != nil {
+		return err
+	}
+
+	//delete receiver-type join
+	return cr.DeleteTypeJoinByReceiver(ctx)
+}
+
+//get a contact receiver's contact types
+func (cr *ContactReceiver) GetContactTypes(ctx *middleware.APIContext) error {
+
+	stmt, err := ctx.DB.Prepare(getContactTypesByReceiver)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
 	var ct ContactType
 	res, err := stmt.Query(cr.ID)
+	if err != nil {
+		return err
+	}
+	defer res.Close()
+
 	for res.Next() {
 		err = res.Scan(&ct.ID, &ct.Name, &ct.ShowOnWebsite, &ct.BrandID)
 		if err != nil {
@@ -221,62 +197,46 @@ func (cr *ContactReceiver) GetContactTypes() (err error) {
 		}
 		cr.ContactTypes = append(cr.ContactTypes, ct)
 	}
-	defer res.Close()
+
+	return nil
+}
+
+func (cr *ContactReceiver) CreateTypeJoin(ct ContactType, ctx *middleware.APIContext) error {
+
+	stmt, err := ctx.DB.Prepare(createReceiverContactTypeJoin)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+	_, err = stmt.Exec(cr.ID, ct.ID)
+
 	return err
 }
 
-func (cr *ContactReceiver) CreateTypeJoin(ct ContactType) (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(createReceiverContactTypeJoin)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-	_, err = stmt.Exec(cr.ID, ct.ID)
-	if err != nil {
-		return err
-	}
-	return
-}
-
 //delete joins for a receiver-type pair
-func (cr *ContactReceiver) DeleteTypeJoin(ct ContactType) (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(deleteReceiverContactTypeJoin)
+func (cr *ContactReceiver) DeleteTypeJoin(ct ContactType, ctx *middleware.APIContext) error {
+
+	stmt, err := ctx.DB.Prepare(deleteReceiverContactTypeJoin)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
+
 	_, err = stmt.Exec(cr.ID, ct.ID)
-	if err != nil {
-		return err
-	}
-	return
+
+	return err
 }
 
 //delete all type-receiver joins for a receiver
-func (cr *ContactReceiver) DeleteTypeJoinByReceiver() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(deleteReceiverContactTypeJoinByReceiver)
+func (cr *ContactReceiver) DeleteTypeJoinByReceiver(ctx *middleware.APIContext) error {
+
+	stmt, err := ctx.DB.Prepare(deleteReceiverContactTypeJoinByReceiver)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
+
 	_, err = stmt.Exec(cr.ID)
-	if err != nil {
-		return err
-	}
-	return
+
+	return err
 }

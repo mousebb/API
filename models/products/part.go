@@ -9,6 +9,8 @@ import (
 	"github.com/curt-labs/API/models/customer"
 	"github.com/curt-labs/API/models/customer/content"
 	"github.com/curt-labs/API/models/video"
+
+	// Background usage for mysql driver.
 	_ "github.com/go-sql-driver/mysql"
 	"gopkg.in/mgo.v2/bson"
 

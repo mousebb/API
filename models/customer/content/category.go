@@ -1,9 +1,9 @@
 package custcontent
 
 import (
-	"database/sql"
-	"github.com/curt-labs/API/helpers/database"
 	"time"
+
+	"github.com/curt-labs/API/middleware"
 )
 
 type CategoryContent struct {
@@ -36,18 +36,19 @@ var (
 )
 
 // Retrieves all category content for this customer
-func GetAllCategoryContent(key string) (content []CategoryContent, err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return content, err
-	}
-	defer db.Close()
+func GetAllCategoryContent(ctx *middleware.APIContext) (content []CategoryContent, err error) {
 
-	stmt, err := db.Prepare(allCustomerCategoryContent)
+	stmt, err := ctx.DB.Prepare(allCustomerCategoryContent)
 	if err != nil {
 		return content, err
 	}
-	res, err := stmt.Query(key)
+
+	res, err := stmt.Query(ctx.DataContext.APIKey)
+	if err != nil {
+		return
+	}
+	defer res.Close()
+
 	var catID int
 	var added, modified *time.Time
 	var deleted *bool
@@ -81,7 +82,6 @@ func GetAllCategoryContent(key string) (content []CategoryContent, err error) {
 			c.Hidden = *deleted
 		}
 	}
-	defer res.Close()
 
 	for k, _ := range rawContent {
 		catCon := CategoryContent{
@@ -90,23 +90,24 @@ func GetAllCategoryContent(key string) (content []CategoryContent, err error) {
 		}
 		content = append(content, catCon)
 	}
+
 	return
 }
 
 // Retrieves specific category content for this customer
-func GetCategoryContent(catID int, key string) (content []CustomerContent, err error) {
+func GetCategoryContent(catID int, ctx *middleware.APIContext) (content []CustomerContent, err error) {
 	content = make([]CustomerContent, 0) // initializer
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return content, err
-	}
-	defer db.Close()
 
-	stmt, err := db.Prepare(customerCategoryContent)
+	stmt, err := ctx.DB.Prepare(customerCategoryContent)
 	if err != nil {
-		return content, err
+		return
 	}
-	res, err := stmt.Query(key, catID)
+	res, err := stmt.Query(ctx.DataContext.APIKey, catID)
+	if err != nil {
+		return
+	}
+	defer res.Close()
+
 	var deleted *bool
 	var added, modified *time.Time
 
@@ -137,6 +138,6 @@ func GetCategoryContent(catID int, key string) (content []CustomerContent, err e
 		}
 		content = append(content, c)
 	}
-	defer res.Close()
+
 	return
 }

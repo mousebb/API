@@ -11,28 +11,56 @@ import (
 	"gopkg.in/mgo.v2"
 )
 
+// Scanner Provides the ability to scan SQL columns.
 type Scanner interface {
 	Scan(...interface{}) error
 }
 
 var (
-	EmptyDb = flag.String("clean", "", "bind empty database with structure defined")
+	// EmptyDB Command line flag for testing
+	EmptyDB = flag.String("clean", "", "bind empty database with structure defined")
 
-	ProductCollectionName  = "products"
+	// ProductCollectionName Reference to MongoDB
+	// for storing products.
+	ProductCollectionName = "products"
+
+	// CategoryCollectionName Reference to MongoDB
+	// for storing categories.
 	CategoryCollectionName = "categories"
-	productDB              = "product_data"
-	ariesDB                = "aries"
 
-	ProductMongoSession  *mgo.Session
+	// ProductMongoSession MongoDB session for interacting
+	// with products/category database.
+	ProductMongoSession *mgo.Session
+
+	// ProductMongoDatabase Name of product/category database.
 	ProductMongoDatabase string
 
-	AriesMongoSession  *mgo.Session
+	// AriesMongoSession MongoDB session for interacting
+	// with ARIES database.
+	AriesMongoSession *mgo.Session
+
+	// AriesMongoDatabase Name of ARIES application database.
 	AriesMongoDatabase string
 
-	DB     *sql.DB
+	// ErrorMongoSession MongoDB session for interacting
+	// with errorDB database.
+	ErrorMongoSession *mgo.Session
+
+	// ErrorMongoDatabase Name of error application database.
+	ErrorMongoDatabase string
+
+	// DB Reference to MySQL database.
+	DB *sql.DB
+
+	// Driver SQL driver to use.
 	Driver = "mysql"
+
+	productDB = "product_data"
+	ariesDB   = "aries"
+	errorDB   = "errorDB"
 )
 
+// Init Initializes all database connections for SQL/NoSQL.
 func Init() error {
 	var err error
 	if ProductMongoSession == nil {
@@ -50,6 +78,14 @@ func Init() error {
 			return err
 		}
 		AriesMongoDatabase = connectionString.Database
+	}
+	if ErrorMongoSession == nil {
+		connectionString := mongoConnectionString(errorDB)
+		ErrorMongoSession, err = mgo.DialWithInfo(connectionString)
+		if err != nil {
+			return err
+		}
+		ErrorMongoDatabase = connectionString.Database
 	}
 	if DB == nil {
 		DB, err = sql.Open(Driver, connectionString())
@@ -71,12 +107,13 @@ func connectionString() string {
 		return fmt.Sprintf("%s:%s@%s(%s)/%s?parseTime=true&loc=%s", user, pass, proto, addr, db, "America%2FChicago")
 	}
 
-	if EmptyDb != nil && *EmptyDb != "" {
+	if EmptyDB != nil && *EmptyDB != "" {
 		return "root:@tcp(127.0.0.1:3306)/CurtDev_Empty?parseTime=true&loc=America%2FChicago"
 	}
 	return "root:@tcp(127.0.0.1:3306)/CurtData?parseTime=true&loc=America%2FChicago"
 }
 
+// VcdbConnectionString Supplies connection string for the VCDB.
 func VcdbConnectionString() string {
 	if addr := os.Getenv("DATABASE_HOST"); addr != "" {
 		proto := os.Getenv("DATABASE_PROTOCOL")
@@ -89,6 +126,7 @@ func VcdbConnectionString() string {
 	return "root:@tcp(127.0.0.1:3306)/vcdb?parseTime=true&loc=America%2FChicago"
 }
 
+// VintelligencePass ...
 func VintelligencePass() string {
 	if vinPin := os.Getenv("VIN_PIN"); vinPin != "" {
 		return fmt.Sprintf("%s", vinPin)
@@ -116,6 +154,7 @@ func mongoConnectionString(db string) *mgo.DialInfo {
 	return &info
 }
 
+// GetCleanDBFlag ...
 func GetCleanDBFlag() string {
-	return *EmptyDb
+	return *EmptyDB
 }

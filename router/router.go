@@ -1,6 +1,8 @@
 package router
 
 import (
+	"reflect"
+
 	"github.com/curt-labs/API/middleware"
 	"github.com/julienschmidt/httprouter"
 )
@@ -22,10 +24,13 @@ func New() *Router {
 	r := NewRouter()
 	r.Router.RedirectTrailingSlash = true
 
-	// common := alice.New(context.ClearHandler)
-	// ctx := &middleware.ApiContext{}
-
 	for _, route := range routes {
+		for _, m := range route.Handler.Middleware {
+			nm := reflect.TypeOf(m).Name()
+			if nm == "Keyed" {
+				m.(middleware.Keyed).Type = "PRIVATE"
+			}
+		}
 		r.HandleRoute(route.Method, route.Pattern, route.Handler)
 		// switch route.Middleware {
 		// case PUBLIC_ENDPOINT:

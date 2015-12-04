@@ -4,12 +4,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"github.com/curt-labs/API/helpers/apicontext"
+	"strconv"
+	"strings"
+
 	"github.com/curt-labs/API/helpers/database"
 	"github.com/curt-labs/API/helpers/redis"
 	_ "github.com/go-sql-driver/mysql"
-	"strconv"
-	"strings"
 )
 
 func (l *Lookup) GetYears(dtx *apicontext.DataContext) error {

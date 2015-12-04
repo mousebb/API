@@ -2,11 +2,8 @@ package site
 
 import (
 	"database/sql"
-	"github.com/curt-labs/API/helpers/apicontext"
-	"github.com/curt-labs/API/helpers/database"
 
-	// "github.com/curt-labs/API/helpers/redis"
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/curt-labs/API/middleware"
 )
 
 type Menu struct {
@@ -42,7 +39,7 @@ var (
 								Join ApiKey as ak on akb.keyID = ak.id
 	 							WHERE (ak.api_key = ? && (wub.brandID = ? OR 0=?))`
 	getMenuContents = `SELECT ` + siteContentFields + `, ` + menuSiteContentFields + `  from Menu_SiteContent as msc JOIN SiteContent AS s ON s.contentID = msc.ContentID  WHERE msc.menuID = ?`
-	getMenuByName   = ` SELECT ` + menuFields + ` FROM Menu AS m 
+	getMenuByName   = ` SELECT ` + menuFields + ` FROM Menu AS m
 								Join WebsiteToBrand as wub on wub.WebsiteID = m.websiteID
 								Join ApiKeyToBrand as akb on akb.brandID = wub.brandID
 								Join ApiKey as ak on akb.keyID = ak.id
@@ -57,13 +54,9 @@ var (
 )
 
 //Fetch menu by Id
-func (m *Menu) Get(dtx *apicontext.DataContext) (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getMenu)
+func (m *Menu) Get(ctx *middleware.APIContext) (err error) {
+
+	stmt, err := ctx.DB.Prepare(getMenu)
 	if err != nil {
 		return err
 	}
@@ -71,7 +64,7 @@ func (m *Menu) Get(dtx *apicontext.DataContext) (err error) {
 
 	var display *string
 
-	err = stmt.QueryRow(m.Id, dtx.APIKey, dtx.BrandID, dtx.BrandID).Scan(
+	err = stmt.QueryRow(m.Id, ctx.DataContext.APIKey, ctx.DataContext.BrandID, ctx.DataContext.BrandID).Scan(
 		&m.Id,
 		&m.Name,
 		&m.IsPrimary,
@@ -92,13 +85,9 @@ func (m *Menu) Get(dtx *apicontext.DataContext) (err error) {
 }
 
 //Fetch up a menu by name
-func (m *Menu) GetByName(dtx *apicontext.DataContext) (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getMenuByName)
+func (m *Menu) GetByName(ctx *middleware.APIContext) (err error) {
+
+	stmt, err := ctx.DB.Prepare(getMenuByName)
 	if err != nil {
 		return err
 	}
@@ -106,7 +95,7 @@ func (m *Menu) GetByName(dtx *apicontext.DataContext) (err error) {
 
 	var display *string
 
-	err = stmt.QueryRow(m.Name, dtx.APIKey, dtx.BrandID, dtx.BrandID).Scan(
+	err = stmt.QueryRow(m.Name, ctx.DataContext.APIKey, ctx.DataContext.BrandID, ctx.DataContext.BrandID).Scan(
 		&m.Id,
 		&m.Name,
 		&m.IsPrimary,
@@ -127,13 +116,9 @@ func (m *Menu) GetByName(dtx *apicontext.DataContext) (err error) {
 }
 
 //Fetch all menus
-func GetAllMenus(dtx *apicontext.DataContext) (ms Menus, err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return ms, err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getAllMenus)
+func GetAllMenus(ctx *middleware.APIContext) (ms Menus, err error) {
+
+	stmt, err := ctx.DB.Prepare(getAllMenus)
 	if err != nil {
 		return ms, err
 	}
@@ -142,7 +127,7 @@ func GetAllMenus(dtx *apicontext.DataContext) (ms Menus, err error) {
 	var display *string
 	var m Menu
 
-	res, err := stmt.Query(dtx.APIKey, dtx.BrandID, dtx.BrandID)
+	res, err := stmt.Query(ctx.DataContext.APIKey, ctx.DataContext.BrandID, ctx.DataContext.BrandID)
 	if err != nil {
 		return ms, err
 	}
@@ -172,14 +157,9 @@ func GetAllMenus(dtx *apicontext.DataContext) (ms Menus, err error) {
 }
 
 //Fetch a menu's contents, including latest revision
-func (m *Menu) GetContents() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
+func (m *Menu) GetContents(ctx *middleware.APIContext) (err error) {
 
-	defer db.Close()
-	stmt, err := db.Prepare(getMenuContents)
+	stmt, err := ctx.DB.Prepare(getMenuContents)
 	if err != nil {
 		return err
 	}
@@ -245,7 +225,7 @@ func (m *Menu) GetContents() (err error) {
 			if parent != nil {
 				c.ParentId = *parent
 			}
-			err = c.GetLatestRevision()
+			err = c.GetLatestRevision(ctx)
 			if err == sql.ErrNoRows {
 				err = nil
 			}
@@ -257,14 +237,13 @@ func (m *Menu) GetContents() (err error) {
 }
 
 //creatin' a menu
-func (m *Menu) Create() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
+func (m *Menu) Create(ctx *middleware.APIContext) (err error) {
+
+	tx, err := ctx.DB.Begin()
 	if err != nil {
 		return err
 	}
 
-	defer db.Close()
-	tx, err := db.Begin()
 	stmt, err := tx.Prepare(createMenu)
 	if err != nil {
 		return err
@@ -295,13 +274,13 @@ func (m *Menu) Create() (err error) {
 }
 
 //updatin' a menu
-func (m *Menu) Update() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
+func (m *Menu) Update(ctx *middleware.APIContext) (err error) {
+
+	tx, err := ctx.DB.Begin()
 	if err != nil {
 		return err
 	}
-	defer db.Close()
-	tx, err := db.Begin()
+
 	stmt, err := tx.Prepare(updateMenu)
 	if err != nil {
 		return err
@@ -330,13 +309,9 @@ func (m *Menu) Update() (err error) {
 }
 
 //deletin' a menu, takes a content_sitecontent join with
-func (m *Menu) Delete() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	tx, err := db.Begin()
+func (m *Menu) Delete(ctx *middleware.APIContext) (err error) {
+
+	tx, err := ctx.DB.Begin()
 
 	//delete menu content join
 	stmt, err := tx.Prepare(deleteMenuSiteContentByMenuId)
@@ -371,13 +346,12 @@ func (m *Menu) Delete() (err error) {
 }
 
 //thar needs to exists a menu object with id > 0, for thar be a FK relation
-func (m *Menu) JoinToContent(c Content) (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
+func (m *Menu) JoinToContent(c Content, ctx *middleware.APIContext) (err error) {
+
+	tx, err := ctx.DB.Begin()
 	if err != nil {
 		return err
 	}
-	defer db.Close()
-	tx, err := db.Begin()
 
 	stmt, err := tx.Prepare(createMenuContentJoin)
 	_, err = stmt.Exec(m.Id, c.Id, c.MenuSort, c.MenuTitle, c.MenuLink, c.ParentId, c.LinkTarget)
@@ -390,13 +364,12 @@ func (m *Menu) JoinToContent(c Content) (err error) {
 }
 
 //For deletin' a join
-func (m *Menu) DeleteMenuContentJoin(c Content) (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
+func (m *Menu) DeleteMenuContentJoin(c Content, ctx *middleware.APIContext) (err error) {
+
+	tx, err := ctx.DB.Begin()
 	if err != nil {
 		return err
 	}
-	defer db.Close()
-	tx, err := db.Begin()
 
 	stmt, err := tx.Prepare(deleteMenuSiteContentJoin)
 	_, err = stmt.Exec(m.Id, c.Id)

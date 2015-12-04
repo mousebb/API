@@ -2,12 +2,12 @@ package cartIntegration
 
 import (
 	"github.com/curt-labs/API/helpers/database"
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/curt-labs/API/middleware"
 
-	"database/sql"
 	"time"
 )
 
+// CustomerPrice ...
 type CustomerPrice struct {
 	ID             int        `json:"id,omitempty" xml:"id,omitempty"`
 	CustID         int        `json:"custId,omitempty" xml:"custId,omitempty"`
@@ -20,6 +20,7 @@ type CustomerPrice struct {
 	ListPrice      Price      `json:"listPrice,omitempty" xml:"listPrice,omitempty"`
 }
 
+// Price ...
 type Price struct {
 	PartID int     `json:"partId,omitempty" xml:"partId,omitempty"`
 	Type   string  `json:"type,omitempty" xml:"type,omitempty"`
@@ -73,34 +74,17 @@ var (
 	getAllPriceTypes      = `SELECT DISTINCT priceType from Price`
 )
 
-var (
-	Brand_ID    int
-	Customer_ID int
-)
-
-func initDB() (*sql.DB, error) {
-	connStr := database.ConnectionString()
-	db, err := sql.Open("mysql", connStr)
-	if err != nil {
-		return nil, err
-	}
-	return db, err
-}
-
 //Get all of a single customer's prices
-func GetCustomerPrices() ([]CustomerPrice, error) {
+func GetCustomerPrices(ctx *middleware.APIContext) ([]CustomerPrice, error) {
 	var cps []CustomerPrice
-	db, err := initDB()
-	if err != nil {
-		return cps, err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getPricing)
+
+	stmt, err := ctx.DB.Prepare(getPricing)
 	if err != nil {
 		return cps, err
 	}
 	defer stmt.Close()
-	res, err := stmt.Query(Customer_ID, Customer_ID, Brand_ID)
+
+	res, err := stmt.Query(ctx.DataContext.CustomerID, ctx.DataContext.CustomerID, ctx.DataContext.BrandID)
 	if err != nil {
 		return cps, err
 	}
@@ -112,24 +96,21 @@ func GetCustomerPrices() ([]CustomerPrice, error) {
 		}
 		cps = append(cps, c)
 	}
-	return cps, err
+
+	return cps, nil
 }
 
 //Get a customers prices - paged/limited
-func GetPricingPaged(page int, count int) ([]CustomerPrice, error) {
+func GetPricingPaged(page int, count int, ctx *middleware.APIContext) ([]CustomerPrice, error) {
 	var cps []CustomerPrice
-	db, err := initDB()
-	if err != nil {
-		return cps, err
-	}
-	defer db.Close()
 
-	stmt, err := db.Prepare(getPricingPaged)
+	stmt, err := ctx.DB.Prepare(getPricingPaged)
 	if err != nil {
 		return cps, err
 	}
 	defer stmt.Close()
-	res, err := stmt.Query(Customer_ID, Customer_ID, Brand_ID, (page-1)*count, count)
+
+	res, err := stmt.Query(ctx.DataContext.CustomerID, ctx.DataContext.CustomerID, ctx.DataContext.BrandID, (page-1)*count, count)
 	if err != nil {
 		return cps, err
 	}
@@ -141,23 +122,20 @@ func GetPricingPaged(page int, count int) ([]CustomerPrice, error) {
 		}
 		cps = append(cps, c)
 	}
-	return cps, err
+
+	return cps, nil
 }
 
 //Returns the number of prices that a customer has
-func GetPricingCount() (int, error) {
+func GetPricingCount(ctx *middleware.APIContext) (int, error) {
 	var count int
-	db, err := initDB()
-	if err != nil {
-		return count, err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getPricingCount)
+
+	stmt, err := ctx.DB.Prepare(getPricingCount)
 	if err != nil {
 		return count, err
 	}
 	defer stmt.Close()
-	err = stmt.QueryRow(Customer_ID, Customer_ID, Brand_ID).Scan(&count)
+	err = stmt.QueryRow(ctx.DataContext.CustomerID, ctx.DataContext.CustomerID, ctx.DataContext.BrandID).Scan(&count)
 	if err != nil {
 		return count, err
 	}
@@ -165,19 +143,15 @@ func GetPricingCount() (int, error) {
 }
 
 //Returns Price for a part
-func GetPartPricesByPartID(partID int) ([]Price, error) {
+func GetPartPricesByPartID(partID int, ctx *middleware.APIContext) ([]Price, error) {
 	var ps []Price
-	db, err := initDB()
-	if err != nil {
-		return ps, err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getPricingByPart)
+
+	stmt, err := ctx.DB.Prepare(getPricingByPart)
 	if err != nil {
 		return ps, err
 	}
 	defer stmt.Close()
-	res, err := stmt.Query(Brand_ID, partID)
+	res, err := stmt.Query(ctx.DataContext.BrandID, partID)
 	if err != nil {
 		return ps, err
 	}
@@ -192,19 +166,15 @@ func GetPartPricesByPartID(partID int) ([]Price, error) {
 }
 
 //Returns all Prices
-func GetPartPrices() ([]Price, error) {
+func GetPartPrices(ctx *middleware.APIContext) ([]Price, error) {
 	var ps []Price
-	db, err := initDB()
-	if err != nil {
-		return ps, err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getAllPricing)
+
+	stmt, err := ctx.DB.Prepare(getAllPricing)
 	if err != nil {
 		return ps, err
 	}
 	defer stmt.Close()
-	res, err := stmt.Query(Brand_ID)
+	res, err := stmt.Query(ctx.DataContext.BrandID)
 	if err != nil {
 		return ps, err
 	}
@@ -219,19 +189,15 @@ func GetPartPrices() ([]Price, error) {
 }
 
 //Returns Map Price for every part
-func GetMAPPartPrices() ([]Price, error) {
+func GetMAPPartPrices(ctx *middleware.APIContext) ([]Price, error) {
 	var ps []Price
-	db, err := initDB()
-	if err != nil {
-		return ps, err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getAllMAPPricing)
+
+	stmt, err := ctx.DB.Prepare(getAllMAPPricing)
 	if err != nil {
 		return ps, err
 	}
 	defer stmt.Close()
-	res, err := stmt.Query(Brand_ID)
+	res, err := stmt.Query(ctx.DataContext.BrandID)
 	if err != nil {
 		return ps, err
 	}
@@ -246,13 +212,9 @@ func GetMAPPartPrices() ([]Price, error) {
 }
 
 //CRUD
-func (c *CustomerPrice) Update() error {
-	db, err := initDB()
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(updateCustomerPrice)
+func (c *CustomerPrice) Update(ctx *middleware.APIContext) error {
+
+	stmt, err := ctx.DB.Prepare(updateCustomerPrice)
 	if err != nil {
 		return err
 	}
@@ -261,13 +223,9 @@ func (c *CustomerPrice) Update() error {
 	return err
 }
 
-func (c *CustomerPrice) Create() error {
-	db, err := initDB()
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(insertCustomerPrice)
+func (c *CustomerPrice) Create(ctx *middleware.APIContext) error {
+
+	stmt, err := ctx.DB.Prepare(insertCustomerPrice)
 	if err != nil {
 		return err
 	}
@@ -284,13 +242,9 @@ func (c *CustomerPrice) Create() error {
 	return nil
 }
 
-func (c *CustomerPrice) Delete() error {
-	db, err := initDB()
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(deleteCustomerPrice)
+func (c *CustomerPrice) Delete(ctx *middleware.APIContext) error {
+
+	stmt, err := ctx.DB.Prepare(deleteCustomerPrice)
 	if err != nil {
 		return err
 	}
@@ -300,19 +254,15 @@ func (c *CustomerPrice) Delete() error {
 }
 
 //CartIntegration
-func GetCustomerCartIntegrations(key string) ([]CustomerPrice, error) {
+func GetCustomerCartIntegrations(ctx *middleware.APIContext) ([]CustomerPrice, error) {
 	var cps []CustomerPrice
-	db, err := initDB()
-	if err != nil {
-		return cps, err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getCustomerCartIntegrations)
+
+	stmt, err := ctx.DB.Prepare(getCustomerCartIntegrations)
 	if err != nil {
 		return cps, err
 	}
 	defer stmt.Close()
-	res, err := stmt.Query(key, Brand_ID)
+	res, err := stmt.Query(ctx.DataContext.APIKey, ctx.DataContext.BrandID)
 	if err != nil {
 		return cps, err
 	}
@@ -326,13 +276,9 @@ func GetCustomerCartIntegrations(key string) ([]CustomerPrice, error) {
 	return cps, err
 }
 
-func (cp *CustomerPrice) UpdateCartIntegration() error {
-	db, err := initDB()
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(updateCartIntegration)
+func (cp *CustomerPrice) UpdateCartIntegration(ctx *middleware.APIContext) error {
+
+	stmt, err := ctx.DB.Prepare(updateCartIntegration)
 	if err != nil {
 		return err
 	}
@@ -341,13 +287,9 @@ func (cp *CustomerPrice) UpdateCartIntegration() error {
 	return err
 }
 
-func (cp *CustomerPrice) InsertCartIntegration() error {
-	db, err := initDB()
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(insertCartIntegration)
+func (cp *CustomerPrice) InsertCartIntegration(ctx *middleware.APIContext) error {
+
+	stmt, err := ctx.DB.Prepare(insertCartIntegration)
 	if err != nil {
 		return err
 	}
@@ -356,13 +298,9 @@ func (cp *CustomerPrice) InsertCartIntegration() error {
 	return err
 }
 
-func (cp *CustomerPrice) DeleteCartIntegration() error {
-	db, err := initDB()
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(deleteCartIntegration)
+func (cp *CustomerPrice) DeleteCartIntegration(ctx *middleware.APIContext) error {
+
+	stmt, err := ctx.DB.Prepare(deleteCartIntegration)
 	if err != nil {
 		return err
 	}
@@ -371,14 +309,10 @@ func (cp *CustomerPrice) DeleteCartIntegration() error {
 	return err
 }
 
-func GetAllPriceTypes() ([]string, error) {
+func GetAllPriceTypes(ctx *middleware.APIContext) ([]string, error) {
 	var types []string
-	db, err := initDB()
-	if err != nil {
-		return types, err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getAllPriceTypes)
+
+	stmt, err := ctx.DB.Prepare(getAllPriceTypes)
 	if err != nil {
 		return types, err
 	}

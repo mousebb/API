@@ -3,63 +3,22 @@ package pricingCtlr
 import (
 	"encoding/json"
 	"errors"
-	"io/ioutil"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/curt-labs/API/middleware"
 	"github.com/curt-labs/API/models/cartIntegration"
-	"github.com/curt-labs/API/models/customer"
 )
-
-func setDB(r *http.Request) error {
-	brandID, err := strconv.Atoi(r.URL.Query().Get("brandID"))
-	if err != nil {
-		return err
-	}
-	cartIntegration.Brand_ID = brandID
-	return nil
-}
-
-func setCustomerID(r *http.Request) error {
-	c := customer.Customer{}
-	err := c.GetCustomerIdFromKey(r.URL.Query().Get("key"))
-	if err != nil {
-		return err
-	}
-	cartIntegration.Customer_ID = c.Id
-	return nil
-}
 
 // GetPricing Requires APIKEY and brandID in header
 func GetPricing(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-
-	var err error
-	err = setDB(r)
-	if err != nil {
-		return nil, err
-	}
-	err = setCustomerID(r)
-	if err != nil {
-		return nil, err
-	}
-
-	return cartIntegration.GetCustomerPrices()
+	return cartIntegration.GetCustomerPrices(ctx)
 }
 
 // GetPricingPaged Requires APIKEY and brandID in header
 // Requires count and page in params
 func GetPricingPaged(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	var err error
-	err = setDB(r)
-	if err != nil {
-		return nil, err
-	}
-	err = setCustomerID(r)
-	if err != nil {
-		return nil, err
-	}
 
 	page, err := strconv.Atoi(ctx.Params.ByName("page"))
 	if page < 1 || err != nil {
@@ -71,136 +30,88 @@ func GetPricingPaged(ctx *middleware.APIContext, rw http.ResponseWriter, r *http
 		return nil, err
 	}
 
-	return cartIntegration.GetPricingPaged(page, count)
+	return cartIntegration.GetPricingPaged(page, count, ctx)
 }
 
 //GetPricingCount Returns int
 func GetPricingCount(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	var err error
-	err = setDB(r)
-	if err != nil {
-		return nil, err
-	}
-	err = setCustomerID(r)
-	if err != nil {
-		return nil, err
-	}
-
-	return cartIntegration.GetPricingCount()
+	return cartIntegration.GetPricingCount(ctx)
 }
 
 // GetPartPricesByPartID Returns Mfr Prices for a part
 func GetPartPricesByPartID(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	var err error
-	err = setDB(r)
-	if err != nil {
-		return nil, err
-	}
 	partID, err := strconv.Atoi(ctx.Params.ByName("part"))
 	if partID < 1 || err != nil {
 		return nil, err
 	}
 
-	return cartIntegration.GetPartPricesByPartID(partID)
+	return cartIntegration.GetPartPricesByPartID(partID, ctx)
 }
 
 // GetAllPartPrices Returns Mfr Prices
 func GetAllPartPrices(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-
-	err := setDB(r)
-	if err != nil {
-		return nil, err
-	}
-
-	return cartIntegration.GetPartPrices()
+	return cartIntegration.GetPartPrices(ctx)
 }
 
 // CreatePrice ...
 func CreatePrice(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	var err error
-	err = setDB(r)
-	if err != nil {
-		return nil, err
-	}
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		return nil, err
-	}
+
 	var price cartIntegration.CustomerPrice
-	err = json.Unmarshal(body, &price)
+	err := json.NewDecoder(r.Body).Decode(&price)
 	if err != nil {
 		return nil, err
 	}
-	err = setCustomerID(r)
-	if err != nil {
-		return nil, err
-	}
-	price.CustID = cartIntegration.Customer_ID
+
+	price.CustID = ctx.DataContext.CustomerID
 	err = validatePrice(price)
 	if err != nil {
 		return nil, err
 	}
-	err = price.Create()
+
+	err = price.Create(ctx)
 	if err != nil {
 		return nil, err
 	}
-	err = price.InsertCartIntegration()
+
+	err = price.InsertCartIntegration(ctx)
 
 	return price, err
 }
 
 // UpdatePrice ...
 func UpdatePrice(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	var err error
-	err = setDB(r)
-	if err != nil {
-		return nil, err
-	}
 
 	var price cartIntegration.CustomerPrice
-	err = json.NewDecoder(r.Body).Decode(&price)
+	err := json.NewDecoder(r.Body).Decode(&price)
 	if err != nil {
 		return nil, err
 	}
 
-	err = setCustomerID(r)
-	if err != nil {
-		return nil, err
-	}
-
-	price.CustID = cartIntegration.Customer_ID
+	price.CustID = ctx.DataContext.CustomerID
 	err = validatePrice(price)
 	if err != nil {
 		return nil, err
 	}
-	err = price.Update()
+	err = price.Update(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	err = price.UpdateCartIntegration()
+	err = price.UpdateCartIntegration(ctx)
 
 	return price, err
 }
 
 // ResetAllToMap Set all of a customer's prices to MAP
 func ResetAllToMap(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	var err error
-	err = setDB(r)
-	if err != nil {
-		return nil, err
-	}
-	err = setCustomerID(r)
-	if err != nil {
-		return nil, err
-	}
-	custPrices, err := cartIntegration.GetCustomerPrices()
+
+	custPrices, err := cartIntegration.GetCustomerPrices(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	//create map of MAP prices
-	prices, err := cartIntegration.GetMAPPartPrices()
+	prices, err := cartIntegration.GetMAPPartPrices(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -213,12 +124,12 @@ func ResetAllToMap(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.R
 	for i := range custPrices {
 		custPrices[i].Price = priceMap[custPrices[i].PartID].Price
 		if custPrices[i].CustID == 0 {
-			custPrices[i].CustID = cartIntegration.Customer_ID
+			custPrices[i].CustID = ctx.DataContext.CustomerID
 		}
 		if custPrices[i].ID == 0 {
-			err = custPrices[i].Create()
+			err = custPrices[i].Create(ctx)
 		} else {
-			err = custPrices[i].Update()
+			err = custPrices[i].Update(ctx)
 		}
 		if err != nil {
 			return nil, err
@@ -230,15 +141,7 @@ func ResetAllToMap(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.R
 
 // Global Sets all of a customer's prices to a percentage of the price type specified in params
 func Global(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	var err error
-	err = setDB(r)
-	if err != nil {
-		return nil, err
-	}
-	err = setCustomerID(r)
-	if err != nil {
-		return nil, err
-	}
+
 	priceType := ctx.Params.ByName("type")
 	percent, err := strconv.ParseFloat(ctx.Params.ByName("percentage"), 64)
 	if err != nil {
@@ -247,7 +150,7 @@ func Global(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request)
 	percent = percent / 100
 
 	//create partPriceMap
-	prices, err := cartIntegration.GetPartPrices()
+	prices, err := cartIntegration.GetPartPrices(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -259,7 +162,7 @@ func Global(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request)
 	}
 
 	//get CustPrices
-	custPrices, err := cartIntegration.GetCustomerPrices()
+	custPrices, err := cartIntegration.GetCustomerPrices(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -267,13 +170,13 @@ func Global(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request)
 	//set to percentage
 	for i := range custPrices {
 		if custPrices[i].CustID == 0 {
-			custPrices[i].CustID = cartIntegration.Customer_ID
+			custPrices[i].CustID = ctx.DataContext.CustomerID
 		}
 		custPrices[i].Price = priceMap[strconv.Itoa(custPrices[i].PartID)+priceType] * percent
 		if custPrices[i].ID == 0 {
-			err = custPrices[i].Create()
+			err = custPrices[i].Create(ctx)
 		} else {
-			err = custPrices[i].Update()
+			err = custPrices[i].Update(ctx)
 
 		}
 		if err != nil {
@@ -286,13 +189,7 @@ func Global(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request)
 
 // GetAllPriceTypes Get those price types
 func GetAllPriceTypes(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	var err error
-	err = setDB(r)
-	if err != nil {
-		return nil, err
-	}
-
-	return cartIntegration.GetAllPriceTypes()
+	return cartIntegration.GetAllPriceTypes(ctx)
 }
 
 //Utility
