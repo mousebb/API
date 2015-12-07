@@ -70,6 +70,9 @@ func (fn APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, ps httpro
 	context.Set(r, apiContext, ctx)
 
 	for _, m := range fn.Middleware {
+		if m.H == nil {
+			continue
+		}
 		if m.Defer {
 			defer m.H.ServeHTTP(w, r)
 		} else {

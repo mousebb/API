@@ -21,14 +21,14 @@ func (db DB) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx.Session = database.ProductMongoSession.Copy()
-	defer ctx.Session.Close()
+	// defer ctx.Session.Close()
 
 	ctx.AriesMongoDatabase = database.AriesMongoDatabase
 	ctx.AriesSession = database.AriesMongoSession.Copy()
-	defer ctx.AriesSession.Close()
+	// defer ctx.AriesSession.Close()
 
 	ctx.DB = database.DB
-	defer ctx.DB.Close()
+	// defer ctx.DB.Close()
 
 	context.Set(r, apiContext, ctx)
 }

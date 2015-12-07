@@ -97,6 +97,13 @@ func Init() error {
 	return nil
 }
 
+func Close() {
+	AriesMongoSession.Close()
+	ProductMongoSession.Close()
+	ErrorMongoSession.Close()
+	DB.Close()
+}
+
 func connectionString() string {
 	if addr := os.Getenv("DATABASE_HOST"); addr != "" {
 		proto := os.Getenv("DATABASE_PROTOCOL")

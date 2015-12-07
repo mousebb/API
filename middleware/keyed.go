@@ -23,6 +23,9 @@ func (kh Keyed) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if ctx == nil {
 		ctx = &APIContext{}
 	}
+	if ctx.DataContext == nil {
+		ctx.DataContext = new(DataContext)
+	}
 
 	qs := r.URL.Query()
 	apiKey := qs.Get("key")

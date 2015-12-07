@@ -41,7 +41,7 @@ func (ctx *APIContext) BuildDataContext(k, t string) error {
 	if t != "" {
 		rows, err = stmt.Query(k, t, 0)
 	} else {
-		rows, err = stmt.Query(k, 1)
+		rows, err = stmt.Query(k, t, 1)
 	}
 
 	if err != nil {

@@ -27,6 +27,8 @@ func main() {
 		log.Fatal(err)
 	}
 
+	defer database.Close()
+
 	r := router.New()
 
 	// m.Use(middleware.Meddler())
