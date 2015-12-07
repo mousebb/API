@@ -1,6 +1,7 @@
 package partCtlr
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -16,18 +17,22 @@ import (
 	"github.com/curt-labs/API/middleware"
 	"github.com/curt-labs/API/models/products"
 	"github.com/curt-labs/API/models/video"
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/julienschmidt/httprouter"
 	"github.com/ory-am/dockertest"
 	. "github.com/smartystreets/goconvey/convey"
 )
 
-var db *mgo.Session
+var (
+	session *mgo.Session
+	db      *sql.DB
+)
 
 func TestMain(m *testing.M) {
 
-	c, err := dockertest.ConnectToMongoDB(15, time.Second, func(url string) bool {
+	mongo, err := dockertest.ConnectToMongoDB(15, time.Second, func(url string) bool {
 		var err error
-		db, err = mgo.Dial(url)
+		session, err = mgo.Dial(url)
 		if err != nil {
 			log.Fatalf("MongoDB connection failed, with address '%s'.", url)
 		}
@@ -38,8 +43,21 @@ func TestMain(m *testing.M) {
 			p.Categories[i].Identifier = bson.NewObjectId()
 		}
 
-		db.SetMode(mgo.Monotonic, true)
-		db.DB(database.ProductMongoDatabase).C(database.ProductCollectionName).Insert(&p)
+		session.SetMode(mgo.Monotonic, true)
+		session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName).Insert(&p)
+
+		return session.Ping() == nil
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	mysql, err := dockertest.ConnectToMySQL(15, time.Second, func(url string) bool {
+		var err error
+		db, err = sql.Open("mysql", url)
+		if err != nil {
+			log.Fatalf("MySQL connection failed, with address '%s'.", url)
+		}
 
 		return db.Ping() == nil
 	})
@@ -50,8 +68,217 @@ func TestMain(m *testing.M) {
 
 	m.Run()
 
+	session.Close()
 	db.Close()
-	c.KillRemove()
+	mysql.KillRemove()
+	mongo.KillRemove()
+}
+
+func TestIdentifiers(t *testing.T) {
+	Convey("Testing part.Identifiers", t, func() {
+		ctx := &middleware.APIContext{
+			DataContext: &middleware.DataContext{
+				BrandID: 3,
+			},
+			Params:       httprouter.Params{},
+			Session:      session,
+			AriesSession: session,
+			DB:           db,
+		}
+
+		rec := httptest.NewRecorder()
+		req, err := http.NewRequest("GET", "http://localhost:8080/parts/identifiers?brand=1", nil)
+		So(err, ShouldBeNil)
+
+		resp, err := Identifiers(ctx, rec, req)
+		So(err, ShouldBeNil)
+		So(resp, ShouldHaveSameTypeAs, []string{})
+	})
+}
+
+func TestAll(t *testing.T) {
+	Convey("Testing part.All", t, func() {
+		ctx := &middleware.APIContext{
+			DataContext: &middleware.DataContext{
+				BrandID: 3,
+			},
+			Params:       httprouter.Params{},
+			Session:      session,
+			AriesSession: session,
+			DB:           db,
+		}
+
+		Convey("with no page or count paramters", func() {
+			rec := httptest.NewRecorder()
+			req, err := http.NewRequest("GET", "http://localhost:8080/parts", nil)
+			So(err, ShouldBeNil)
+
+			resp, err := All(ctx, rec, req)
+			So(err, ShouldBeNil)
+			So(resp, ShouldHaveSameTypeAs, []products.Part{})
+		})
+
+		Convey("with page 0 and count size out of bounds", func() {
+			rec := httptest.NewRecorder()
+			req, err := http.NewRequest("GET", "http://localhost:8080/parts?page=0&count=1000", nil)
+			So(err, ShouldBeNil)
+
+			resp, err := All(ctx, rec, req)
+			So(err, ShouldNotBeNil)
+			So(resp, ShouldBeNil)
+		})
+
+		Convey("with page 1 and count size out of bounds", func() {
+			rec := httptest.NewRecorder()
+			req, err := http.NewRequest("GET", "http://localhost:8080/parts?page=1&count=1000", nil)
+			So(err, ShouldBeNil)
+
+			resp, err := All(ctx, rec, req)
+			So(err, ShouldNotBeNil)
+			So(resp, ShouldBeNil)
+		})
+
+		Convey("with page 1 and count size in of bounds", func() {
+			rec := httptest.NewRecorder()
+			req, err := http.NewRequest("GET", "http://localhost:8080/parts?page=1&count=100", nil)
+			So(err, ShouldBeNil)
+
+			resp, err := All(ctx, rec, req)
+			So(err, ShouldBeNil)
+			So(resp, ShouldHaveSameTypeAs, []products.Part{})
+		})
+
+	})
+}
+
+func TestFeatured(t *testing.T) {
+	Convey("Testing part.Featured", t, func() {
+		ctx := &middleware.APIContext{
+			DataContext: &middleware.DataContext{
+				BrandID: 3,
+			},
+			Params:       httprouter.Params{},
+			Session:      session,
+			AriesSession: session,
+			DB:           db,
+		}
+
+		Convey("with count paramter", func() {
+			rec := httptest.NewRecorder()
+			req, err := http.NewRequest("GET", "http://localhost:8080/parts/featured?count=1", nil)
+			So(err, ShouldBeNil)
+
+			resp, err := Featured(ctx, rec, req)
+			So(err, ShouldBeNil)
+			So(resp, ShouldHaveSameTypeAs, []products.Part{})
+		})
+
+		Convey("with count paramter out of bounds", func() {
+			rec := httptest.NewRecorder()
+			req, err := http.NewRequest("GET", "http://localhost:8080/parts/featured?count=100", nil)
+			So(err, ShouldBeNil)
+
+			resp, err := Featured(ctx, rec, req)
+			So(err, ShouldNotBeNil)
+			So(resp, ShouldBeNil)
+		})
+
+		Convey("with count and bad brand paramter", func() {
+			rec := httptest.NewRecorder()
+			req, err := http.NewRequest("GET", "http://localhost:8080/parts/featured?count=1&brand=curt", nil)
+			So(err, ShouldBeNil)
+
+			resp, err := Featured(ctx, rec, req)
+			So(err, ShouldNotBeNil)
+			So(resp, ShouldBeNil)
+		})
+
+		Convey("with count and brand paramter", func() {
+			rec := httptest.NewRecorder()
+			req, err := http.NewRequest("GET", "http://localhost:8080/parts/featured?count=1&brand=1", nil)
+			So(err, ShouldBeNil)
+
+			resp, err := Featured(ctx, rec, req)
+			So(err, ShouldBeNil)
+			So(resp, ShouldHaveSameTypeAs, []products.Part{})
+		})
+
+		Convey("with no page or count paramters", func() {
+			rec := httptest.NewRecorder()
+			req, err := http.NewRequest("GET", "http://localhost:8080/parts/featured", nil)
+			So(err, ShouldBeNil)
+
+			resp, err := Featured(ctx, rec, req)
+			So(err, ShouldBeNil)
+			So(resp, ShouldHaveSameTypeAs, []products.Part{})
+		})
+
+	})
+}
+
+func TestLatest(t *testing.T) {
+	Convey("Testing part.Latest", t, func() {
+		ctx := &middleware.APIContext{
+			DataContext: &middleware.DataContext{
+				BrandID: 3,
+			},
+			Params:       httprouter.Params{},
+			Session:      session,
+			AriesSession: session,
+			DB:           db,
+		}
+
+		Convey("with count paramter", func() {
+			rec := httptest.NewRecorder()
+			req, err := http.NewRequest("GET", "http://localhost:8080/parts/latest?count=1", nil)
+			So(err, ShouldBeNil)
+
+			resp, err := Latest(ctx, rec, req)
+			So(err, ShouldBeNil)
+			So(resp, ShouldHaveSameTypeAs, []products.Part{})
+		})
+
+		Convey("with count paramter out of bounds", func() {
+			rec := httptest.NewRecorder()
+			req, err := http.NewRequest("GET", "http://localhost:8080/parts/latest?count=100", nil)
+			So(err, ShouldBeNil)
+
+			resp, err := Latest(ctx, rec, req)
+			So(err, ShouldNotBeNil)
+			So(resp, ShouldBeNil)
+		})
+
+		Convey("with count and bad brand paramter", func() {
+			rec := httptest.NewRecorder()
+			req, err := http.NewRequest("GET", "http://localhost:8080/parts/latest?count=1&brand=curt", nil)
+			So(err, ShouldBeNil)
+
+			resp, err := Latest(ctx, rec, req)
+			So(err, ShouldNotBeNil)
+			So(resp, ShouldBeNil)
+		})
+
+		Convey("with count and brand paramter", func() {
+			rec := httptest.NewRecorder()
+			req, err := http.NewRequest("GET", "http://localhost:8080/parts/latest?count=1&brand=1", nil)
+			So(err, ShouldBeNil)
+
+			resp, err := Latest(ctx, rec, req)
+			So(err, ShouldBeNil)
+			So(resp, ShouldHaveSameTypeAs, []products.Part{})
+		})
+
+		Convey("with no page or count paramters", func() {
+			rec := httptest.NewRecorder()
+			req, err := http.NewRequest("GET", "http://localhost:8080/parts/latest", nil)
+			So(err, ShouldBeNil)
+
+			resp, err := Latest(ctx, rec, req)
+			So(err, ShouldBeNil)
+			So(resp, ShouldHaveSameTypeAs, []products.Part{})
+		})
+
+	})
 }
 
 func TestGet(t *testing.T) {
@@ -67,8 +294,9 @@ func TestGet(t *testing.T) {
 					Value: "1042",
 				},
 			},
-			Session:      db,
-			AriesSession: db,
+			Session:      session,
+			AriesSession: session,
+			DB:           db,
 		}
 
 		Convey("with bad brand/part reference", func() {
@@ -111,8 +339,9 @@ func TestGetRelated(t *testing.T) {
 					Value: "1042",
 				},
 			},
-			Session:      db,
-			AriesSession: db,
+			Session:      session,
+			AriesSession: session,
+			DB:           db,
 		}
 
 		Convey("with proper brand/part reference", func() {
@@ -125,6 +354,40 @@ func TestGetRelated(t *testing.T) {
 			resp, err := GetRelated(ctx, rec, req)
 			So(err, ShouldBeNil)
 			So(resp, ShouldHaveSameTypeAs, []products.Part{})
+		})
+
+	})
+}
+
+func TestVehicles(t *testing.T) {
+
+	Convey("Testing part.Vehicles", t, func() {
+		t.Log(db)
+		ctx := &middleware.APIContext{
+			DataContext: &middleware.DataContext{
+				BrandID: 3,
+			},
+			Params: httprouter.Params{
+				httprouter.Param{
+					Key:   "part",
+					Value: "1042",
+				},
+			},
+			Session:      session,
+			AriesSession: session,
+			DB:           db,
+		}
+
+		Convey("with proper brand/part reference", func() {
+			ctx.DataContext.BrandID = 3
+			rec := httptest.NewRecorder()
+			req, err := http.NewRequest("GET", "http://localhost:8080/part/1042/vehicles", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp, err := Vehicles(ctx, rec, req)
+			So(err, ShouldBeNil)
+			So(resp, ShouldHaveSameTypeAs, []products.Image{})
 		})
 
 	})
@@ -143,8 +406,9 @@ func TestImages(t *testing.T) {
 					Value: "1042",
 				},
 			},
-			Session:      db,
-			AriesSession: db,
+			Session:      session,
+			AriesSession: session,
+			DB:           db,
 		}
 
 		Convey("with proper brand/part reference", func() {
@@ -175,8 +439,9 @@ func TestAttributes(t *testing.T) {
 					Value: "1042",
 				},
 			},
-			Session:      db,
-			AriesSession: db,
+			Session:      session,
+			AriesSession: session,
+			DB:           db,
 		}
 
 		Convey("with proper brand/part reference", func() {
@@ -207,8 +472,9 @@ func TestGetContent(t *testing.T) {
 					Value: "1042",
 				},
 			},
-			Session:      db,
-			AriesSession: db,
+			Session:      session,
+			AriesSession: session,
+			DB:           db,
 		}
 
 		Convey("with proper brand/part reference", func() {
@@ -239,8 +505,9 @@ func TestPackaging(t *testing.T) {
 					Value: "1042",
 				},
 			},
-			Session:      db,
-			AriesSession: db,
+			Session:      session,
+			AriesSession: session,
+			DB:           db,
 		}
 
 		Convey("with proper brand/part reference", func() {
@@ -271,8 +538,9 @@ func TestActiveApprovedReviews(t *testing.T) {
 					Value: "1042",
 				},
 			},
-			Session:      db,
-			AriesSession: db,
+			Session:      session,
+			AriesSession: session,
+			DB:           db,
 		}
 
 		Convey("with proper brand/part reference", func() {
@@ -303,8 +571,9 @@ func TestVideos(t *testing.T) {
 					Value: "1042",
 				},
 			},
-			Session:      db,
-			AriesSession: db,
+			Session:      session,
+			AriesSession: session,
+			DB:           db,
 		}
 
 		Convey("with proper brand/part reference", func() {

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 
@@ -90,6 +91,7 @@ func ReverseLookup(ctx *middleware.APIContext, partId int) (vehicles []Vehicle, 
 		}
 	}
 
+	log.Println(ctx.DB)
 	stmt, err := ctx.DB.Prepare(reverseLookupStmt)
 	if err != nil {
 		return
