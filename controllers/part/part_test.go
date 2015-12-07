@@ -2,7 +2,6 @@ package partCtlr
 
 import (
 	"log"
-	"os"
 	"testing"
 	"time"
 
@@ -38,10 +37,10 @@ func TestMain(m *testing.M) {
 		log.Fatal(err)
 	}
 
-	defer c.KillRemove()
-	defer db.Close()
+	m.Run()
 
-	os.Exit(m.Run())
+	db.Close()
+	c.KillRemove()
 }
 
 func TestPartNumber(t *testing.T) {
