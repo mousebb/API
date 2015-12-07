@@ -125,24 +125,42 @@ func Latest(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request)
 	return products.Latest(ctx, count, brand)
 }
 
-// func Get(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-// 	id, err := strconv.Atoi(params["part"])
-// 	if err != nil {
-// 		apierror.GenerateError("Trouble getting part", err, w, r)
-// 		return ""
-// 	}
-// 	p := products.Part{
-// 		ID: id,
-// 	}
-//
-// 	if err = p.Get(dtx); err != nil {
-//
-// 		apierror.GenerateError("Trouble getting part", err, w, r)
-// 		return ""
-// 	}
-//
-// 	return encoding.Must(enc.Encode(p))
-// }
+// Get Retrieves a Part using the :part segment of the URL pattern.
+// If it's an ARIES product it binds the MongoDB vehicle data.
+// TODO: We should add logic for the CURT year/make/model/style.
+func Get(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
+	p := products.Part{
+		PartNumber: ctx.Params.ByName("part"),
+	}
+
+	err := p.Get(ctx, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	// QUESTION: Is this the right place for the vehicle logic? Should
+	// it be handled in the fanner process instead? I would think this data
+	// would have already been applied before indexing.
+
+	//TODO - remove when curt & aries vehicle application data are in sync
+	if p.Brand.ID == 3 {
+		mgoVehicles, err := vehicle.ReverseMongoLookup(p.ID, ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, v := range mgoVehicles {
+			vehicleApplication := products.VehicleApplication{
+				Year:  v.Year,
+				Make:  v.Make,
+				Model: v.Model,
+				Style: v.Style,
+			}
+			p.Vehicles = append(p.Vehicles, vehicleApplication)
+		}
+	} //END TODO
+
+	return p, nil
+}
 
 // GetRelated Retrieves the related Part to a given Part.
 func GetRelated(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
@@ -246,30 +264,23 @@ func GetContent(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Requ
 
 //Redundant
 func Packaging(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	id, err := strconv.Atoi(ctx.Params.ByName("part"))
-	if err != nil {
-		return nil, err
-	}
 	p := products.Part{
-		ID: id,
+		PartNumber: ctx.Params.ByName("part"),
 	}
 
-	err = p.Get(ctx, 0)
+	err := p.Get(ctx, 0)
 
 	return p.Packages, err
 }
 
 //Redundant
 func ActiveApprovedReviews(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	id, err := strconv.Atoi(ctx.Params.ByName("part"))
-	if err != nil {
-		return nil, err
-	}
 	p := products.Part{
-		ID: id,
+		PartNumber: ctx.Params.ByName("part"),
 	}
 
-	if err = p.Get(ctx, 0); err != nil {
+	err := p.Get(ctx, 0)
+	if err != nil {
 		return nil, err
 	}
 
@@ -284,16 +295,14 @@ func ActiveApprovedReviews(ctx *middleware.APIContext, rw http.ResponseWriter, r
 }
 
 func Videos(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	id, err := strconv.Atoi(ctx.Params.ByName("part"))
+	p := products.Part{
+		PartNumber: ctx.Params.ByName("part"),
+	}
+
+	err := p.Get(ctx, 0)
 	if err != nil {
 		return nil, err
 	}
-
-	p := products.Part{
-		ID: id,
-	}
-
-	err = p.Get(ctx, 0)
 
 	return p.Videos, err
 }
@@ -376,34 +385,4 @@ func Prices(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request)
 	p.Pricing = append(p.Pricing, <-custChan)
 
 	return p.Pricing, nil
-}
-
-func PartNumber(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	p := products.Part{
-		PartNumber: ctx.Params.ByName("part"),
-	}
-
-	err := p.Get(ctx, 0)
-	if err != nil {
-		return nil, err
-	}
-
-	//TODO - remove when curt & aries vehicle application data are in sync
-	if p.Brand.ID == 3 {
-		mgoVehicles, err := vehicle.ReverseMongoLookup(p.ID, ctx)
-		if err != nil {
-			return nil, err
-		}
-		for _, v := range mgoVehicles {
-			vehicleApplication := products.VehicleApplication{
-				Year:  v.Year,
-				Make:  v.Make,
-				Model: v.Model,
-				Style: v.Style,
-			}
-			p.Vehicles = append(p.Vehicles, vehicleApplication)
-		}
-	} //END TODO
-
-	return p, nil
 }

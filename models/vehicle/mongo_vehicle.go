@@ -14,10 +14,6 @@ type MgoVehicle struct {
 	Style      string        `bson:"style" json:"style,omitempty" xml:"style,omitempty"`
 }
 
-const (
-	AriesDb = "aries"
-)
-
 func ReverseMongoLookup(partId int, ctx *middleware.APIContext) (vehicles []MgoVehicle, err error) {
 
 	collections, err := ctx.AriesSession.DB(database.AriesMongoDatabase).CollectionNames()

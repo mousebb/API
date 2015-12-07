@@ -90,7 +90,7 @@ var routes = []Route{
 	Route{"Get Latest Parts", "GET", "/parts/latest", middleware.APIHandler{H: partCtlr.Latest, Middleware: common}},
 	Route{"Get All Identifiers", "GET", "/parts/identifiers", middleware.APIHandler{H: partCtlr.Identifiers, Middleware: common}},
 	Route{"Get Part Vehicles", "GET", "/part/:part/vehicles", middleware.APIHandler{H: partCtlr.Vehicles, Middleware: common}},
-	Route{"Get Part", "GET", "/part/:part", middleware.APIHandler{H: partCtlr.PartNumber, Middleware: common}},
+	Route{"Get Part", "GET", "/part/:part", middleware.APIHandler{H: partCtlr.Get, Middleware: common}},
 	Route{"Get Part Attributes", "GET", "/part/:part/attributes", middleware.APIHandler{H: partCtlr.Attributes, Middleware: common}},
 	Route{"Get Part Reviews", "GET", "/part/:part/reviews", middleware.APIHandler{H: partCtlr.ActiveApprovedReviews, Middleware: common}},
 	Route{"Get Part Categories", "GET", "/part/:part/categories", middleware.APIHandler{H: partCtlr.Categories, Middleware: common}},
