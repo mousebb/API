@@ -44,7 +44,7 @@ func Identifiers(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Req
 		b, _ = strconv.Atoi(r.URL.Query().Get("brand"))
 	}
 
-	return products.Identifiers(b, ctx.DataContext, ctx.Session)
+	return products.Identifiers(ctx, b)
 }
 
 // All Returns a slice of all Part.
@@ -70,7 +70,7 @@ func All(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (i
 		}
 	}
 
-	return products.All(page, count, ctx.DataContext, ctx.Session)
+	return products.All(page, count, ctx)
 }
 
 // Featured Returns a given amount of featured Part.
@@ -96,7 +96,7 @@ func Featured(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	return products.Featured(count, dtx, brand)
+	return products.Featured(ctx, count, brand)
 }
 
 // Latest Returns the latest slice of Part.
@@ -122,7 +122,7 @@ func Latest(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	return products.Latest(count, ctx)
+	return products.Latest(ctx, count, brand)
 }
 
 // func Get(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
@@ -146,12 +146,11 @@ func Latest(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request)
 
 // GetRelated Retrieves the related Part to a given Part.
 func GetRelated(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	id, _ := strconv.Atoi(ctx.Params.ByName("part"))
 	p := products.Part{
-		ID: id,
+		PartNumber: ctx.Params.ByName("part"),
 	}
 
-	return p.GetRelated(ctx)
+	return p.GetRelated(ctx, 0)
 }
 
 // GetWithVehicle Gets a Part with attributes relative to the fitment
@@ -200,56 +199,47 @@ func GetWithVehicle(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.
 
 // Vehicles Returns the vehicles that fit a given Part.
 func Vehicles(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	id, err := strconv.Atoi(ctx.Params.ByName("part"))
-	if err != nil {
-		return nil, err
+	p := products.Part{
+		PartNumber: ctx.Params.ByName("part"),
 	}
 
-	return vehicle.ReverseLookup(id, ctx)
+	err := p.Get(ctx, 0)
+	if err != nil {
+		return err, nil
+	}
+
+	return vehicle.ReverseLookup(ctx, p.ID)
 }
 
 //Redundant
 func Images(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	id, err := strconv.Atoi(ctx.Params.ByName("part"))
-	if err != nil {
-		return nil, err
-	}
 	p := products.Part{
-		ID: id,
+		PartNumber: ctx.Params.ByName("part"),
 	}
 
-	err = p.Get(ctx)
+	err := p.Get(ctx, 0)
 
 	return p.Images, err
 }
 
 //Redundant
 func Attributes(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	id, err := strconv.Atoi(ctx.Params.ByName("part"))
-	if err != nil {
-		return nil, err
-	}
-
 	p := products.Part{
-		ID: id,
+		PartNumber: ctx.Params.ByName("part"),
 	}
 
-	err = p.Get(ctx)
+	err := p.Get(ctx, 0)
 
 	return p.Attributes, err
 }
 
 //Redundant
 func GetContent(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	id, err := strconv.Atoi(ctx.Params.ByName("part"))
-	if err != nil {
-		return nil, err
-	}
 	p := products.Part{
-		ID: id,
+		PartNumber: ctx.Params.ByName("part"),
 	}
 
-	err = p.Get(dtx)
+	err := p.Get(ctx, 0)
 
 	return p.Content, err
 }
@@ -264,7 +254,7 @@ func Packaging(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Reque
 		ID: id,
 	}
 
-	err = p.Get(dtx)
+	err = p.Get(ctx, 0)
 
 	return p.Packages, err
 }
@@ -279,7 +269,7 @@ func ActiveApprovedReviews(ctx *middleware.APIContext, rw http.ResponseWriter, r
 		ID: id,
 	}
 
-	if err = p.Get(dtx); err != nil {
+	if err = p.Get(ctx, 0); err != nil {
 		return nil, err
 	}
 
@@ -303,7 +293,7 @@ func Videos(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request)
 		ID: id,
 	}
 
-	err = p.Get(dtx)
+	err = p.Get(ctx, 0)
 
 	return p.Videos, err
 }
@@ -312,16 +302,16 @@ func Videos(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request)
 func InstallSheet(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(strings.Split(ctx.Params.ByName("part"), ".")[0])
 	if err != nil {
-		apierror.GenerateError("Trouble getting part ID", err, w, r)
+		apierror.GenerateError("Trouble getting part ID", err, rw, r)
 		return
 	}
 	p := products.Part{
 		ID: id,
 	}
 
-	err = p.Get(dtx)
+	err = p.Get(ctx, 0)
 	if err != nil {
-		apierror.GenerateError("Trouble getting part", err, w, r)
+		apierror.GenerateError("Trouble getting part", err, rw, r)
 		return
 	}
 	var text string
@@ -331,48 +321,42 @@ func InstallSheet(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Re
 		}
 	}
 	if text == "" {
-		apierror.GenerateError("No Installation Sheet", err, w, r)
+		apierror.GenerateError("No Installation Sheet", err, rw, r)
 		return
 	}
 
 	data, err := rest.GetPDF(text, r)
 	if err != nil {
-		apierror.GenerateError("Error getting PDF", err, w, r)
+		apierror.GenerateError("Error getting PDF", err, rw, r)
 		return
 	}
 
-	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
-	w.Header().Set("Content-Type", "application/pdf")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-	w.Header().Set("Access-Control-Allow-Headers", "Origin")
-	w.Write(data)
+	rw.Header().Set("Content-Length", strconv.Itoa(len(data)))
+	rw.Header().Set("Content-Type", "application/pdf")
+	rw.Header().Set("Access-Control-Allow-Origin", "*")
+	rw.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	rw.Header().Set("Access-Control-Allow-Headers", "Origin")
+	rw.Write(data)
 }
 
 // Categories Returns product categories.
 func Categories(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	id, err := strconv.Atoi(ctx.Params.ByName("part"))
-	if err != nil {
-		return nil, err
-	}
 
 	p := products.Part{
-		ID: id,
+		PartNumber: ctx.Params.ByName("part"),
 	}
 
-	err = p.Get(dtx)
+	err := p.Get(ctx, 0)
 
 	return p.Categories, err
 }
 
 func Prices(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	id, err := strconv.Atoi(ctx.Params.ByName("part"))
-	if err != nil {
-		return nil, err
-	}
 	p := products.Part{
-		ID: id,
+		PartNumber: ctx.Params.ByName("part"),
 	}
+
+	err := p.Get(ctx, 0)
 
 	custChan := make(chan products.Price)
 
@@ -384,7 +368,7 @@ func Prices(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request)
 		custChan <- products.Price{0, 0, "Customer", price, false, time.Now()}
 	}()
 
-	err = p.Get(dtx)
+	err = p.Get(ctx, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -395,22 +379,18 @@ func Prices(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request)
 }
 
 func PartNumber(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	var p products.Part
-	var err error
-
-	p.PartNumber = ctx.Params.ByName("part")
-
-	if p.PartNumber == "" {
-		return nil, fmt.Errorf("%s", "trouble getting old part number")
+	p := products.Part{
+		PartNumber: ctx.Params.ByName("part"),
 	}
 
-	if err = p.GetPartByPartNumber(); err != nil {
+	err := p.Get(ctx, 0)
+	if err != nil {
 		return nil, err
 	}
 
 	//TODO - remove when curt & aries vehicle application data are in sync
 	if p.Brand.ID == 3 {
-		mgoVehicles, err := vehicle.ReverseMongoLookup(p.ID)
+		mgoVehicles, err := vehicle.ReverseMongoLookup(p.ID, ctx)
 		if err != nil {
 			return nil, err
 		}

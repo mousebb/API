@@ -1,14 +1,12 @@
 package products
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/url"
 
-	"github.com/curt-labs/API/helpers/database"
 	"github.com/curt-labs/API/helpers/redis"
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/curt-labs/API/middleware"
 )
 
 type PartVideo struct {
@@ -35,8 +33,8 @@ var (
 	deletePartVideos = `DELETE FROM PartVideo WHERE partID = ?`
 )
 
-func (p *Part) GetVideos(dtx *apicontext.DataContext) error {
-	redis_key := fmt.Sprintf("part:%d:videos:%s", p.ID, dtx.BrandString)
+func (p *Part) GetVideos(ctx *middleware.APIContext) error {
+	redis_key := fmt.Sprintf("part:%d:videos:%s", p.ID, ctx.DataContext.BrandString)
 
 	data, err := redis.Get(redis_key)
 	if err == nil && len(data) > 0 {
@@ -45,13 +43,7 @@ func (p *Part) GetVideos(dtx *apicontext.DataContext) error {
 		}
 	}
 
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	qry, err := db.Prepare(partVideoStmt)
+	qry, err := ctx.DB.Prepare(partVideoStmt)
 	if err != nil {
 		return err
 	}
@@ -85,22 +77,20 @@ func (p *Part) GetVideos(dtx *apicontext.DataContext) error {
 	return nil
 }
 
-func (p *PartVideo) CreatePartVideo(dtx *apicontext.DataContext) (err error) {
-	go redis.Delete(fmt.Sprintf("part:%d:videos:%s", p.PartID, dtx.BrandString))
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(createPartVideo)
+func (p *PartVideo) CreatePartVideo(ctx *middleware.APIContext) (err error) {
+	go redis.Delete(fmt.Sprintf("part:%d:videos:%s", p.PartID, ctx.DataContext.BrandString))
+
+	stmt, err := ctx.DB.Prepare(createPartVideo)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
+
 	res, err := stmt.Exec(p.PartID, p.YouTubeVideoId, p.VideoType.ID, p.IsPrimary)
 	if err != nil {
 		return err
 	}
+
 	id, err := res.LastInsertId()
 	if err != nil {
 		return err
@@ -110,21 +100,16 @@ func (p *PartVideo) CreatePartVideo(dtx *apicontext.DataContext) (err error) {
 	return nil
 }
 
-func (p *PartVideo) DeleteByPart(dtx *apicontext.DataContext) (err error) {
-	go redis.Delete(fmt.Sprintf("part:%d:videos:%s", p.PartID, dtx.BrandString))
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(deletePartVideos)
+func (p *PartVideo) DeleteByPart(ctx *middleware.APIContext) (err error) {
+	go redis.Delete(fmt.Sprintf("part:%d:videos:%s", p.PartID, ctx.DataContext.BrandString))
+
+	stmt, err := ctx.DB.Prepare(deletePartVideos)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
+
 	_, err = stmt.Exec(p.PartID)
-	if err != nil {
-		return err
-	}
-	return nil
+
+	return err
 }

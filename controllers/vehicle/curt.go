@@ -1,15 +1,13 @@
 package vehicle
 
 import (
-	"github.com/curt-labs/API/helpers/apicontext"
-	"github.com/curt-labs/API/helpers/encoding"
-	"github.com/curt-labs/API/helpers/error"
+	"github.com/curt-labs/API/middleware"
 	"github.com/curt-labs/API/models/products"
 
 	"net/http"
 )
 
-func CurtLookup(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, dtx *apicontext.DataContext) string {
+func CurtLookup(ctx *middleware.APIContext, w http.ResponseWriter, r *http.Request) (interface{}, error) {
 	var v products.CurtVehicle
 
 	// Get vehicle year
@@ -42,16 +40,10 @@ func CurtLookup(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, dt
 	} else {
 		err = cl.GetStyles()
 		if err != nil {
-			apierror.GenerateError("Trouble finding styles.", err, w, r)
-			return ""
+			return nil, err
 		}
 		err = cl.GetParts(dtx)
 	}
 
-	if err != nil {
-		apierror.GenerateError("Trouble finding vehicles.", err, w, r)
-		return ""
-	}
-
-	return encoding.Must(enc.Encode(cl))
+	return cl, err
 }

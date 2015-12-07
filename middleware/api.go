@@ -19,13 +19,14 @@ const (
 // APIContext Holds all the possible globals that we are going to want
 // to use throughout the request lifecycle.
 type APIContext struct {
-	Brand        int
-	DB           *sql.DB
-	Session      *mgo.Session
-	AriesSession *mgo.Session
-	Encoder      interface{}
-	Params       httprouter.Params
-	DataContext  *DataContext
+	Brand              int
+	DB                 *sql.DB
+	Session            *mgo.Session
+	AriesSession       *mgo.Session
+	AriesMongoDatabase string
+	Encoder            interface{}
+	Params             httprouter.Params
+	DataContext        *DataContext
 }
 
 // Middleware Gives the ability to add Middleware capability to APIHandler

@@ -19,7 +19,7 @@ func GetApplicationGuide(ctx *middleware.APIContext, rw http.ResponseWriter, req
 		return nil, err
 	}
 
-	err = ag.Get(ctx.DataContext)
+	err = ag.Get(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -36,7 +36,7 @@ func GetApplicationGuidesByWebsite(ctx *middleware.APIContext, rw http.ResponseW
 		return nil, fmt.Errorf("%s", "failed to parse website identifier")
 	}
 
-	return ag.GetBySite(ctx.DataContext)
+	return ag.GetBySite(ctx)
 }
 
 // CreateApplicationGuide ...

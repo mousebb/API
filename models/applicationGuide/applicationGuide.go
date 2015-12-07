@@ -3,10 +3,9 @@ package applicationGuide
 import (
 	"database/sql"
 
-	"github.com/curt-labs/API/helpers/database"
+	"github.com/curt-labs/API/middleware"
 	"github.com/curt-labs/API/models/products"
 	"github.com/curt-labs/API/models/site"
-	_ "github.com/go-sql-driver/mysql"
 )
 
 type ApplicationGuide struct {
@@ -43,36 +42,36 @@ var (
 										where (ak.api_key = ? && (ag.brandID = ? OR 0=?)) && websiteID = ?`
 )
 
-func (ag *ApplicationGuide) Get(dtx *apicontext.DataContext) (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getApplicationGuide)
+func (ag *ApplicationGuide) Get(ctx *middleware.APIContext) (err error) {
+
+	stmt, err := ctx.DB.Prepare(getApplicationGuide)
 	if err != nil {
 		return
 	}
 	defer stmt.Close()
-	row := stmt.QueryRow(dtx.APIKey, dtx.BrandID, dtx.BrandID, ag.ID)
+	row := stmt.QueryRow(ctx.DataContext.APIKey, ctx.DataContext.BrandID, ctx.DataContext.BrandID, ag.ID)
 
 	ch := make(chan ApplicationGuide)
 	go populateApplicationGuide(row, ch)
 	*ag = <-ch
 	return
 }
-func (ag *ApplicationGuide) GetBySite(dtx *apicontext.DataContext) (ags []ApplicationGuide, err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getApplicationGuidesBySite)
+
+func (ag *ApplicationGuide) GetBySite(ctx *middleware.APIContext) (ags []ApplicationGuide, err error) {
+
+	stmt, err := ctx.DB.Prepare(getApplicationGuidesBySite)
 	if err != nil {
 		return
 	}
 	defer stmt.Close()
-	rows, err := stmt.Query(dtx.APIKey, dtx.BrandID, dtx.BrandID, ag.Website.ID)
+
+	rows, err := stmt.Query(ctx.DataContext.APIKey, ctx.DataContext.BrandID, ctx.DataContext.BrandID, ag.Website.ID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			err = nil
+		}
+		return ags, err
+	}
 
 	ch := make(chan []ApplicationGuide)
 	go populateApplicationGuides(rows, ch)
@@ -80,21 +79,19 @@ func (ag *ApplicationGuide) GetBySite(dtx *apicontext.DataContext) (ags []Applic
 	return
 }
 
-func (ag *ApplicationGuide) Create(dtx *apicontext.DataContext) (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(createApplicationGuide)
+func (ag *ApplicationGuide) Create(ctx *middleware.APIContext) (err error) {
+
+	stmt, err := ctx.DB.Prepare(createApplicationGuide)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
-	res, err := stmt.Exec(ag.Url, ag.Website.ID, ag.FileType, ag.Category.CategoryID, ag.Icon, dtx.BrandID)
+
+	res, err := stmt.Exec(ag.Url, ag.Website.ID, ag.FileType, ag.Category.CategoryID, ag.Icon, ctx.DataContext.BrandID)
 	if err != nil {
 		return err
 	}
+
 	id, err := res.LastInsertId()
 	if err != nil {
 		return err
@@ -103,22 +100,17 @@ func (ag *ApplicationGuide) Create(dtx *apicontext.DataContext) (err error) {
 	ag.ID = int(id)
 	return
 }
-func (ag *ApplicationGuide) Delete() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(deleteApplicationGuide)
+func (ag *ApplicationGuide) Delete(ctx *middleware.APIContext) (err error) {
+
+	stmt, err := ctx.DB.Prepare(deleteApplicationGuide)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
+
 	_, err = stmt.Exec(ag.ID)
-	if err != nil {
-		return err
-	}
-	return
+
+	return err
 }
 
 func populateApplicationGuide(row *sql.Row, ch chan ApplicationGuide) {

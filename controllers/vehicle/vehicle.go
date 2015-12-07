@@ -2,16 +2,17 @@ package vehicle
 
 import (
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/curt-labs/API/helpers/apicontext"
 	"github.com/curt-labs/API/helpers/apifilter"
 	"github.com/curt-labs/API/helpers/encoding"
 	"github.com/curt-labs/API/helpers/error"
+	"github.com/curt-labs/API/middleware"
 	"github.com/curt-labs/API/models/products"
 	"github.com/curt-labs/API/models/vehicle"
 )
@@ -23,7 +24,7 @@ var (
 // Finds further configuration options and parts that match
 // the given configuration. Doesn't start looking for parts
 // until the model is provided.
-func Query(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, dtx *apicontext.DataContext) string {
+func Query(ctx *middleware.APIContext, w http.ResponseWriter, r *http.Request) (interface{}, error) {
 	var l products.Lookup
 	var page int
 	var count int
@@ -50,18 +51,15 @@ func Query(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, dtx *ap
 
 	if l.Vehicle.Base.Year == 0 { // Get Years
 		if err := l.GetYears(dtx); err != nil {
-			apierror.GenerateError("Trouble getting years for vehicle lookup", err, w, r)
-			return ""
+			return nil, errors.New("Trouble getting years for vehicle lookup")
 		}
 	} else if l.Vehicle.Base.Make == "" { // Get Makes
 		if err := l.GetMakes(dtx); err != nil {
-			apierror.GenerateError("Trouble getting makes for vehicle lookup", err, w, r)
-			return ""
+			return nil, errors.New("Trouble getting makes for vehicle lookup")
 		}
 	} else if l.Vehicle.Base.Model == "" { // Get Models
 		if err := l.GetModels(); err != nil {
-			apierror.GenerateError("Trouble getting models for vehicle lookup", err, w, r)
-			return ""
+			return nil, errors.New("Trouble getting models for vehicle lookup")
 		}
 	} else {
 
@@ -71,13 +69,11 @@ func Query(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, dtx *ap
 
 		if l.Vehicle.Submodel == "" { // Get Submodels
 			if err := l.GetSubmodels(); err != nil {
-				apierror.GenerateError("Trouble getting submodels for vehicle lookup", err, w, r)
-				return ""
+				return nil, errors.New("Trouble getting submodels for vehicle lookup")
 			}
 		} else { // Get configurations
 			if err := l.GetConfigurations(); err != nil {
-				apierror.GenerateError("Trouble getting configurations for vehicle lookup", err, w, r)
-				return ""
+				return nil, errors.New("Trouble getting configurations for vehicle lookup")
 			}
 		}
 
@@ -92,7 +88,7 @@ func Query(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, dtx *ap
 		}
 	}
 
-	return encoding.Must(enc.Encode(l))
+	return l, nil
 }
 
 // Parses the vehicle data out of the request
@@ -188,30 +184,26 @@ func GetVehicle(w http.ResponseWriter, r *http.Request, enc encoding.Encoder) st
 	return encoding.Must(enc.Encode(v))
 }
 
-func Inquire(rw http.ResponseWriter, r *http.Request, enc encoding.Encoder, dtx *apicontext.DataContext) string {
+func Inquire(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	defer r.Body.Close()
 
 	data, err := ioutil.ReadAll(r.Body)
 	if err != nil || len(data) == 0 {
-		apierror.GenerateError("missed payload", err, rw, r, http.StatusInternalServerError)
-		return ""
+		return nil, errors.New("missed payload")
 	}
 
 	var i products.VehicleInquiry
 	err = json.Unmarshal(data, &i)
 	if err != nil {
-		apierror.GenerateError("bad payload", err, rw, r, http.StatusInternalServerError)
-		return ""
+		return nil, errors.New("bad payload")
 	}
 
 	err = i.Push()
 	if err != nil {
-		apierror.GenerateError("failed submission", err, rw, r, http.StatusInternalServerError)
-		return ""
+		return nil, errors.New("failed submission")
 	}
 
-	i.SendEmail(dtx)
+	i.SendEmail(ctx)
 
-	return ""
-
+	return true, nil
 }

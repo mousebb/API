@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"github.com/curt-labs/API/helpers/database"
+	"github.com/curt-labs/API/middleware"
 	"github.com/curt-labs/API/models/brand"
 	"github.com/curt-labs/API/models/products"
 	"github.com/curt-labs/API/models/video"
-	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
 
@@ -48,28 +48,17 @@ type PartResponse struct {
 	TotalPages int             `json:"total_pages"`
 }
 
-func GetCategoryTree(dtx *apicontext.DataContext) ([]Category, error) {
+func GetCategoryTree(ctx *middleware.APIContext) ([]Category, error) {
 	var cats []Category
 
-	session, err := mgo.DialWithInfo(database.MongoPartConnectionString())
-	if err != nil {
-		return cats, err
-	}
-	defer session.Close()
-	query := bson.M{"parent_id": 0, "is_lifestyle": false, "brand.id": bson.M{"$in": dtx.BrandArray}}
-	err = session.DB(database.ProductDatabase).C(database.CategoryCollectionName).Find(query).Sort("sort").All(&cats)
+	query := bson.M{"parent_id": 0, "is_lifestyle": false, "brand.id": bson.M{"$in": ctx.DataContext.BrandArray}}
+	err := ctx.Session.DB(database.ProductMongoDatabase).C(database.CategoryCollectionName).Find(query).Sort("sort").All(&cats)
 	return cats, err
 }
 
-func (c *Category) Get(page, count int) error {
+func (c *Category) Get(ctx *middleware.APIContext, page, count int) error {
 
-	session, err := mgo.DialWithInfo(database.MongoPartConnectionString())
-	if err != nil {
-		return err
-	}
-	defer session.Close()
-
-	err = session.DB(database.ProductDatabase).C(database.CategoryCollectionName).Find(bson.M{"id": c.CategoryID}).One(&c)
+	err := ctx.Session.DB(database.ProductMongoDatabase).C(database.CategoryCollectionName).Find(bson.M{"id": c.CategoryID}).One(&c)
 	if err != nil {
 		return err
 	}
@@ -80,12 +69,12 @@ func (c *Category) Get(page, count int) error {
 		Parts:   []products.Part{},
 	}
 
-	c.ProductListing.TotalItems, err = session.DB(database.ProductDatabase).C(database.ProductCollectionName).Find(bson.M{"id": bson.M{"$in": c.ProductIdentifiers}}).Count()
+	c.ProductListing.TotalItems, err = ctx.Session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName).Find(bson.M{"id": bson.M{"$in": c.ProductIdentifiers}}).Count()
 	if err != nil {
 		c.ProductListing.TotalItems = 1
 	}
 
-	err = session.DB(database.ProductDatabase).C(database.ProductCollectionName).Find(bson.M{"id": bson.M{"$in": c.ProductIdentifiers}}).Sort("id").Skip((page - 1) * count).Limit(count).All(&c.ProductListing.Parts)
+	err = ctx.Session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName).Find(bson.M{"id": bson.M{"$in": c.ProductIdentifiers}}).Sort("id").Skip((page - 1) * count).Limit(count).All(&c.ProductListing.Parts)
 	if err != nil {
 		return err
 	}
@@ -96,18 +85,12 @@ func (c *Category) Get(page, count int) error {
 	return nil
 }
 
-func GetCategoryParts(catId, page, count int) (PartResponse, error) {
+func GetCategoryParts(ctx *middleware.APIContext, catId, page, count int) (PartResponse, error) {
 	var parts PartResponse
-
-	session, err := mgo.DialWithInfo(database.MongoPartConnectionString())
-	if err != nil {
-		return parts, err
-	}
-	defer session.Close()
 
 	//get category's children
 	var cat Category
-	err = session.DB(database.ProductDatabase).C(database.CategoryCollectionName).Find(bson.M{"id": catId}).Select(bson.M{"children": 1}).One(&cat)
+	err := ctx.Session.DB(database.ProductMongoDatabase).C(database.CategoryCollectionName).Find(bson.M{"id": catId}).Select(bson.M{"children": 1}).One(&cat)
 	if err != nil {
 		return parts, err
 	}
@@ -120,13 +103,13 @@ func GetCategoryParts(catId, page, count int) (PartResponse, error) {
 
 	//get parts of category and its children
 	query := bson.M{"categories": bson.M{"$elemMatch": bson.M{"id": bson.M{"$in": children}}}}
-	err = session.DB(database.ProductDatabase).C(database.ProductCollectionName).Find(query).Limit(count).Skip((page - 1) * count).All(&parts.Parts)
+	err = ctx.Session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName).Find(query).Limit(count).Skip((page - 1) * count).All(&parts.Parts)
 	if err != nil {
 		return parts, err
 	}
 
 	//get total parts count
-	total_items, err := session.DB(database.ProductDatabase).C(database.ProductCollectionName).Find(query).Count()
+	total_items, err := ctx.Session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName).Find(query).Count()
 	parts.TotalPages = int(math.Ceil(float64(total_items) / float64(count)))
 	return parts, err
 }

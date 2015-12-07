@@ -1,8 +1,7 @@
 package vehicle
 
 import (
-	"github.com/curt-labs/API/helpers/encoding"
-	"github.com/curt-labs/API/helpers/error"
+	"github.com/curt-labs/API/middleware"
 	"github.com/curt-labs/API/models/products"
 
 	"net/http"
@@ -10,17 +9,11 @@ import (
 	"strconv"
 )
 
-func Collections(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, dtx *apicontext.DataContext) string {
-	cols, err := products.GetAriesVehicleCollections()
-	if err != nil {
-		apierror.GenerateError(err.Error(), err, w, r)
-		return ""
-	}
-
-	return encoding.Must(enc.Encode(cols))
+func Collections(ctx *middleware.APIContext, w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	return products.GetAriesVehicleCollections()
 }
 
-func Lookup(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, dtx *apicontext.DataContext) string {
+func Lookup(ctx *middleware.APIContext, w http.ResponseWriter, r *http.Request) (interface{}, error) {
 	var v products.NoSqlVehicle
 	var collection string //e.g. interior/exterior
 
@@ -44,16 +37,10 @@ func Lookup(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, dtx *a
 	v.Style = r.FormValue("style")
 	delete(r.Form, "style")
 
-	l, err := products.FindVehicles(v, collection, dtx)
-	if err != nil {
-		apierror.GenerateError("Trouble finding vehicles.", err, w, r)
-		return ""
-	}
-
-	return encoding.Must(enc.Encode(l))
+	return products.FindVehicles(v, collection, dtx)
 }
 
-func ByCategory(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, dtx *apicontext.DataContext) string {
+func ByCategory(ctx *middleware.APIContext, w http.ResponseWriter, r *http.Request) (interface{}, error) {
 	collection := r.FormValue("collection")
 	page, _ := strconv.Atoi(r.FormValue("page"))
 	limit, _ := strconv.Atoi(r.FormValue("limit"))
@@ -66,24 +53,17 @@ func ByCategory(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, dt
 		offset = page*limit + 1
 	}
 
-	res, err := products.FindApplications(collection, offset, limit)
-	if err != nil {
-		apierror.GenerateError("Trouble finding vehicles.", err, w, r)
-		return ""
-	}
-
-	return encoding.Must(enc.Encode(res))
+	return products.FindApplications(collection, offset, limit)
 }
 
 //Hack version that slowly traverses all the collection and aggregates results
-func AllCollectionsLookup(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, dtx *apicontext.DataContext) string {
+func AllCollectionsLookup(ctx *middleware.APIContext, w http.ResponseWriter, r *http.Request) (interface{}, error) {
 	var v products.NoSqlVehicle
 
 	//Get all collections
 	cols, err := products.GetAriesVehicleCollections()
 	if err != nil {
-		apierror.GenerateError(err.Error(), err, w, r)
-		return ""
+		return nil, err
 	}
 
 	// Get vehicle year
@@ -107,14 +87,43 @@ func AllCollectionsLookup(w http.ResponseWriter, r *http.Request, enc encoding.E
 	for _, col := range cols {
 		noSqlLookup, err := products.FindVehiclesWithParts(v, col, dtx)
 		if err != nil {
-			apierror.GenerateError("Trouble finding vehicles.", err, w, r)
-			return ""
+			return nil, err
 		}
 		collectionVehicleArray = append(collectionVehicleArray, noSqlLookup)
 	}
 	l := makeLookupFrommanyLookups(collectionVehicleArray)
 
-	return encoding.Must(enc.Encode(l))
+	return l, nil
+}
+
+//return parts for a vehicle(incl style) within a specific category
+func AllCollectionsLookupCategory(ctx *middleware.APIContext, w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	var v products.NoSqlVehicle
+	noSqlLookup := make(map[string]products.NoSqlLookup)
+	var err error
+
+	// Get vehicle year
+	v.Year = r.FormValue("year")
+	delete(r.Form, "year")
+
+	// Get vehicle make
+	v.Make = r.FormValue("make")
+	delete(r.Form, "make")
+
+	// Get vehicle model
+	v.Model = r.FormValue("model")
+	delete(r.Form, "model")
+
+	// // Get vehicle submodel
+	v.Style = r.FormValue("style")
+	delete(r.Form, "style")
+
+	collection := r.FormValue("collection")
+	if collection == "" {
+		return products.FindVehiclesFromAllCategories(v, dtx)
+	}
+
+	return products.FindPartsFromOneCategory(v, collection, dtx)
 }
 
 func makeLookupFrommanyLookups(lookupArrays []products.NoSqlLookup) (l products.NoSqlLookup) {
@@ -162,43 +171,4 @@ func makeLookupFrommanyLookups(lookupArrays []products.NoSqlLookup) (l products.
 	sort.Strings(l.Styles)
 
 	return l
-}
-
-//return parts for a vehicle(incl style) within a specific category
-func AllCollectionsLookupCategory(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, dtx *apicontext.DataContext) string {
-	var v products.NoSqlVehicle
-	noSqlLookup := make(map[string]products.NoSqlLookup)
-	var err error
-
-	// Get vehicle year
-	v.Year = r.FormValue("year")
-	delete(r.Form, "year")
-
-	// Get vehicle make
-	v.Make = r.FormValue("make")
-	delete(r.Form, "make")
-
-	// Get vehicle model
-	v.Model = r.FormValue("model")
-	delete(r.Form, "model")
-
-	// // Get vehicle submodel
-	v.Style = r.FormValue("style")
-	delete(r.Form, "style")
-
-	collection := r.FormValue("collection")
-	if collection == "" {
-		noSqlLookup, err = products.FindVehiclesFromAllCategories(v, dtx)
-
-	} else {
-		noSqlLookup, err = products.FindPartsFromOneCategory(v, collection, dtx)
-	}
-	if err != nil {
-		apierror.GenerateError("Trouble finding vehicles.", err, w, r)
-		return ""
-	}
-
-	return encoding.Must(enc.Encode(noSqlLookup))
-
-	return ""
 }

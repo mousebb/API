@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/curt-labs/API/helpers/database"
+	"github.com/curt-labs/API/middleware"
 )
 
 var (
@@ -76,15 +76,9 @@ type CurtLookup struct {
 	CurtVehicle
 }
 
-func (c *CurtLookup) GetYears() error {
+func (c *CurtLookup) GetYears(ctx *middleware.APIContext) error {
 
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(GetYearsStmt)
+	stmt, err := ctx.DB.Prepare(GetYearsStmt)
 	if err != nil {
 		return err
 	}
@@ -127,15 +121,9 @@ func (c *CurtLookup) GetYears() error {
 	return rows.Err()
 }
 
-func (c *CurtLookup) GetMakes() error {
+func (c *CurtLookup) GetMakes(ctx *middleware.APIContext) error {
 
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(GetMakesStmt)
+	stmt, err := ctx.DB.Prepare(GetMakesStmt)
 	if err != nil {
 		return err
 	}
@@ -178,15 +166,9 @@ func (c *CurtLookup) GetMakes() error {
 	return rows.Err()
 }
 
-func (c *CurtLookup) GetModels() error {
+func (c *CurtLookup) GetModels(ctx *middleware.APIContext) error {
 
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(GetModelsStmt)
+	stmt, err := ctx.DB.Prepare(GetModelsStmt)
 	if err != nil {
 		return err
 	}
@@ -229,15 +211,9 @@ func (c *CurtLookup) GetModels() error {
 	return rows.Err()
 }
 
-func (c *CurtLookup) GetStyles() error {
+func (c *CurtLookup) GetStyles(ctx *middleware.APIContext) error {
 
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(GetStylesStmt)
+	stmt, err := ctx.DB.Prepare(GetStylesStmt)
 	if err != nil {
 		return err
 	}
@@ -280,29 +256,27 @@ func (c *CurtLookup) GetStyles() error {
 	return rows.Err()
 }
 
-func (c *CurtLookup) GetParts(dtx *apicontext.DataContext) error {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
+func (c *CurtLookup) GetParts(ctx *middleware.APIContext) error {
 	var rows *sql.Rows
+	var err error
 
 	if c.Style != "" {
-		rows, err = db.Query(GetPartNumbersStmt, c.Year, c.Make, c.Model, c.Style)
+		rows, err = ctx.DB.Query(GetPartNumbersStmt, c.Year, c.Make, c.Model, c.Style)
 		if err != nil {
 			return err
 		}
 		defer rows.Close()
 	} else {
-		rows, err = db.Query(GetPartNumbersWithoutStyleStmt, c.Year, c.Make, c.Model)
+		rows, err = ctx.DB.Query(GetPartNumbersWithoutStyleStmt, c.Year, c.Make, c.Model)
 		if err != nil {
 			return err
 		}
 		defer rows.Close()
 	}
+
 	ch := make(chan *Part)
 	iter := 0
+
 	for rows.Next() {
 		iter++
 		var p Part
@@ -312,7 +286,7 @@ func (c *CurtLookup) GetParts(dtx *apicontext.DataContext) error {
 		}
 
 		go func(prt Part) {
-			er := prt.Get(dtx)
+			er := prt.Get(ctx, 0)
 			if er != nil {
 				ch <- nil
 			} else {

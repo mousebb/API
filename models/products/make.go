@@ -1,19 +1,17 @@
 package products
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 
-	"github.com/curt-labs/API/helpers/database"
 	"github.com/curt-labs/API/helpers/redis"
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/curt-labs/API/middleware"
 )
 
-func (l *Lookup) GetMakes(dtx *apicontext.DataContext) error {
-	redis_key := fmt.Sprintf("lookup:year:%d:makes:%s", l.Vehicle.Base.Year, dtx.BrandString)
+func (l *Lookup) GetMakes(ctx *middleware.APIContext) error {
+	redis_key := fmt.Sprintf("lookup:year:%d:makes:%s", l.Vehicle.Base.Year, ctx.DataContext.BrandString)
 	data, err := redis.Get(redis_key)
 	if err == nil {
 		err = json.Unmarshal(data, &l.Makes)
@@ -35,13 +33,7 @@ func (l *Lookup) GetMakes(dtx *apicontext.DataContext) error {
 	brandStmt = strings.TrimRight(brandStmt, ",") + ")"
 	wholeStmt := stmtBeginning + brandStmt + stmtEnd
 
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(wholeStmt)
+	stmt, err := ctx.DB.Prepare(wholeStmt)
 	if err != nil {
 		return err
 	}
@@ -69,7 +61,7 @@ func (l *Lookup) GetMakes(dtx *apicontext.DataContext) error {
 		PerPage:       len(l.Makes),
 		TotalPages:    1,
 	}
-	if dtx.BrandString != "" {
+	if ctx.DataContext.BrandString != "" {
 		redis.Setex(redis_key, l.Makes, 86400)
 	}
 	return nil

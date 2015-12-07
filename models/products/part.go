@@ -10,8 +10,6 @@ import (
 	"github.com/curt-labs/API/models/customer/content"
 	"github.com/curt-labs/API/models/video"
 
-	// Background usage for mysql driver.
-	_ "github.com/go-sql-driver/mysql"
 	"gopkg.in/mgo.v2/bson"
 
 	"net/url"
@@ -88,11 +86,13 @@ type VehicleApplication struct {
 }
 
 // Identifiers ...
-func Identifiers(ctx *middleware.APIContext) ([]string, error) {
+func Identifiers(ctx *middleware.APIContext, brandID int) ([]string, error) {
 	var parts []string
-	brands := []int{ctx.Brand}
+	brands := []int{brandID}
 
-	if ctx.Brand == 0 {
+	if brandID == 0 && ctx.DataContext.BrandID != 0 {
+		brands = []int{ctx.DataContext.BrandID}
+	} else if brandID == 0 && ctx.DataContext.BrandID == 0 {
 		brands = ctx.DataContext.BrandArray
 	}
 
@@ -105,7 +105,7 @@ func Identifiers(ctx *middleware.APIContext) ([]string, error) {
 		},
 	}
 
-	err := ctx.Session.DB(database.ProductDatabase).C(database.ProductCollectionName).Find(qry).Distinct("part_number", &parts)
+	err := ctx.Session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName).Find(qry).Distinct("part_number", &parts)
 	if err != nil {
 		return []string{}, err
 	}
@@ -129,16 +129,19 @@ func All(page, count int, ctx *middleware.APIContext) ([]Part, error) {
 		},
 	}
 
-	err := ctx.Session.DB(database.ProductDatabase).C(database.ProductCollectionName).Find(qry).Sort("id:1").Skip(page * count).Limit(count).All(&parts)
+	err := ctx.Session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName).Find(qry).Sort("id:1").Skip(page * count).Limit(count).All(&parts)
 
 	return parts, err
 }
 
 // Featured Returns `count` featured products.
-func Featured(count int, ctx *middleware.APIContext) ([]Part, error) {
+func Featured(ctx *middleware.APIContext, count, brandID int) ([]Part, error) {
 	var parts []Part
-	brands := []int{ctx.Brand}
-	if ctx.Brand > 0 {
+	brands := []int{brandID}
+
+	if brandID == 0 && ctx.DataContext.BrandID != 0 {
+		brands = []int{ctx.DataContext.BrandID}
+	} else if brandID == 0 && ctx.DataContext.BrandID == 0 {
 		brands = ctx.DataContext.BrandArray
 	}
 
@@ -149,16 +152,19 @@ func Featured(count int, ctx *middleware.APIContext) ([]Part, error) {
 		},
 	}
 
-	err := ctx.Session.DB(database.ProductDatabase).C(database.ProductCollectionName).Find(qry).Sort("id:1").Limit(count).All(&parts)
+	err := ctx.Session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName).Find(qry).Sort("id:1").Limit(count).All(&parts)
 
 	return parts, err
 }
 
 // Latest Returns `count` latest products.
-func Latest(count int, ctx *middleware.APIContext) ([]Part, error) {
+func Latest(ctx *middleware.APIContext, count, brandID int) ([]Part, error) {
 	var parts []Part
-	brands := []int{ctx.Brand}
-	if ctx.Brand > 0 {
+	brands := []int{brandID}
+
+	if brandID == 0 && ctx.DataContext.BrandID != 0 {
+		brands = []int{ctx.DataContext.BrandID}
+	} else if brandID == 0 && ctx.DataContext.BrandID == 0 {
 		brands = ctx.DataContext.BrandArray
 	}
 
@@ -168,15 +174,18 @@ func Latest(count int, ctx *middleware.APIContext) ([]Part, error) {
 		},
 	}
 
-	err := ctx.Session.DB(database.ProductDatabase).C(database.ProductCollectionName).Find(qry).Sort("-date_added").Limit(count).All(&parts)
+	err := ctx.Session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName).Find(qry).Sort("-date_added").Limit(count).All(&parts)
 	return parts, err
 }
 
 // GetRelated Returns all the products that are related to this one.
-func (p *Part) GetRelated(ctx *middleware.APIContext) ([]Part, error) {
+func (p *Part) GetRelated(ctx *middleware.APIContext, brandID int) ([]Part, error) {
 	var parts []Part
-	brands := []int{ctx.Brand}
-	if ctx.Brand > 0 {
+	brands := []int{brandID}
+
+	if brandID == 0 && ctx.DataContext.BrandID != 0 {
+		brands = []int{ctx.DataContext.BrandID}
+	} else if brandID == 0 && ctx.DataContext.BrandID == 0 {
 		brands = ctx.DataContext.BrandArray
 	}
 
@@ -189,7 +198,7 @@ func (p *Part) GetRelated(ctx *middleware.APIContext) ([]Part, error) {
 		},
 	}
 
-	err := ctx.Session.DB(database.ProductDatabase).C(database.ProductCollectionName).Find(query).Sort("id:1").All(&parts)
+	err := ctx.Session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName).Find(query).Sort("id:1").All(&parts)
 
 	return parts, err
 }
@@ -236,9 +245,12 @@ func (p *Part) BindCustomer(ctx *middleware.APIContext) CustomerPart {
 }
 
 // Get Retrieves product data.
-func (p *Part) Get(ctx *middleware.APIContext) (err error) {
-	brands := []int{ctx.Brand}
-	if ctx.Brand > 0 {
+func (p *Part) Get(ctx *middleware.APIContext, brandID int) (err error) {
+	brands := []int{brandID}
+
+	if brandID == 0 && ctx.DataContext.BrandID != 0 {
+		brands = []int{ctx.DataContext.BrandID}
+	} else if brandID == 0 && ctx.DataContext.BrandID == 0 {
 		brands = ctx.DataContext.BrandArray
 	}
 
@@ -252,5 +264,5 @@ func (p *Part) Get(ctx *middleware.APIContext) (err error) {
 		"brand.id":    bson.M{"$in": brands},
 	}
 
-	return ctx.Session.DB(database.ProductDatabase).C(database.ProductCollectionName).Find(qry).One(&p)
+	return ctx.Session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName).Find(qry).One(&p)
 }

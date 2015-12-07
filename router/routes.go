@@ -38,6 +38,14 @@ var common = []middleware.Middleware{
 	middleware.WrapMiddleware(middleware.Logger{}),
 }
 
+var commonPrivate = []middleware.Middleware{
+	middleware.WrapMiddleware(middleware.DB{}),
+	middleware.WrapMiddleware(middleware.Keyed{
+		Type: "PRIVATE",
+	}),
+	middleware.WrapMiddleware(middleware.Logger{}),
+}
+
 var routes = []Route{
 
 	// Static handlers
@@ -72,7 +80,7 @@ var routes = []Route{
 	Route{"Global Percentage Based Reset", "POST", "/pricing/global/:type/:percentage", KEYED_PRIVATE_ENDPOINT, middleware.APIHandler{H: pricingCtlr.Global, Middleware: common}},
 	Route{"Upload Pricing", "POST", "/upload", KEYED_PRIVATE_ENDPOINT, middleware.APIHandler{H: pricingCtlr.Upload, Middleware: common}},
 	Route{"Download Pricing", "POST", "/download", KEYED_PRIVATE_ENDPOINT, middleware.APIHandler{S: pricingCtlr.Download, Middleware: common}},
-	Route{"Get Pricing Paged", "GET", "/pricing/:page/:count", KEYED_PRIVATE_ENDPOINT, middleware.APIHandler{H: pricingCtlr.GetPricingPaged, Middleware: common}},
+	Route{"Get Pricing Paged", "GET", "/pricing/:page/:count", KEYED_PRIVATE_ENDPOINT, middleware.APIHandler{H: pricingCtlr.GetPricingPaged, Middleware: commonPrivate}},
 
 	// Cache Management
 	Route{"Get Cache Keys", "GET", "/cache/keys", KEYED_ENDPOINT, middleware.APIHandler{H: cache.GetKeys, Middleware: common}},
@@ -89,7 +97,7 @@ var routes = []Route{
 	Route{"Get Part Categories", "GET", "/parts/:part/categories", KEYED_ENDPOINT, middleware.APIHandler{H: partCtlr.Categories, Middleware: common}},
 	Route{"Get Part Content", "GET", "/parts/:part/content", KEYED_ENDPOINT, middleware.APIHandler{H: partCtlr.GetContent, Middleware: common}},
 	Route{"Get Part Images", "GET", "/parts/:part/images", KEYED_ENDPOINT, middleware.APIHandler{H: partCtlr.Images, Middleware: common}},
-	Route{"Get Part Installation Sheet", "GET", "/parts/:part.pdf", KEYED_ENDPOINT, middleware.APIHandler{H: partCtlr.InstallSheet, Middleware: common}},
+	Route{"Get Part Installation Sheet", "GET", "/parts/:part.pdf", KEYED_ENDPOINT, middleware.APIHandler{S: partCtlr.InstallSheet, Middleware: common}},
 	Route{"Get Part Packages", "GET", "/parts/:part/packages", KEYED_ENDPOINT, middleware.APIHandler{H: partCtlr.Packaging, Middleware: common}},
 	Route{"Get Part Pricing", "GET", "/parts/:part/pricing", KEYED_ENDPOINT, middleware.APIHandler{H: partCtlr.Prices, Middleware: common}},
 	Route{"Get Related Parts", "GET", "/parts/:part/related", KEYED_ENDPOINT, middleware.APIHandler{H: partCtlr.GetRelated, Middleware: common}},

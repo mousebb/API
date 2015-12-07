@@ -1,14 +1,13 @@
 package products
 
 import (
-	"database/sql"
-	"github.com/curt-labs/API/helpers/database"
-	_ "github.com/go-sql-driver/mysql"
 	"strconv"
 	"strings"
+
+	"github.com/curt-labs/API/middleware"
 )
 
-func (l *Lookup) GetSubmodels() error {
+func (l *Lookup) GetSubmodels(ctx *middleware.APIContext) error {
 	stmtBeginning := `
 		select distinct s.SubmodelName from vcdb_Vehicle as v
 		join Submodel as s on v.SubModelID = s.ID
@@ -27,13 +26,7 @@ func (l *Lookup) GetSubmodels() error {
 	brandStmt = strings.TrimRight(brandStmt, ",") + ")"
 	wholeStmt := stmtBeginning + brandStmt + stmtEnd
 
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(wholeStmt)
+	stmt, err := ctx.DB.Prepare(wholeStmt)
 	if err != nil {
 		return err
 	}

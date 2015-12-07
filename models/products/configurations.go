@@ -2,11 +2,315 @@ package products
 
 import (
 	"database/sql"
-	"github.com/curt-labs/API/helpers/database"
-	_ "github.com/go-sql-driver/mysql"
 	"strconv"
 	"strings"
+
+	"github.com/curt-labs/API/middleware"
 )
+
+type Configuration struct {
+	Key   string `json:"key" xml:"key"`
+	Value string `json:"value" xml:"value"`
+}
+
+type ConfigurationOption struct {
+	Type    string   `json:"type" xml:"type"`
+	Options []string `json:"options" xml:"options"`
+}
+
+type DefinedConfiguration struct {
+	Type     string
+	Value    string
+	Parts    []int
+	ConfigID int
+}
+
+func (l *Lookup) GetConfigurations(ctx *middleware.APIContext) error {
+	stmtBeginning := `select distinct cat.name, cat.AcesTypeID from vcdb_Vehicle as v
+		join VehicleConfigAttribute as vca on v.ConfigID = vca.VehicleConfigID
+		join ConfigAttribute as ca on vca.AttributeID = ca.ID
+		join ConfigAttributeType as cat on ca.ConfigAttributeTypeID = cat.ID
+		join Submodel as s on v.SubModelID = s.ID
+		join BaseVehicle as bv on v.BaseVehicleID = bv.ID
+		join vcdb_Model as mo on bv.ModelID = mo.ID
+		join vcdb_Make as ma on bv.MakeID = ma.ID
+		join vcdb_VehiclePart as vp on v.ID = vp.VehicleID
+		join Part as p on vp.PartNumber = p.partID
+		where (p.status = 800 || p.status = 900) &&
+		bv.YearID = ? && ma.MakeName = ? &&
+		mo.ModelName = ? && s.SubmodelName = ?`
+	stmtEnd := ` order by cat.sort`
+	brandStmt := " && p.brandID in ("
+
+	for _, b := range l.Brands {
+		brandStmt += strconv.Itoa(b) + ","
+	}
+	brandStmt = strings.TrimRight(brandStmt, ",") + ")"
+	wholeStmt := stmtBeginning + brandStmt + stmtEnd
+
+	stmt, err := ctx.DB.Prepare(wholeStmt)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	res, err := stmt.Query(l.Vehicle.Base.Year, l.Vehicle.Base.Make, l.Vehicle.Base.Model, l.Vehicle.Submodel)
+	if err != nil {
+		return err
+	}
+
+	l.Configurations = make([]ConfigurationOption, 0)
+	count := 0
+	ch := make(chan error)
+	for res.Next() {
+		var conf Configuration
+		var acesType int
+		err = res.Scan(&conf.Key, &acesType)
+		if err == nil {
+			go conf.allOptions(ctx, l, acesType, ch)
+			count++
+		}
+	}
+	defer res.Close()
+
+	for i := 0; i < count; i++ {
+		<-ch
+	}
+
+	l.Pagination = Pagination{
+		TotalItems:    len(l.Submodels),
+		ReturnedCount: len(l.Submodels),
+		Page:          1,
+		PerPage:       len(l.Submodels),
+		TotalPages:    1,
+	}
+
+	return nil
+}
+
+func (v Vehicle) getDefinedConfigurations(ctx *middleware.APIContext, apiKey string) (*map[int][]DefinedConfiguration, error) {
+	configs := make(map[int][]DefinedConfiguration, 0)
+
+	stmt, err := ctx.DB.Prepare(getDefinedConfigurationsForVehicleStmt)
+	if err != nil {
+		return nil, err
+	}
+	defer stmt.Close()
+
+	rows, err := stmt.Query(apiKey, v.Base.Year, v.Base.Make, v.Base.Model, v.Submodel)
+	if err != nil || rows == nil {
+		return nil, err
+	}
+
+	for rows.Next() {
+		var name string
+		var value string
+		var parts string
+		var configID int
+		err = rows.Scan(&name, &value, &parts, &configID)
+		if err == nil {
+			dc := DefinedConfiguration{
+				Type:     name,
+				Value:    value,
+				ConfigID: configID,
+				Parts:    make([]int, 0),
+			}
+			partArr := strings.Split(parts, ",")
+			for _, p := range partArr {
+				if partID, err := strconv.Atoi(p); err == nil {
+					dc.Parts = append(dc.Parts, partID)
+				}
+			}
+			if _, ok := configs[dc.ConfigID]; !ok {
+				configs[dc.ConfigID] = make([]DefinedConfiguration, 0)
+			}
+			configs[dc.ConfigID] = append(configs[dc.ConfigID], dc)
+		}
+	}
+	defer rows.Close()
+
+	return &configs, nil
+}
+
+// allOptions will populate the available configuration options
+// from preferrable the VCDB, or CurtDev if it's a custom configuration
+// type that match the current vehicle.
+// This is meant to be run in a goroutine, hence the channel.
+func (c Configuration) allOptions(ctx *middleware.APIContext, l *Lookup, acesType int, ch chan error) {
+	var opts []string
+	var err error
+
+	if acesType == 0 { // Custom configuraton (implicit)
+		opts, err = c.getCurtOptions(ctx, l.Vehicle)
+		if err != nil {
+			ch <- err
+			return
+		}
+	} else { // VCDB configuration (explicit)
+		opts, err = c.getVcdbOptions(ctx, l.Vehicle)
+		if err != nil {
+			ch <- err
+			return
+		}
+	}
+
+	co := ConfigurationOption{
+		Type:    c.Key,
+		Options: opts,
+	}
+
+	// Check if this configuration option has already been selected
+	exists := false
+	for _, opt := range l.Vehicle.Configurations {
+		if strings.ToLower(opt.Key) == strings.ToLower(co.Type) {
+			exists = true
+			break
+		}
+	}
+
+	if !exists {
+		l.Configurations = append(l.Configurations, co)
+	}
+
+	ch <- err
+}
+
+// getVcdbOptions will return the configuration options
+// that fit the provided vehicel and the provided type from the VCDB.
+func (c *Configuration) getVcdbOptions(ctx *middleware.APIContext, v Vehicle) ([]string, error) {
+	var opts []string
+	var err error
+
+	id, err := v.GetVcdbID()
+	if err != nil || id == 0 {
+		return opts, err
+	}
+
+	var stmt *sql.Stmt
+	switch strings.ToLower(strings.Replace(c.Key, " ", "", -1)) {
+	case "aspiration":
+		stmt, err = ctx.DB.Prepare(vcdb_GetAspirationForVehicle)
+	case "bedlength":
+		stmt, err = ctx.DB.Prepare(vcdb_GetBedLengthForVehicle)
+	case "bedtype":
+		stmt, err = ctx.DB.Prepare(vcdb_GetBedTypeForVehicle)
+	case "bodytype":
+		stmt, err = ctx.DB.Prepare(vcdb_GetBodyTypeForVehicle)
+	case "brakeabs":
+		stmt, err = ctx.DB.Prepare(vcdb_GetBrakeABSForVehicle)
+	case "brakesystem":
+		stmt, err = ctx.DB.Prepare(vcdb_GetBrakeSystemForVehicle)
+	case "frontbraketype":
+		stmt, err = ctx.DB.Prepare(vcdb_GetFrontBrakeTypeForVehicle)
+	case "rearbraketype":
+		stmt, err = ctx.DB.Prepare(vcdb_GetRearBrakeTypeForVehicle)
+	case "cylinderheadtype":
+		stmt, err = ctx.DB.Prepare(vcdb_GetCylinderHeadTypeForVehicle)
+	case "drivetype":
+		stmt, err = ctx.DB.Prepare(vcdb_GetDriveTypeForVehicle)
+	case "enginedesignation":
+		stmt, err = ctx.DB.Prepare(vcdb_GetEngineDesignationForVehicle)
+	case "engineversion":
+		stmt, err = ctx.DB.Prepare(vcdb_GetEngineVersionForVehicle)
+	case "enginevin":
+		stmt, err = ctx.DB.Prepare(vcdb_GetEngineVINForVehicle)
+	case "fueldeliverysubtype":
+		stmt, err = ctx.DB.Prepare(vcdb_GetFuelDeliverySubTypeForVehicle)
+	case "fueldeliverytype":
+		stmt, err = ctx.DB.Prepare(vcdb_GetFuelDeliveryTypeForVehicle)
+	case "fuelsystemcontroltype":
+		stmt, err = ctx.DB.Prepare(vcdb_GetFuelSystemControlTypeForVehicle)
+	case "fuelsystemdesign":
+		stmt, err = ctx.DB.Prepare(vcdb_GetFuelSystemDesignForVehicle)
+	case "fueltype":
+		stmt, err = ctx.DB.Prepare(vcdb_GetFuelTypeForVehicle)
+	case "ignitionsystem":
+		stmt, err = ctx.DB.Prepare(vcdb_GetIgnitionSystemForVehicle)
+	case "mfrbodycode":
+		stmt, err = ctx.DB.Prepare(vcdb_GetMfrBodyCodeForVehicle)
+	case "numberofdoors":
+		stmt, err = ctx.DB.Prepare(vcdb_GetBodyNumDoorsForVehicle)
+	case "frontspringtype":
+		stmt, err = ctx.DB.Prepare(vcdb_GetFrontSpringTypeForVehicle)
+	case "rearspringtype":
+		stmt, err = ctx.DB.Prepare(vcdb_GetRearSpringTypeForVehicle)
+	case "steeringsystem":
+		stmt, err = ctx.DB.Prepare(vcdb_GetSteeringSystemForVehicle)
+	case "steeringtype":
+		stmt, err = ctx.DB.Prepare(vcdb_GetSteeringTypeForVehicle)
+	case "transmissioncontroltype":
+		stmt, err = ctx.DB.Prepare(vcdb_GetTransmissionControlTypeForVehicle)
+	case "transmissionelectroniccontrolled":
+		stmt, err = ctx.DB.Prepare(vcdb_GetElecControlledForVehicle)
+	case "transmissionmanufacturercode":
+		stmt, err = ctx.DB.Prepare(vcdb_GetTransmissionMfrCodeForVehicle)
+	case "transmissionnumspeeds":
+		stmt, err = ctx.DB.Prepare(vcdb_GetTransmissionNumSpeedsForVehicle)
+	case "transmissiontype":
+		stmt, err = ctx.DB.Prepare(vcdb_GetTransmissionTypeForVehicle)
+	case "valves":
+		stmt, err = ctx.DB.Prepare(vcdb_GetValvesForVehicle)
+	case "wheelbase":
+		stmt, err = ctx.DB.Prepare(vcdb_GetWheelBaseForVehicle)
+	default:
+	}
+	if err != nil || stmt == nil {
+		return opts, err
+	}
+	defer stmt.Close()
+
+	res, err := stmt.Query(id)
+	if err != nil || res == nil {
+		return opts, err
+	}
+
+	for res.Next() {
+		var id int
+		var val string
+		if err = res.Scan(&id, &val); err == nil {
+			opts = append(opts, val)
+		}
+	}
+	defer res.Close()
+
+	return opts, nil
+}
+
+// getCurtOptions will return the configuration options
+// that fit the provided vehicle and the provided type from CurtDev.
+func (c *Configuration) getCurtOptions(ctx *middleware.APIContext, v Vehicle) ([]string, error) {
+	var opts []string
+	var err error
+
+	stmt, err := ctx.DB.Prepare(getAllOptionsForType)
+	if err != nil {
+		return opts, err
+	}
+	defer stmt.Close()
+
+	res, err := stmt.Query(v.Base.Year, v.Base.Make, v.Base.Model, v.Submodel, c.Key)
+	if err != nil || res == nil {
+		return opts, err
+	}
+
+	hasOther := false
+	for res.Next() {
+		var val string
+		if err = res.Scan(&val); err == nil {
+			if strings.ToLower(val) == "other" {
+				hasOther = true
+			}
+			opts = append(opts, val)
+		}
+	}
+	defer res.Close()
+
+	if !hasOther && len(opts) < 2 {
+		opts = append(opts, "Other")
+	}
+
+	return opts, nil
+}
 
 var (
 	getDefinedConfigurationsForVehicleStmt = `
@@ -278,331 +582,3 @@ var (
 		where v.VehicleID = ?
 		order by value`
 )
-
-type Configuration struct {
-	Key   string `json:"key" xml:"key"`
-	Value string `json:"value" xml:"value"`
-}
-
-type ConfigurationOption struct {
-	Type    string   `json:"type" xml:"type"`
-	Options []string `json:"options" xml:"options"`
-}
-
-type DefinedConfiguration struct {
-	Type     string
-	Value    string
-	Parts    []int
-	ConfigID int
-}
-
-func (l *Lookup) GetConfigurations() error {
-	stmtBeginning := `select distinct cat.name, cat.AcesTypeID from vcdb_Vehicle as v
-		join VehicleConfigAttribute as vca on v.ConfigID = vca.VehicleConfigID
-		join ConfigAttribute as ca on vca.AttributeID = ca.ID
-		join ConfigAttributeType as cat on ca.ConfigAttributeTypeID = cat.ID
-		join Submodel as s on v.SubModelID = s.ID
-		join BaseVehicle as bv on v.BaseVehicleID = bv.ID
-		join vcdb_Model as mo on bv.ModelID = mo.ID
-		join vcdb_Make as ma on bv.MakeID = ma.ID
-		join vcdb_VehiclePart as vp on v.ID = vp.VehicleID
-		join Part as p on vp.PartNumber = p.partID
-		where (p.status = 800 || p.status = 900) &&
-		bv.YearID = ? && ma.MakeName = ? &&
-		mo.ModelName = ? && s.SubmodelName = ?`
-	stmtEnd := ` order by cat.sort`
-	brandStmt := " && p.brandID in ("
-
-	for _, b := range l.Brands {
-		brandStmt += strconv.Itoa(b) + ","
-	}
-	brandStmt = strings.TrimRight(brandStmt, ",") + ")"
-	wholeStmt := stmtBeginning + brandStmt + stmtEnd
-
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(wholeStmt)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
-	res, err := stmt.Query(l.Vehicle.Base.Year, l.Vehicle.Base.Make, l.Vehicle.Base.Model, l.Vehicle.Submodel)
-	if err != nil {
-		return err
-	}
-
-	l.Configurations = make([]ConfigurationOption, 0)
-	count := 0
-	ch := make(chan error)
-	for res.Next() {
-		var conf Configuration
-		var acesType int
-		err = res.Scan(&conf.Key, &acesType)
-		if err == nil {
-			go conf.allOptions(l, acesType, ch)
-			count++
-		}
-	}
-	defer res.Close()
-
-	for i := 0; i < count; i++ {
-		<-ch
-	}
-
-	l.Pagination = Pagination{
-		TotalItems:    len(l.Submodels),
-		ReturnedCount: len(l.Submodels),
-		Page:          1,
-		PerPage:       len(l.Submodels),
-		TotalPages:    1,
-	}
-
-	return nil
-}
-
-func (v Vehicle) getDefinedConfigurations(apiKey string) (*map[int][]DefinedConfiguration, error) {
-	configs := make(map[int][]DefinedConfiguration, 0)
-
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return nil, err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(getDefinedConfigurationsForVehicleStmt)
-	if err != nil {
-		return nil, err
-	}
-	defer stmt.Close()
-
-	rows, err := stmt.Query(apiKey, v.Base.Year, v.Base.Make, v.Base.Model, v.Submodel)
-	if err != nil || rows == nil {
-		return nil, err
-	}
-
-	for rows.Next() {
-		var name string
-		var value string
-		var parts string
-		var configID int
-		err = rows.Scan(&name, &value, &parts, &configID)
-		if err == nil {
-			dc := DefinedConfiguration{
-				Type:     name,
-				Value:    value,
-				ConfigID: configID,
-				Parts:    make([]int, 0),
-			}
-			partArr := strings.Split(parts, ",")
-			for _, p := range partArr {
-				if partID, err := strconv.Atoi(p); err == nil {
-					dc.Parts = append(dc.Parts, partID)
-				}
-			}
-			if _, ok := configs[dc.ConfigID]; !ok {
-				configs[dc.ConfigID] = make([]DefinedConfiguration, 0)
-			}
-			configs[dc.ConfigID] = append(configs[dc.ConfigID], dc)
-		}
-	}
-	defer rows.Close()
-
-	return &configs, nil
-}
-
-// allOptions will populate the available configuration options
-// from preferrable the VCDB, or CurtDev if it's a custom configuration
-// type that match the current vehicle.
-// This is meant to be run in a goroutine, hence the channel.
-func (c Configuration) allOptions(l *Lookup, acesType int, ch chan error) {
-	var opts []string
-	var err error
-
-	if acesType == 0 { // Custom configuraton (implicit)
-		opts, err = c.getCurtOptions(l.Vehicle)
-		if err != nil {
-			ch <- err
-			return
-		}
-	} else { // VCDB configuration (explicit)
-		opts, err = c.getVcdbOptions(l.Vehicle)
-		if err != nil {
-			ch <- err
-			return
-		}
-	}
-
-	co := ConfigurationOption{
-		Type:    c.Key,
-		Options: opts,
-	}
-
-	// Check if this configuration option has already been selected
-	exists := false
-	for _, opt := range l.Vehicle.Configurations {
-		if strings.ToLower(opt.Key) == strings.ToLower(co.Type) {
-			exists = true
-			break
-		}
-	}
-
-	if !exists {
-		l.Configurations = append(l.Configurations, co)
-	}
-
-	ch <- err
-}
-
-// getVcdbOptions will return the configuration options
-// that fit the provided vehicel and the provided type from the VCDB.
-func (c *Configuration) getVcdbOptions(v Vehicle) ([]string, error) {
-	var opts []string
-	var err error
-
-	id, err := v.GetVcdbID()
-	if err != nil || id == 0 {
-		return opts, err
-	}
-
-	db, err := sql.Open("mysql", database.VcdbConnectionString())
-	if err != nil {
-		return opts, err
-	}
-	defer db.Close()
-
-	var stmt *sql.Stmt
-	switch strings.ToLower(strings.Replace(c.Key, " ", "", -1)) {
-	case "aspiration":
-		stmt, err = db.Prepare(vcdb_GetAspirationForVehicle)
-	case "bedlength":
-		stmt, err = db.Prepare(vcdb_GetBedLengthForVehicle)
-	case "bedtype":
-		stmt, err = db.Prepare(vcdb_GetBedTypeForVehicle)
-	case "bodytype":
-		stmt, err = db.Prepare(vcdb_GetBodyTypeForVehicle)
-	case "brakeabs":
-		stmt, err = db.Prepare(vcdb_GetBrakeABSForVehicle)
-	case "brakesystem":
-		stmt, err = db.Prepare(vcdb_GetBrakeSystemForVehicle)
-	case "frontbraketype":
-		stmt, err = db.Prepare(vcdb_GetFrontBrakeTypeForVehicle)
-	case "rearbraketype":
-		stmt, err = db.Prepare(vcdb_GetRearBrakeTypeForVehicle)
-	case "cylinderheadtype":
-		stmt, err = db.Prepare(vcdb_GetCylinderHeadTypeForVehicle)
-	case "drivetype":
-		stmt, err = db.Prepare(vcdb_GetDriveTypeForVehicle)
-	case "enginedesignation":
-		stmt, err = db.Prepare(vcdb_GetEngineDesignationForVehicle)
-	case "engineversion":
-		stmt, err = db.Prepare(vcdb_GetEngineVersionForVehicle)
-	case "enginevin":
-		stmt, err = db.Prepare(vcdb_GetEngineVINForVehicle)
-	case "fueldeliverysubtype":
-		stmt, err = db.Prepare(vcdb_GetFuelDeliverySubTypeForVehicle)
-	case "fueldeliverytype":
-		stmt, err = db.Prepare(vcdb_GetFuelDeliveryTypeForVehicle)
-	case "fuelsystemcontroltype":
-		stmt, err = db.Prepare(vcdb_GetFuelSystemControlTypeForVehicle)
-	case "fuelsystemdesign":
-		stmt, err = db.Prepare(vcdb_GetFuelSystemDesignForVehicle)
-	case "fueltype":
-		stmt, err = db.Prepare(vcdb_GetFuelTypeForVehicle)
-	case "ignitionsystem":
-		stmt, err = db.Prepare(vcdb_GetIgnitionSystemForVehicle)
-	case "mfrbodycode":
-		stmt, err = db.Prepare(vcdb_GetMfrBodyCodeForVehicle)
-	case "numberofdoors":
-		stmt, err = db.Prepare(vcdb_GetBodyNumDoorsForVehicle)
-	case "frontspringtype":
-		stmt, err = db.Prepare(vcdb_GetFrontSpringTypeForVehicle)
-	case "rearspringtype":
-		stmt, err = db.Prepare(vcdb_GetRearSpringTypeForVehicle)
-	case "steeringsystem":
-		stmt, err = db.Prepare(vcdb_GetSteeringSystemForVehicle)
-	case "steeringtype":
-		stmt, err = db.Prepare(vcdb_GetSteeringTypeForVehicle)
-	case "transmissioncontroltype":
-		stmt, err = db.Prepare(vcdb_GetTransmissionControlTypeForVehicle)
-	case "transmissionelectroniccontrolled":
-		stmt, err = db.Prepare(vcdb_GetElecControlledForVehicle)
-	case "transmissionmanufacturercode":
-		stmt, err = db.Prepare(vcdb_GetTransmissionMfrCodeForVehicle)
-	case "transmissionnumspeeds":
-		stmt, err = db.Prepare(vcdb_GetTransmissionNumSpeedsForVehicle)
-	case "transmissiontype":
-		stmt, err = db.Prepare(vcdb_GetTransmissionTypeForVehicle)
-	case "valves":
-		stmt, err = db.Prepare(vcdb_GetValvesForVehicle)
-	case "wheelbase":
-		stmt, err = db.Prepare(vcdb_GetWheelBaseForVehicle)
-	default:
-	}
-	if err != nil || stmt == nil {
-		return opts, err
-	}
-	defer stmt.Close()
-
-	res, err := stmt.Query(id)
-	if err != nil || res == nil {
-		return opts, err
-	}
-
-	for res.Next() {
-		var id int
-		var val string
-		if err = res.Scan(&id, &val); err == nil {
-			opts = append(opts, val)
-		}
-	}
-	defer res.Close()
-
-	return opts, nil
-}
-
-// getCurtOptions will return the configuration options
-// that fit the provided vehicle and the provided type from CurtDev.
-func (c *Configuration) getCurtOptions(v Vehicle) ([]string, error) {
-	var opts []string
-	var err error
-
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return opts, err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(getAllOptionsForType)
-	if err != nil {
-		return opts, err
-	}
-	defer stmt.Close()
-
-	res, err := stmt.Query(v.Base.Year, v.Base.Make, v.Base.Model, v.Submodel, c.Key)
-	if err != nil || res == nil {
-		return opts, err
-	}
-
-	hasOther := false
-	for res.Next() {
-		var val string
-		if err = res.Scan(&val); err == nil {
-			if strings.ToLower(val) == "other" {
-				hasOther = true
-			}
-			opts = append(opts, val)
-		}
-	}
-	defer res.Close()
-
-	if !hasOther && len(opts) < 2 {
-		opts = append(opts, "Other")
-	}
-
-	return opts, nil
-}

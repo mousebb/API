@@ -11,10 +11,8 @@ import (
 
 	"github.com/curt-labs/API/helpers/database"
 	"github.com/curt-labs/API/helpers/sortutil"
+	"github.com/curt-labs/API/middleware"
 	"github.com/curt-labs/API/models/contact"
-
-	// Background usage for mysql driver.
-	_ "github.com/go-sql-driver/mysql"
 )
 
 var (
@@ -79,19 +77,12 @@ type Pagination struct {
 	TotalPages    int `json:"total_pages" xml:"total_pages"`
 }
 
-func (l *Lookup) LoadParts(ch chan []Part, page int, count int, dtx *apicontext.DataContext) {
+func (l *Lookup) LoadParts(ctx *middleware.APIContext, ch chan []Part, page int, count int) {
 	if count == 0 {
 		count = 50
 	}
 
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		ch <- nil
-		return
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(partMatcherStmt)
+	stmt, err := ctx.DB.Prepare(partMatcherStmt)
 	if err != nil {
 		ch <- nil
 		return
@@ -99,7 +90,7 @@ func (l *Lookup) LoadParts(ch chan []Part, page int, count int, dtx *apicontext.
 	defer stmt.Close()
 
 	brands := make([]string, 0)
-	for _, b := range dtx.BrandArray {
+	for _, b := range ctx.DataContext.BrandArray {
 		brands = append(brands, strconv.Itoa(b))
 	}
 
@@ -196,7 +187,7 @@ func (l *Lookup) LoadParts(ch chan []Part, page int, count int, dtx *apicontext.
 	perChan := make(chan int)
 	for i, p := range pagedParts {
 		go func(j int, prt Part) {
-			if err := prt.Get(ctx); err == nil && prt.ShortDesc != "" {
+			if err := prt.Get(ctx, 0); err == nil && prt.ShortDesc != "" {
 				l.Parts = append(l.Parts, prt)
 			}
 			perChan <- 1
@@ -298,7 +289,7 @@ var (
 	insertStmt = `insert into VehicleInquiry(name, category, phone, email, vehicle, message, date_added) values(?,?,?,?,?,?, now())`
 )
 
-func (i *VehicleInquiry) Push() error {
+func (i *VehicleInquiry) Push(ctx *middleware.APIContext) error {
 
 	if i.Name == "" {
 		return fmt.Errorf("%s", "name is required")
@@ -313,13 +304,7 @@ func (i *VehicleInquiry) Push() error {
 		return fmt.Errorf("%s", "the vehicle of inquiry is required")
 	}
 
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(insertStmt)
+	stmt, err := ctx.DB.Prepare(insertStmt)
 	if err != nil {
 		return err
 	}
@@ -329,9 +314,9 @@ func (i *VehicleInquiry) Push() error {
 	return err
 }
 
-func (i *VehicleInquiry) SendEmail(dtx *apicontext.DataContext) error {
+func (i *VehicleInquiry) SendEmail(ctx *middleware.APIContext) error {
 
-	cts, err := contact.GetAllContactTypes(dtx)
+	cts, err := contact.GetAllContactTypes(ctx)
 	if err != nil {
 		return err
 	}
@@ -369,6 +354,6 @@ func (i *VehicleInquiry) SendEmail(dtx *apicontext.DataContext) error {
 	}
 
 	// Send Email
-	return contact.SendEmail(ct, "Email from VehicleInquiry Request Form", body) //contact type id, subject, techSupport
+	return contact.SendEmail(ct, "Email from VehicleInquiry Request Form", body, ctx) //contact type id, subject, techSupport
 
 }

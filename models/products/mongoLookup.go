@@ -1,9 +1,8 @@
 package products
 
 import (
-	"database/sql"
-
 	"github.com/curt-labs/API/helpers/database"
+	"github.com/curt-labs/API/middleware"
 
 	"sort"
 	"strings"
@@ -11,39 +10,7 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
-	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
-)
-
-const (
-	AriesDb = "aries"
-)
-
-var (
-	initMap     sync.Once
-	finishes    = make(map[string]string, 0)
-	colors      = make(map[string]string, 0)
-	partMap     = make(map[int]BasicPart, 0)
-	partMapStmt = `select p.status, p.dateAdded, p.dateModified, p.shortDesc, p.oldPartNumber, p.partID, p.priceCode, pc.class, p.brandID, c.catTitle, (
-						select group_concat(pa.value) from PartAttribute as pa
-						where pa.partID = p.partID && pa.field = 'Finish'
-					) as finish,
-					(
-						select group_concat(pa.value) from PartAttribute as pa
-						where pa.partID = p.partID && pa.field = 'Color'
-					) as color,
-					(
-						select group_concat(pa.value) from PartAttribute as pa
-						where pa.partID = p.partID && pa.field = 'Location'
-					) as location,
-					con.text as installSheet
-					from Part as p
-					left join Class as pc on p.classID = pc.classID
-					left join CatPart as cp on p.partID = cp.partID
-					left join Categories as c on cp.catID = c.catID
-					left join ContentBridge as cb on p.partID = cb.partID
-					left join Content as con on cb.contentID = con.contentID && con.cTypeID = 5
-					where p.brandID = 3 && p.status in (800,900)`
 )
 
 type NoSqlVehicle struct {
@@ -103,14 +70,9 @@ func initMaps() {
 	buildPartMap()
 }
 
-func GetAriesVehicleCollections() ([]string, error) {
-	session, err := mgo.DialWithInfo(database.AriesMongoConnectionString())
-	if err != nil {
-		return []string{}, err
-	}
-	defer session.Close()
+func GetAriesVehicleCollections(ctx *middleware.APIContext) ([]string, error) {
 
-	cols, err := session.DB(AriesDb).CollectionNames()
+	cols, err := ctx.AriesSession.DB(ctx.AriesMongoDatabase).CollectionNames()
 	if err != nil {
 		return []string{}, err
 	}
@@ -125,19 +87,13 @@ func GetAriesVehicleCollections() ([]string, error) {
 	return validCols, nil
 }
 
-func GetApps(v NoSqlVehicle, collection string) (stage string, vals []string, err error) {
+func GetApps(ctx *middleware.APIContext, v NoSqlVehicle, collection string) (stage string, vals []string, err error) {
 
 	if v.Year != "" && v.Make != "" && v.Model != "" && v.Style != "" {
 		return
 	}
 
-	session, err := mgo.DialWithInfo(database.AriesMongoConnectionString())
-	if err != nil {
-		return
-	}
-	defer session.Close()
-
-	c := session.DB(AriesDb).C(collection)
+	c := ctx.AriesSession.DB(ctx.AriesMongoDatabase).C(collection)
 
 	queryMap := make(map[string]interface{})
 
@@ -179,11 +135,11 @@ func GetApps(v NoSqlVehicle, collection string) (stage string, vals []string, er
 	return
 }
 
-func FindVehicles(v NoSqlVehicle, collection string, dtx *apicontext.DataContext) (l NoSqlLookup, err error) {
+func FindVehicles(ctx *middleware.APIContext, v NoSqlVehicle, collection string) (l NoSqlLookup, err error) {
 
 	l = NoSqlLookup{}
 
-	stage, vals, err := GetApps(v, collection)
+	stage, vals, err := GetApps(ctx, v, collection)
 	if err != nil {
 		return
 	}
@@ -205,13 +161,7 @@ func FindVehicles(v NoSqlVehicle, collection string, dtx *apicontext.DataContext
 		}
 	}
 
-	session, err := mgo.DialWithInfo(database.AriesMongoConnectionString())
-	if err != nil {
-		return
-	}
-	defer session.Close()
-
-	c := session.DB(AriesDb).C(collection)
+	c := ctx.AriesSession.DB(ctx.AriesMongoDatabase).C(collection)
 	queryMap := make(map[string]interface{})
 
 	ids := make([]int, 0)
@@ -225,7 +175,7 @@ func FindVehicles(v NoSqlVehicle, collection string, dtx *apicontext.DataContext
 	//add parts
 	for _, id := range ids {
 		p := Part{ID: id}
-		if err := p.Get(dtx); err != nil {
+		if err := p.Get(ctx, 0); err != nil {
 			continue
 		}
 		l.Parts = append(l.Parts, p)
@@ -234,7 +184,7 @@ func FindVehicles(v NoSqlVehicle, collection string, dtx *apicontext.DataContext
 	return l, err
 }
 
-func FindApplications(collection string, skip, limit int) (Result, error) {
+func FindApplications(ctx *middleware.APIContext, collection string, skip, limit int) (Result, error) {
 	initMap.Do(initMaps)
 
 	if limit == 0 || limit > 100 {
@@ -250,13 +200,7 @@ func FindApplications(collection string, skip, limit int) (Result, error) {
 	var apps []NoSqlVehicle
 	var err error
 
-	session, err := mgo.DialWithInfo(database.AriesMongoConnectionString())
-	if err != nil {
-		return res, err
-	}
-	defer session.Close()
-
-	c := session.DB(AriesDb).C(collection)
+	c := ctx.AriesSession.DB(ctx.AriesMongoDatabase).C(collection)
 
 	err = c.Find(nil).Sort("make", "model", "style", "-year").Skip(skip).Limit(limit).All(&apps)
 
@@ -288,13 +232,13 @@ func FindApplications(collection string, skip, limit int) (Result, error) {
 }
 
 func buildPartMap() error {
-	db, err := sql.Open("mysql", database.ConnectionString())
+
+	err := database.Init()
 	if err != nil {
 		return err
 	}
-	defer db.Close()
 
-	qry, err := db.Prepare(partMapStmt)
+	qry, err := database.DB.Prepare(partMapStmt)
 	if err != nil {
 		return err
 	}
@@ -362,11 +306,11 @@ func buildPartMap() error {
 	return nil
 }
 
-func FindVehiclesWithParts(v NoSqlVehicle, collection string, dtx *apicontext.DataContext) (l NoSqlLookup, err error) {
+func FindVehiclesWithParts(ctx *middleware.APIContext, v NoSqlVehicle, collection string) (l NoSqlLookup, err error) {
 
 	l = NoSqlLookup{}
 
-	stage, vals, err := GetApps(v, collection)
+	stage, vals, err := GetApps(ctx, v, collection)
 	if err != nil {
 		return
 	}
@@ -384,13 +328,7 @@ func FindVehiclesWithParts(v NoSqlVehicle, collection string, dtx *apicontext.Da
 		}
 	}
 
-	session, err := mgo.DialWithInfo(database.AriesMongoConnectionString())
-	if err != nil {
-		return
-	}
-	defer session.Close()
-
-	c := session.DB(AriesDb).C(collection)
+	c := ctx.AriesSession.DB(ctx.AriesMongoDatabase).C(collection)
 	queryMap := make(map[string]interface{})
 
 	ids := make([]int, 0)
@@ -406,7 +344,7 @@ func FindVehiclesWithParts(v NoSqlVehicle, collection string, dtx *apicontext.Da
 	//add parts
 	for _, id := range ids {
 		p := Part{ID: id}
-		if err := p.Get(dtx); err != nil {
+		if err := p.Get(ctx, 0); err != nil {
 			continue
 		}
 		l.Parts = append(l.Parts, p)
@@ -423,18 +361,12 @@ func FindVehiclesWithParts(v NoSqlVehicle, collection string, dtx *apicontext.Da
 //query base+style
 //get parts
 
-func FindVehiclesFromAllCategories(v NoSqlVehicle, dtx *apicontext.DataContext) (map[string]NoSqlLookup, error) {
+func FindVehiclesFromAllCategories(ctx *middleware.APIContext, v NoSqlVehicle) (map[string]NoSqlLookup, error) {
 	var l NoSqlLookup
 	lookupMap := make(map[string]NoSqlLookup)
 
-	session, err := mgo.DialWithInfo(database.AriesMongoConnectionString())
-	if err != nil {
-		return lookupMap, err
-	}
-	defer session.Close()
-
 	//Get all collections
-	cols, err := GetAriesVehicleCollections()
+	cols, err := GetAriesVehicleCollections(ctx)
 	if err != nil {
 		return lookupMap, err
 	}
@@ -442,7 +374,7 @@ func FindVehiclesFromAllCategories(v NoSqlVehicle, dtx *apicontext.DataContext) 
 	//from each category
 	for _, col := range cols {
 
-		c := session.DB(AriesDb).C(col)
+		c := ctx.AriesSession.DB(ctx.AriesMongoDatabase).C(col)
 		queryMap := make(map[string]interface{})
 		//query base vehicle
 		queryMap["year"] = strings.ToLower(v.Year)
@@ -451,7 +383,7 @@ func FindVehiclesFromAllCategories(v NoSqlVehicle, dtx *apicontext.DataContext) 
 		if (v.Style) != "" {
 			queryMap["style"] = strings.ToLower(v.Style)
 		} else {
-			_, l.Styles, err = GetApps(v, col)
+			_, l.Styles, err = GetApps(ctx, v, col)
 		}
 
 		var ids []int
@@ -462,7 +394,7 @@ func FindVehiclesFromAllCategories(v NoSqlVehicle, dtx *apicontext.DataContext) 
 			p := Part{
 				ID: id,
 			}
-			err = p.Get(dtx)
+			err = p.Get(ctx, 0)
 			if err != nil {
 				continue
 			}
@@ -480,41 +412,40 @@ func FindVehiclesFromAllCategories(v NoSqlVehicle, dtx *apicontext.DataContext) 
 	return lookupMap, err
 }
 
-func FindPartsFromOneCategory(v NoSqlVehicle, collection string, dtx *apicontext.DataContext) (map[string]NoSqlLookup, error) {
+func FindPartsFromOneCategory(ctx *middleware.APIContext, v NoSqlVehicle, collection string) (map[string]NoSqlLookup, error) {
 	var l NoSqlLookup
+	var err error
+
 	lookupMap := make(map[string]NoSqlLookup)
-
-	session, err := mgo.DialWithInfo(database.AriesMongoConnectionString())
-	if err != nil {
-		return lookupMap, err
-	}
-	defer session.Close()
-
-	c := session.DB(AriesDb).C(collection)
 	queryMap := make(map[string]interface{})
+	c := ctx.AriesSession.DB(ctx.AriesMongoDatabase).C(collection)
+
 	//query base vehicle
 	queryMap["year"] = strings.ToLower(v.Year)
 	queryMap["make"] = strings.ToLower(v.Make)
 	queryMap["model"] = strings.ToLower(v.Model)
+
 	if (v.Style) != "" {
 		queryMap["style"] = strings.ToLower(v.Style)
 	} else {
-		_, l.Styles, err = GetApps(v, collection)
+		_, l.Styles, err = GetApps(ctx, v, collection)
 	}
 
 	var ids []int
-	c.Find(queryMap).Distinct("parts", &ids)
-	//add parts
 	var partsArray []Part
+	c.Find(queryMap).Distinct("parts", &ids)
+
+	//add parts
 	for _, id := range ids {
 		p := Part{ID: id}
-		if err := p.Get(dtx); err != nil {
+		if err := p.Get(ctx, 0); err != nil {
 			continue
 		}
 		l.Parts = append(l.Parts, p)
 		partsArray = append(partsArray, p)
 
 	}
+
 	if len(partsArray) > 0 {
 		var tmp = lookupMap[collection]
 		tmp.Parts = partsArray
@@ -522,5 +453,33 @@ func FindPartsFromOneCategory(v NoSqlVehicle, collection string, dtx *apicontext
 		lookupMap[collection] = tmp
 		partsArray = nil
 	}
+
 	return lookupMap, err
 }
+
+var (
+	initMap     sync.Once
+	finishes    = make(map[string]string, 0)
+	colors      = make(map[string]string, 0)
+	partMap     = make(map[int]BasicPart, 0)
+	partMapStmt = `select p.status, p.dateAdded, p.dateModified, p.shortDesc, p.oldPartNumber, p.partID, p.priceCode, pc.class, p.brandID, c.catTitle, (
+						select group_concat(pa.value) from PartAttribute as pa
+						where pa.partID = p.partID && pa.field = 'Finish'
+					) as finish,
+					(
+						select group_concat(pa.value) from PartAttribute as pa
+						where pa.partID = p.partID && pa.field = 'Color'
+					) as color,
+					(
+						select group_concat(pa.value) from PartAttribute as pa
+						where pa.partID = p.partID && pa.field = 'Location'
+					) as location,
+					con.text as installSheet
+					from Part as p
+					left join Class as pc on p.classID = pc.classID
+					left join CatPart as cp on p.partID = cp.partID
+					left join Categories as c on cp.catID = c.catID
+					left join ContentBridge as cb on p.partID = cb.partID
+					left join Content as con on cb.contentID = con.contentID && con.cTypeID = 5
+					where p.brandID = 3 && p.status in (800,900)`
+)

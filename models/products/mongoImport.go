@@ -1,14 +1,12 @@
 package products
 
 import (
-	"database/sql"
 	"encoding/csv"
 	"fmt"
 	"mime/multipart"
 	"strings"
 
-	"github.com/curt-labs/API/helpers/database"
-	"gopkg.in/mgo.v2"
+	"github.com/curt-labs/API/middleware"
 )
 
 type Input struct {
@@ -30,33 +28,31 @@ type Application struct {
 var (
 	VehicleApplications map[string]Application
 	PartConversion      map[string]int
-	Session             *mgo.Session
-	inf                 = database.AriesMongoConnectionString()
 )
 
-func Import(f multipart.File, collectionName string) ([]error, []error, error) {
+func Import(ctx *middleware.APIContext, f multipart.File, collectionName string) ([]error, []error, error) {
 	var err error
 	var conversionErrs []error
 	var insertErrs []error
 	VehicleApplications = make(map[string]Application)
 	PartConversion = make(map[string]int)
-	Session, err = mgo.DialWithInfo(inf)
+
 	es, err := CaptureCsv(f)
 	if err != nil {
 		return conversionErrs, insertErrs, err
 	}
 
 	for _, e := range es {
-		if cerr := ConvertToApplication(e); cerr != nil {
+		if cerr := ConvertToApplication(ctx, e); cerr != nil {
 			conversionErrs = append(conversionErrs, cerr)
 			continue
 		}
 	}
 
-	_ = ClearCollection(collectionName)
+	ClearCollection(ctx, collectionName)
 
 	for _, app := range VehicleApplications {
-		if ierr := IntoDB(app, collectionName); ierr != nil {
+		if ierr := IntoDB(ctx, app, collectionName); ierr != nil {
 			insertErrs = append(insertErrs, ierr)
 			continue
 		}
@@ -95,18 +91,12 @@ func CaptureCsv(f multipart.File) ([]Input, error) {
 }
 
 //Convert Input ot Applications array
-func ConvertToApplication(e Input) error {
+func ConvertToApplication(ctx *middleware.APIContext, e Input) error {
 	var partID int
 
 	if partID = PartConversion[e.Part]; partID == 0 {
 
-		db, err := sql.Open("mysql", database.ConnectionString())
-		if err != nil {
-			return err
-		}
-		defer db.Close()
-
-		stmt, err := db.Prepare("select partID from Part where oldPartNumber = ?")
+		stmt, err := ctx.DB.Prepare("select partID from Part where oldPartNumber = ?")
 		if err != nil {
 			return err
 		}
@@ -140,13 +130,13 @@ func ConvertToApplication(e Input) error {
 }
 
 //Dump into mongo
-func IntoDB(app Application, collectionName string) error {
-	return Session.DB(inf.Database).C(collectionName).Insert(app)
+func IntoDB(ctx *middleware.APIContext, app Application, collectionName string) error {
+	return ctx.AriesSession.DB(ctx.AriesMongoDatabase).C(collectionName).Insert(app)
 }
 
 //Drop collection specified
-func ClearCollection(name string) error {
-	return Session.DB(inf.Database).C(name).DropCollection()
+func ClearCollection(ctx *middleware.APIContext, name string) error {
+	return ctx.AriesSession.DB(ctx.AriesMongoDatabase).C(name).DropCollection()
 }
 
 //ToString

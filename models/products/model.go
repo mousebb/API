@@ -1,14 +1,14 @@
 package products
 
 import (
-	"database/sql"
-	"github.com/curt-labs/API/helpers/database"
-	_ "github.com/go-sql-driver/mysql"
 	"strconv"
 	"strings"
+
+	"github.com/curt-labs/API/middleware"
+	_ "github.com/go-sql-driver/mysql"
 )
 
-func (l *Lookup) GetModels() error {
+func (l *Lookup) GetModels(ctx *middleware.APIContext) error {
 	stmtBeginning := `select distinct mo.ModelName from vcdb_Model as mo
 		join BaseVehicle as bv on mo.ID = bv.ModelID
 		join vcdb_Make as ma on bv.MakeID = ma.ID
@@ -26,13 +26,7 @@ func (l *Lookup) GetModels() error {
 	brandStmt = strings.TrimRight(brandStmt, ",") + ")"
 	wholeStmt := stmtBeginning + brandStmt + stmtEnd
 
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(wholeStmt)
+	stmt, err := ctx.DB.Prepare(wholeStmt)
 	if err != nil {
 		return err
 	}

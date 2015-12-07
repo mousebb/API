@@ -29,7 +29,7 @@ func GetCategory(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Req
 		count, _ = strconv.Atoi(ct)
 	}
 
-	err = c.Get(page, count)
+	err = c.Get(ctx, page, count)
 	if err != nil || c.CategoryID == 0 {
 		return nil, err
 	}
@@ -38,11 +38,11 @@ func GetCategory(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Req
 }
 
 func GetCategoryTree(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	return category.GetCategoryTree(ctx.DataContext)
+	return category.GetCategoryTree(ctx)
 }
 
 func GetCategoryParts(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	catId, err := strconv.Atoi(ctx.Params.ByName("id"))
+	catID, err := strconv.Atoi(ctx.Params.ByName("id"))
 	if err != nil {
 		return nil, err
 	}
@@ -57,5 +57,5 @@ func GetCategoryParts(ctx *middleware.APIContext, rw http.ResponseWriter, r *htt
 		count, _ = strconv.Atoi(ct)
 	}
 
-	return category.GetCategoryParts(catId, page, count)
+	return category.GetCategoryParts(ctx, catID, page, count)
 }

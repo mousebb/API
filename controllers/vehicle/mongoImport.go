@@ -1,9 +1,9 @@
 package vehicle
 
 import (
-	"github.com/curt-labs/API/helpers/apicontext"
-	"github.com/curt-labs/API/helpers/encoding"
-	"github.com/curt-labs/API/helpers/error"
+	"fmt"
+
+	"github.com/curt-labs/API/middleware"
 	"github.com/curt-labs/API/models/products"
 
 	// "log"
@@ -22,23 +22,20 @@ type ErrorResp struct {
 
 //Import a Csv
 //Fields are expected to be: Part (oldpartnumber), Make, Model, Style, Year - 5 columns total
-func ImportCsv(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, dtx *apicontext.DataContext) string {
+func ImportCsv(ctx *middleware.APIContext, w http.ResponseWriter, r *http.Request) (interface{}, error) {
 	contentTypeHeader := r.Header.Get("Content-Type")
 	contentTypeArr := strings.Split(contentTypeHeader, ";")
 	if len(contentTypeArr) < 1 {
-		apierror.GenerateError("Content-Type is not multipart/form-data", nil, w, r)
-		return ""
+		return nil, fmt.Errorf("%s", "Content-Type is not multipart/form-data")
 	}
 	contentType := contentTypeArr[0]
 	if contentType != "multipart/form-data" {
-		apierror.GenerateError("Content-Type is not multipart/form-data", nil, w, r)
-		return ""
+		return nil, fmt.Errorf("%s", "Content-Type is not multipart/form-data")
 	}
 	file, header, err := r.FormFile("file")
 
 	if err != nil {
-		apierror.GenerateError("Error getting file", err, w, r)
-		return ""
+		return nil, fmt.Errorf("%s", "Error getting file")
 	}
 	defer file.Close()
 
@@ -46,8 +43,7 @@ func ImportCsv(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, dtx
 
 	conversionErrs, insertErrs, err := products.Import(file, collectionName)
 	if err != nil {
-		apierror.GenerateError("Error importing", err, w, r)
-		return ""
+		return nil, err
 	}
 
 	errResp := ErrorResp{
@@ -55,5 +51,5 @@ func ImportCsv(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, dtx
 		InsertErrs:     insertErrs,
 	}
 
-	return encoding.Must(enc.Encode(errResp))
+	return errResp, nil
 }

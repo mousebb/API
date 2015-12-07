@@ -1,18 +1,19 @@
 package vehicle
 
 import (
-	"github.com/curt-labs/API/helpers/apicontext"
+	"fmt"
+
 	"github.com/curt-labs/API/helpers/encoding"
 	"github.com/curt-labs/API/helpers/error"
+	"github.com/curt-labs/API/middleware"
 	"github.com/curt-labs/API/models/products"
-	"github.com/go-martini/martini"
 
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
 )
 
-func GetAllCollectionApplications(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, dtx *apicontext.DataContext, params martini.Params) string {
+func GetAllCollectionApplications(ctx *middleware.APIContext, w http.ResponseWriter, r *http.Request) (interface{}, error) {
 	collection := params["collection"]
 	if collection == "" {
 		apierror.GenerateError("No Collection in URL", nil, w, r)
@@ -26,7 +27,7 @@ func GetAllCollectionApplications(w http.ResponseWriter, r *http.Request, enc en
 	return encoding.Must(enc.Encode(apps))
 }
 
-func UpdateApplication(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, dtx *apicontext.DataContext, params martini.Params) string {
+func UpdateApplication(ctx *middleware.APIContext, w http.ResponseWriter, r *http.Request) (interface{}, error) {
 	var app products.NoSqlVehicle
 	collection := params["collection"]
 	if collection == "" {
@@ -52,7 +53,7 @@ func UpdateApplication(w http.ResponseWriter, r *http.Request, enc encoding.Enco
 	return encoding.Must(enc.Encode(app))
 }
 
-func DeleteApplication(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, dtx *apicontext.DataContext, params martini.Params) string {
+func DeleteApplication(ctx *middleware.APIContext, w http.ResponseWriter, r *http.Request) (interface{}, error) {
 	var app products.NoSqlVehicle
 	collection := params["collection"]
 	if collection == "" {
@@ -78,28 +79,23 @@ func DeleteApplication(w http.ResponseWriter, r *http.Request, enc encoding.Enco
 	return encoding.Must(enc.Encode(app))
 }
 
-func CreateApplication(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, dtx *apicontext.DataContext, params martini.Params) string {
+func CreateApplication(ctx *middleware.APIContext, w http.ResponseWriter, r *http.Request) (interface{}, error) {
 	var app products.NoSqlVehicle
-	collection := params["collection"]
+	collection := ctx.Params.ByName("collection")
 	if collection == "" {
-		apierror.GenerateError("No Collection in URL", nil, w, r)
-		return ""
+		return nil, fmt.Errorf("%s", "a collection must be specified")
 	}
 
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		apierror.GenerateError("Error reading request body", nil, w, r)
-		return ""
+		return nil, err
 	}
 
 	if err = json.Unmarshal(body, &app); err != nil {
-		apierror.GenerateError("Error decoding vehicle application", nil, w, r)
-		return ""
+		return nil, err
 	}
 
-	if err = app.Create(collection); err != nil {
-		apierror.GenerateError("Error updating vehicle", nil, w, r)
-		return ""
-	}
-	return encoding.Must(enc.Encode(app))
+	err = app.Create(collection)
+
+	return app, err
 }

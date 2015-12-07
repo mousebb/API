@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/curt-labs/API/helpers/api"
-	"github.com/curt-labs/API/helpers/database"
 	"github.com/curt-labs/API/helpers/redis"
+	"github.com/curt-labs/API/middleware"
 	_ "github.com/go-sql-driver/mysql"
 )
 
@@ -44,7 +44,7 @@ func (vehicle *Vehicle) GetGroupsByConfig() (groups []int) {
 	return
 }
 
-func (v *Vehicle) GetNotes(partId int) (notes []string, err error) {
+func (v *Vehicle) GetNotes(ctx *middleware.APIContext, partId int) (notes []string, err error) {
 	qrystmt := vehicleNotesStmt
 	if len(v.Configuration) > 0 {
 		qrystmt += "  ca.value in (`"
@@ -58,13 +58,7 @@ func (v *Vehicle) GetNotes(partId int) (notes []string, err error) {
 	}
 	qrystmt = qrystmt + vehicleNotesStmtEnd
 
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(qrystmt)
+	stmt, err := ctx.DB.Prepare(qrystmt)
 	if err != nil {
 		return
 	}
@@ -74,6 +68,7 @@ func (v *Vehicle) GetNotes(partId int) (notes []string, err error) {
 	if err != nil {
 		return
 	}
+	defer rows.Close()
 
 	for rows.Next() {
 		var note string
@@ -81,12 +76,11 @@ func (v *Vehicle) GetNotes(partId int) (notes []string, err error) {
 			notes = append(notes, note)
 		}
 	}
-	defer rows.Close()
 
 	return
 }
 
-func ReverseLookup(partId int) (vehicles []Vehicle, err error) {
+func ReverseLookup(ctx *middleware.APIContext, partId int) (vehicles []Vehicle, err error) {
 	redis_key := fmt.Sprintf("part:%d:vehicles", partId)
 
 	data, err := redis.Get(redis_key)
@@ -96,13 +90,7 @@ func ReverseLookup(partId int) (vehicles []Vehicle, err error) {
 		}
 	}
 
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(reverseLookupStmt)
+	stmt, err := ctx.DB.Prepare(reverseLookupStmt)
 	if err != nil {
 		return
 	}
@@ -180,40 +168,35 @@ func AppendIfMissing(existing []int, slice []int) []int {
 
 //For TrucksPlus Aces XML Lookup
 //takes aaia base and sub Ids
-func GetVehicle(baseId, subId int, configs []string) (Vehicle, error) {
+func GetVehicle(ctx *middleware.APIContext, baseId, subId int, configs []string) (Vehicle, error) {
 	var err error
 	var v Vehicle
 
 	//get config Attribute IDs from configs
-	configIds, err := getConfigAttributeIDs(configs)
+	configIds, err := getConfigAttributeIDs(ctx, configs)
 	if err != nil {
 		return v, err
 	}
 
 	if subId == 20 || subId == 0 {
 		//basevehicle
-		return GetVehicleByBase(baseId)
+		return GetVehicleByBase(ctx, baseId)
 	}
 	for _, c := range configIds {
 		if c > 0 {
 			//config
-			return GetVehicleByConfig(baseId, subId, configIds)
+			return GetVehicleByConfig(ctx, baseId, subId, configIds)
 		}
 	}
 	//submodel
-	return GetVehicleBySubmodel(baseId, subId)
+	return GetVehicleBySubmodel(ctx, baseId, subId)
 }
 
-func GetVehicleByBase(baseId int) (Vehicle, error) {
+func GetVehicleByBase(ctx *middleware.APIContext, baseId int) (Vehicle, error) {
 	var err error
 	var v Vehicle
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return v, err
-	}
-	defer db.Close()
 
-	stmt, err := db.Prepare(getVehicleByBaseStmt)
+	stmt, err := ctx.DB.Prepare(getVehicleByBaseStmt)
 	if err != nil {
 		return v, err
 	}
@@ -233,16 +216,11 @@ func GetVehicleByBase(baseId int) (Vehicle, error) {
 	return v, err
 }
 
-func GetVehicleBySubmodel(baseId, subId int) (Vehicle, error) {
+func GetVehicleBySubmodel(ctx *middleware.APIContext, baseId, subId int) (Vehicle, error) {
 	var err error
 	var v Vehicle
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return v, err
-	}
-	defer db.Close()
 
-	stmt, err := db.Prepare(getVehicleBySubmodelStmt)
+	stmt, err := ctx.DB.Prepare(getVehicleBySubmodelStmt)
 	if err != nil {
 		return v, err
 	}
@@ -271,18 +249,12 @@ func GetVehicleBySubmodel(baseId, subId int) (Vehicle, error) {
 	return v, err
 }
 
-func GetVehicleByConfig(baseId, subId int, configs []int) (Vehicle, error) {
+func GetVehicleByConfig(ctx *middleware.APIContext, baseId, subId int, configs []int) (Vehicle, error) {
 	var err error
 	var v Vehicle
 	var outputVehicle Vehicle
 
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return v, err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(getVehicleNewStmt)
+	stmt, err := ctx.DB.Prepare(getVehicleNewStmt)
 	if err != nil {
 		return v, err
 	}
@@ -350,7 +322,7 @@ func GetVehicleByConfig(baseId, subId int, configs []int) (Vehicle, error) {
 
 		if notHere == false {
 			//actually get the configurations, assign to the vehicle being returned
-			v.Configuration, err = getConfigurations(configsIntArray)
+			v.Configuration, err = getConfigurations(ctx, configsIntArray)
 			if err != nil {
 				return outputVehicle, err
 			}
@@ -362,50 +334,47 @@ func GetVehicleByConfig(baseId, subId int, configs []int) (Vehicle, error) {
 }
 
 //converts a string array of attr values to an int array of their attribute ids
-func getConfigAttributeIDs(configs []string) ([]int, error) {
+func getConfigAttributeIDs(ctx *middleware.APIContext, configs []string) ([]int, error) {
 	var err error
 	var conIds []int
 
-	db, err := sql.Open("mysql", database.ConnectionString())
+	stmt, err := ctx.DB.Prepare(getConfigAttributes)
 	if err != nil {
 		return conIds, err
 	}
-	defer db.Close()
+	defer stmt.Close()
+
 	for _, configStr := range configs {
-		stmt, err := db.Prepare(getConfigAttributes)
-		if err != nil {
-			return conIds, err
-		}
-		defer stmt.Close()
+
 		var id int
 		configStr = strings.ToLower(strings.TrimSpace(configStr))
 		err = stmt.QueryRow(configStr).Scan(&id)
 		if err == sql.ErrNoRows {
-			err = nil
+			break
 		}
+
 		if err != nil {
 			return conIds, err
 		}
+
 		conIds = append(conIds, id)
 	}
 	return conIds, err
 }
 
 //gets an array of Configs from an array of attribute Ids
-func getConfigurations(configIds []int) ([]Config, error) {
+func getConfigurations(ctx *middleware.APIContext, configIds []int) ([]Config, error) {
 	var err error
 	var configArray []Config
-	db, err := sql.Open("mysql", database.ConnectionString())
+
+	stmt, err := ctx.DB.Prepare(getConfigsStmt)
 	if err != nil {
 		return configArray, err
 	}
-	defer db.Close()
+	defer stmt.Close()
+
 	for _, id := range configIds {
-		stmt, err := db.Prepare(getConfigsStmt)
-		if err != nil {
-			return configArray, err
-		}
-		defer stmt.Close()
+
 		var c Config
 		var catId, caId *int
 		err = stmt.QueryRow(id).Scan(&catId, &c.Type, &caId, &c.Value)
