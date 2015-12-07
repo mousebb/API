@@ -12,6 +12,11 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+type HtmlReponse struct {
+	Glob string
+	Body interface{}
+}
+
 const (
 	textXML  = "text/xml"
 	appXML   = "application/xml"
@@ -21,7 +26,7 @@ const (
 )
 
 // Encode ...
-func Encode(r *http.Request, w http.ResponseWriter, obj ...interface{}) error {
+func Encode(r *http.Request, w http.ResponseWriter, obj interface{}) error {
 	ct := r.Header.Get("Content-Type")
 	var err error
 
@@ -43,17 +48,17 @@ func Encode(r *http.Request, w http.ResponseWriter, obj ...interface{}) error {
 	return err
 }
 
-func toXML(r *http.Request, w http.ResponseWriter, obj ...interface{}) error {
+func toXML(r *http.Request, w http.ResponseWriter, obj interface{}) error {
 	w.Header().Set("Content-Type", "text/xml")
 	return xml.NewEncoder(w).Encode(obj)
 }
 
-func toJSON(r *http.Request, w http.ResponseWriter, obj ...interface{}) error {
+func toJSON(r *http.Request, w http.ResponseWriter, obj interface{}) error {
 	w.Header().Set("Content-Type", "application/json")
 	return json.NewEncoder(w).Encode(obj)
 }
 
-func toYAML(r *http.Request, w http.ResponseWriter, obj ...interface{}) error {
+func toYAML(r *http.Request, w http.ResponseWriter, obj interface{}) error {
 	out, err := yaml.Marshal(obj)
 	if err != nil {
 		return err
@@ -66,12 +71,10 @@ func toYAML(r *http.Request, w http.ResponseWriter, obj ...interface{}) error {
 	return err
 }
 
-func toText(r *http.Request, w http.ResponseWriter, obj ...interface{}) error {
+func toText(r *http.Request, w http.ResponseWriter, obj interface{}) error {
 	var buf bytes.Buffer
-	for _, obj := range obj {
-		if _, err := fmt.Fprintf(&buf, "%s\n", obj); err != nil {
-			return err
-		}
+	if _, err := fmt.Fprintf(&buf, "%s\n", obj); err != nil {
+		return err
 	}
 
 	w.Header().Set("Content-Type", "text/plain")
@@ -80,17 +83,16 @@ func toText(r *http.Request, w http.ResponseWriter, obj ...interface{}) error {
 	return err
 }
 
-func toHTML(r *http.Request, w http.ResponseWriter, obj ...interface{}) error {
-	if len(obj) < 2 {
-		return toText(r, w, obj)
-	}
+func toHTML(r *http.Request, w http.ResponseWriter, obj interface{}) error {
 
-	t, err := template.ParseGlob(obj[0].(string))
+	hr := obj.(HtmlReponse)
+
+	t, err := template.ParseGlob(hr.Glob)
 	if err != nil {
 		return err
 	}
 
 	w.Header().Set("Content-Type", "text/html")
 
-	return t.Execute(w, obj[0])
+	return t.Execute(w, hr.Body)
 }
