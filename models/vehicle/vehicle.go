@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 
@@ -91,7 +90,6 @@ func ReverseLookup(ctx *middleware.APIContext, partId int) (vehicles []Vehicle, 
 		}
 	}
 
-	log.Println(ctx.DB)
 	stmt, err := ctx.DB.Prepare(reverseLookupStmt)
 	if err != nil {
 		return
@@ -503,7 +501,7 @@ var (
 						left join ConfigAttribute ca on vca.AttributeID = ca.ID
 						left join ConfigAttributeType cat on cat.ID =ca.ConfigAttributeTypeID
 						where vp.PartNumber = ?
-						group by bv.YearID, ma.MakeName, mo.ModelName, sm.SubmodelName, ca.value
+						group by bv.YearID, ma.MakeName, mo.ModelName, sm.SubmodelName, ca.value, cat.name, v.ID
 						order by bv.YearID desc, ma.MakeName, mo.ModelName, sm.SubmodelName`
 
 	vehicleNotesStmt = `select distinct n.note from vcdb_VehiclePart vp

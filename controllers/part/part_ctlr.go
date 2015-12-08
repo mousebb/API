@@ -1,12 +1,10 @@
 package partCtlr
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/curt-labs/API/helpers/error"
@@ -15,27 +13,7 @@ import (
 	"github.com/curt-labs/API/models/customer"
 	"github.com/curt-labs/API/models/products"
 	"github.com/curt-labs/API/models/vehicle"
-	"github.com/ninnemana/analytics-go"
 )
-
-func track(endpoint string, params map[string]string, r *http.Request) {
-	client := analytics.New("sud7rjoq3o")
-	client.FlushAfter = 30 * time.Second
-	client.FlushAt = 25
-
-	js, err := json.Marshal(params)
-	if err != nil {
-		return
-	}
-
-	client.Track(map[string]interface{}{
-		"title":    "Part Endpoint",
-		"url":      r.URL.String(),
-		"path":     r.URL.Path,
-		"referrer": r.URL.RequestURI(),
-		"params":   js,
-	})
-}
 
 // Identifiers Returns a slice of distinct part numbers.
 func Identifiers(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
@@ -223,7 +201,7 @@ func Vehicles(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Reques
 
 	err := p.Get(ctx, 0)
 	if err != nil {
-		return err, nil
+		return nil, err
 	}
 
 	return vehicle.ReverseLookup(ctx, p.ID)
@@ -236,6 +214,9 @@ func Images(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request)
 	}
 
 	err := p.Get(ctx, 0)
+	if err != nil {
+		return nil, err
+	}
 
 	return p.Images, err
 }
@@ -247,6 +228,9 @@ func Attributes(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Requ
 	}
 
 	err := p.Get(ctx, 0)
+	if err != nil {
+		return nil, err
+	}
 
 	return p.Attributes, err
 }
@@ -258,6 +242,9 @@ func GetContent(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Requ
 	}
 
 	err := p.Get(ctx, 0)
+	if err != nil {
+		return nil, err
+	}
 
 	return p.Content, err
 }
@@ -269,6 +256,9 @@ func Packaging(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Reque
 	}
 
 	err := p.Get(ctx, 0)
+	if err != nil {
+		return nil, err
+	}
 
 	return p.Packages, err
 }
@@ -309,32 +299,22 @@ func Videos(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request)
 
 //Sort of Redundant
 func InstallSheet(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) {
-	id, err := strconv.Atoi(strings.Split(ctx.Params.ByName("part"), ".")[0])
-	if err != nil {
-		apierror.GenerateError("Trouble getting part ID", err, rw, r)
-		return
-	}
 	p := products.Part{
-		ID: id,
+		PartNumber: ctx.Params.ByName("part"),
 	}
 
-	err = p.Get(ctx, 0)
+	err := p.Get(ctx, 0)
 	if err != nil {
-		apierror.GenerateError("Trouble getting part", err, rw, r)
-		return
-	}
-	var text string
-	for _, content := range p.Content {
-		if content.ContentType.Type == "installationSheet" {
-			text = content.Text
-		}
-	}
-	if text == "" {
-		apierror.GenerateError("No Installation Sheet", err, rw, r)
+		apierror.GenerateError("failed to find product", err, rw, r)
 		return
 	}
 
-	data, err := rest.GetPDF(text, r)
+	if p.InstallSheet == nil {
+		apierror.GenerateError("no installation sheet for this part", err, rw, r, http.StatusNoContent)
+		return
+	}
+
+	data, err := rest.GetPDF(p.InstallSheet.String(), r)
 	if err != nil {
 		apierror.GenerateError("Error getting PDF", err, rw, r)
 		return
@@ -356,6 +336,9 @@ func Categories(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Requ
 	}
 
 	err := p.Get(ctx, 0)
+	if err != nil {
+		return nil, err
+	}
 
 	return p.Categories, err
 }
@@ -366,23 +349,15 @@ func Prices(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request)
 	}
 
 	err := p.Get(ctx, 0)
-
-	custChan := make(chan products.Price)
-
-	go func() {
-		price, custErr := customer.GetCustomerPrice(ctx, p.ID)
-		if custErr != nil {
-			err = custErr
-		}
-		custChan <- products.Price{0, 0, "Customer", price, false, time.Now()}
-	}()
-
-	err = p.Get(ctx, 0)
 	if err != nil {
 		return nil, err
 	}
 
-	p.Pricing = append(p.Pricing, <-custChan)
+	price, err := customer.GetCustomerPrice(ctx, p.ID)
+	if err == nil {
+		custPrice := products.Price{0, 0, "Customer", price, false, time.Now()}
+		p.Pricing = append(p.Pricing, custPrice)
+	}
 
 	return p.Pricing, nil
 }

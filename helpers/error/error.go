@@ -3,6 +3,7 @@ package apierror
 import (
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -77,6 +78,9 @@ func GenerateError(msg string, err error, res http.ResponseWriter, r *http.Reque
 }
 
 func logError(e ApiErr) error {
+	if database.ErrorMongoSession == nil {
+		return errors.New("no mongo connection")
+	}
 	session := database.ErrorMongoSession.Copy()
 	c := session.DB(database.ErrorMongoDatabase).C("errors")
 
