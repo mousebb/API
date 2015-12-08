@@ -4,12 +4,13 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"github.com/curt-labs/API/models/vehicle"
 	"log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/curt-labs/API/models/vehicle"
 
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
@@ -32,12 +33,18 @@ var (
 		`baseVehicleSchema`: `CREATE TABLE BaseVehicle (ID int(11) NOT NULL AUTO_INCREMENT,AAIABaseVehicleID int(11) DEFAULT NULL,YearID int(11) NOT NULL,MakeID int(11) NOT NULL,ModelID int(11) NOT NULL,PRIMARY KEY (ID)) ENGINE=InnoDB AUTO_INCREMENT=25998 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
 		`vcdbVehicleSchema`: `CREATE TABLE vcdb_Vehicle (ID int(11) NOT NULL AUTO_INCREMENT, BaseVehicleID int(11) NOT NULL, SubModelID int(11) DEFAULT NULL, ConfigID int(11) DEFAULT NULL, AppID int(11) DEFAULT NULL, RegionID int(11) NOT NULL DEFAULT '0', PRIMARY KEY (ID)) ENGINE=InnoDB AUTO_INCREMENT=59887 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
 		`vcdbVehiclePartSchema`: `CREATE TABLE vcdb_VehiclePart ( ID int(11) NOT NULL AUTO_INCREMENT,		  VehicleID int(11) NOT NULL,		  PartNumber int(11) NOT NULL,		  PRIMARY KEY (ID)		) ENGINE=InnoDB AUTO_INCREMENT=350523 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
-		`submodelSchema`:       ` CREATE TABLE Submodel (   ID int(11) NOT NULL AUTO_INCREMENT,   AAIASubmodelID int(11) DEFAULT NULL,   SubmodelName varchar(50) NOT NULL,   PRIMARY KEY (ID) ) ENGINE=InnoDB AUTO_INCREMENT=2037 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
-		`vcdbMakeSchema`:       ` CREATE TABLE vcdb_Make (   ID int(11) NOT NULL AUTO_INCREMENT,   AAIAMakeID int(11) DEFAULT NULL,   MakeName varchar(50) NOT NULL,   PRIMARY KEY (ID) ) ENGINE=InnoDB AUTO_INCREMENT=58 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
-		`vcdbModelSchema`:      ` CREATE TABLE vcdb_Model (   ID int(11) NOT NULL AUTO_INCREMENT,   AAIAModelID int(11) DEFAULT NULL,   ModelName varchar(100) DEFAULT NULL,   VehicleTypeID int(11) NOT NULL,   PRIMARY KEY (ID) ) ENGINE=InnoDB AUTO_INCREMENT=3922 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
-		`vcdbConfigAttrSchema`: ` CREATE TABLE VehicleConfigAttribute (   ID int(11) NOT NULL AUTO_INCREMENT,   AttributeID int(11) NOT NULL,   VehicleConfigID int(11) NOT NULL,   PRIMARY KEY (ID) ) ENGINE=InnoDB AUTO_INCREMENT=64582 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
-		`configAttrSchema`:     ` CREATE TABLE ConfigAttribute (   ID int(11) NOT NULL AUTO_INCREMENT,   ConfigAttributeTypeID int(11) NOT NULL,   parentID int(11) NOT NULL,   vcdbID int(11) DEFAULT NULL,   value varchar(255) NOT NULL,   PRIMARY KEY (ID) ) ENGINE=InnoDB AUTO_INCREMENT=416 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
-		`configAttrTypeSchema`: ` CREATE TABLE ConfigAttributeType (   ID int(11) NOT NULL AUTO_INCREMENT,   name varchar(100) NOT NULL,   AcesTypeID int(11) DEFAULT NULL,   sort int(11) NOT NULL,   PRIMARY KEY (ID) ) ENGINE=InnoDB AUTO_INCREMENT=77 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`}
+		`submodelSchema`:        ` CREATE TABLE Submodel (   ID int(11) NOT NULL AUTO_INCREMENT,   AAIASubmodelID int(11) DEFAULT NULL,   SubmodelName varchar(50) NOT NULL,   PRIMARY KEY (ID) ) ENGINE=InnoDB AUTO_INCREMENT=2037 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
+		`vcdbMakeSchema`:        ` CREATE TABLE vcdb_Make (   ID int(11) NOT NULL AUTO_INCREMENT,   AAIAMakeID int(11) DEFAULT NULL,   MakeName varchar(50) NOT NULL,   PRIMARY KEY (ID) ) ENGINE=InnoDB AUTO_INCREMENT=58 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
+		`vcdbModelSchema`:       ` CREATE TABLE vcdb_Model (   ID int(11) NOT NULL AUTO_INCREMENT,   AAIAModelID int(11) DEFAULT NULL,   ModelName varchar(100) DEFAULT NULL,   VehicleTypeID int(11) NOT NULL,   PRIMARY KEY (ID) ) ENGINE=InnoDB AUTO_INCREMENT=3922 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
+		`vcdbConfigAttrSchema`:  ` CREATE TABLE VehicleConfigAttribute (   ID int(11) NOT NULL AUTO_INCREMENT,   AttributeID int(11) NOT NULL,   VehicleConfigID int(11) NOT NULL,   PRIMARY KEY (ID) ) ENGINE=InnoDB AUTO_INCREMENT=64582 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
+		`configAttrSchema`:      ` CREATE TABLE ConfigAttribute (   ID int(11) NOT NULL AUTO_INCREMENT,   ConfigAttributeTypeID int(11) NOT NULL,   parentID int(11) NOT NULL,   vcdbID int(11) DEFAULT NULL,   value varchar(255) NOT NULL,   PRIMARY KEY (ID) ) ENGINE=InnoDB AUTO_INCREMENT=416 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
+		`configAttrTypeSchema`:  ` CREATE TABLE ConfigAttributeType (   ID int(11) NOT NULL AUTO_INCREMENT,   name varchar(100) NOT NULL,   AcesTypeID int(11) DEFAULT NULL,   sort int(11) NOT NULL,   PRIMARY KEY (ID) ) ENGINE=InnoDB AUTO_INCREMENT=77 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
+		`customerPricingSchema`: `CREATE TABLE CustomerPricing (cust_price_id int(11) NOT NULL AUTO_INCREMENT,cust_id int(11) NOT NULL,partID int(11) NOT NULL,price decimal(8,2) DEFAULT NULL,isSale int(11) NOT NULL DEFAULT '0',sale_start date DEFAULT NULL,sale_end date DEFAULT NULL,PRIMARY KEY (cust_price_id)) ENGINE=InnoDB AUTO_INCREMENT=579462 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
+	}
+
+	dataInserts = map[string]string{
+		`customerPrice`: `insert into CustomerPricing(cust_id, partID, price) values(1, 11000, 123.45)`,
+	}
 )
 
 func TestMain(m *testing.M) {
@@ -59,6 +66,15 @@ func TestMain(m *testing.M) {
 
 		session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName).Insert(&p)
 
+		p = getExamplePart("110001")
+		p.Identifier = bson.NewObjectId()
+		for i := range p.Categories {
+			p.Categories[i].Identifier = bson.NewObjectId()
+		}
+		p.InstallSheet = nil
+
+		session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName).Insert(&p)
+
 		p = getExamplePart("11000")
 		p.Identifier = bson.NewObjectId()
 		for i := range p.Categories {
@@ -69,6 +85,12 @@ func TestMain(m *testing.M) {
 
 		return session.Ping() == nil
 	})
+
+	defer func() {
+		session.Close()
+		mongo.KillRemove()
+	}()
+
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -87,8 +109,20 @@ func TestMain(m *testing.M) {
 			}
 		}
 
+		for _, insert := range dataInserts {
+			_, err = db.Exec(insert)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+
 		return db.Ping() == nil
 	})
+
+	defer func() {
+		db.Close()
+		mysql.KillRemove()
+	}()
 
 	if err != nil {
 		log.Fatal(err)
@@ -96,10 +130,6 @@ func TestMain(m *testing.M) {
 
 	m.Run()
 
-	session.Close()
-	db.Close()
-	mysql.KillRemove()
-	mongo.KillRemove()
 }
 
 func TestIdentifiers(t *testing.T) {
@@ -484,6 +514,19 @@ func TestImages(t *testing.T) {
 			DB:           db,
 		}
 
+		Convey("with bad brand/part reference", func() {
+			ctx.DataContext.BrandID = 3
+			ctx.Params[0].Value = "0"
+			rec := httptest.NewRecorder()
+			req, err := http.NewRequest("GET", "http://localhost:8080/part/0/images", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp, err := Images(ctx, rec, req)
+			So(err, ShouldNotBeNil)
+			So(resp, ShouldBeNil)
+		})
+
 		Convey("with proper brand/part reference", func() {
 			ctx.DataContext.BrandID = 3
 			rec := httptest.NewRecorder()
@@ -517,6 +560,19 @@ func TestAttributes(t *testing.T) {
 			DB:           db,
 		}
 
+		Convey("with bad brand/part reference", func() {
+			ctx.DataContext.BrandID = 3
+			ctx.Params[0].Value = "0"
+			rec := httptest.NewRecorder()
+			req, err := http.NewRequest("GET", "http://localhost:8080/part/0/attributes", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp, err := Attributes(ctx, rec, req)
+			So(err, ShouldNotBeNil)
+			So(resp, ShouldBeNil)
+		})
+
 		Convey("with proper brand/part reference", func() {
 			ctx.DataContext.BrandID = 3
 			rec := httptest.NewRecorder()
@@ -549,6 +605,19 @@ func TestGetContent(t *testing.T) {
 			AriesSession: session,
 			DB:           db,
 		}
+
+		Convey("with bad brand/part reference", func() {
+			ctx.DataContext.BrandID = 3
+			ctx.Params[0].Value = "0"
+			rec := httptest.NewRecorder()
+			req, err := http.NewRequest("GET", "http://localhost:8080/part/0/content", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp, err := GetContent(ctx, rec, req)
+			So(err, ShouldNotBeNil)
+			So(resp, ShouldBeNil)
+		})
 
 		Convey("with proper brand/part reference", func() {
 			ctx.DataContext.BrandID = 3
@@ -721,6 +790,32 @@ func TestInstallSheet(t *testing.T) {
 			DB:           db,
 		}
 
+		Convey("with bad brand/part reference", func() {
+			ctx.DataContext.BrandID = 3
+			ctx.Params[0].Value = "0"
+			rec := httptest.NewRecorder()
+			req, err := http.NewRequest("GET", "http://localhost:8080/part/1042.pdf", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			InstallSheet(ctx, rec, req)
+			So(rec.Code, ShouldEqual, 500)
+		})
+
+		Convey("with no install sheet", func() {
+			ctx.DataContext.BrandID = 1
+			ctx.Params[0].Value = "110001"
+			rec := httptest.NewRecorder()
+			req, err := http.NewRequest("GET", "http://localhost:8080/part/110001.pdf", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			InstallSheet(ctx, rec, req)
+			So(rec.Code, ShouldEqual, 204)
+		})
+
 		Convey("with proper brand/part reference", func() {
 			ctx.DataContext.BrandID = 3
 			rec := httptest.NewRecorder()
@@ -792,7 +887,7 @@ func TestPrices(t *testing.T) {
 			Params: httprouter.Params{
 				httprouter.Param{
 					Key:   "part",
-					Value: "1042",
+					Value: "11000",
 				},
 			},
 			Session:      session,
@@ -814,7 +909,9 @@ func TestPrices(t *testing.T) {
 		})
 
 		Convey("with proper brand/part reference", func() {
-			ctx.DataContext.BrandID = 3
+			ctx.DataContext.BrandID = 1
+			ctx.DataContext.CustomerID = 1
+			ctx.DataContext.APIKey = "9300f7bc-2ca6-11e4-8758-42010af0fd79"
 			rec := httptest.NewRecorder()
 			req, err := http.NewRequest("GET", "http://localhost:8080/part/1042/pricing", nil)
 			if err != nil {
