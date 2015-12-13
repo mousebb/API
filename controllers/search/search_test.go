@@ -1,14 +1,15 @@
-package search_ctlr
+package searchCtlr
 
 import (
 	"encoding/json"
+	"net/http/httptest"
+	"net/url"
+	"testing"
+
 	"github.com/curt-labs/API/helpers/apicontextmock"
 	"github.com/curt-labs/API/helpers/error"
 	"github.com/curt-labs/API/helpers/httprunner"
 	. "github.com/smartystreets/goconvey/convey"
-	"net/http/httptest"
-	"net/url"
-	"testing"
 )
 
 var (

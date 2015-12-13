@@ -1,4 +1,4 @@
-package search_ctlr
+package searchCtlr
 
 import (
 	"net/http"
@@ -8,7 +8,10 @@ import (
 	"github.com/curt-labs/API/models/search"
 )
 
-func Search(ctx *middleware.APIConext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
+// Search Uses URL paramter :term to query elastic search.
+// Allows paging via query string parameters `page` and `count`.
+// Brand designation is also available via query string `brand`.
+func Search(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	terms := ctx.Params.ByName("term")
 	qs := r.URL.Query()
 	page, _ := strconv.Atoi(qs.Get("page"))

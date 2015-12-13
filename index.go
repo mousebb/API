@@ -230,29 +230,6 @@ func main() {
 	// 	r.Delete("", news_controller.Delete)        //{id}
 	// })
 
-	// m.Group("/part", func(r martini.Router) {
-	// 	r.Get("/featured", part_ctlr.Featured)
-	// 	r.Get("/latest", part_ctlr.Latest)
-	// 	r.Get("/:part/vehicles", part_ctlr.Vehicles)
-	// 	r.Get("/:part/attributes", part_ctlr.Attributes)
-	// 	r.Get("/:part/reviews", part_ctlr.ActiveApprovedReviews)
-	// 	r.Get("/:part/categories", part_ctlr.Categories)
-	// 	r.Get("/:part/content", part_ctlr.GetContent)
-	// 	r.Get("/:part/images", part_ctlr.Images)
-	// 	r.Get("/:part((.*?)\\.(PDF|pdf)$)", part_ctlr.InstallSheet)
-	// 	r.Get("/:part/packages", part_ctlr.Packaging)
-	// 	r.Get("/:part/pricing", part_ctlr.Prices)
-	// 	r.Get("/:part/related", part_ctlr.GetRelated)
-	// 	r.Get("/:part/videos", part_ctlr.Videos)
-	// 	r.Get("/:part/:year/:make/:model", part_ctlr.GetWithVehicle)
-	// 	r.Get("/:part/:year/:make/:model/:submodel", part_ctlr.GetWithVehicle)
-	// 	r.Get("/:part/:year/:make/:model/:submodel/:config(.+)", part_ctlr.GetWithVehicle)
-	// 	r.Get("/id/:part", part_ctlr.Get)
-	// 	r.Get("/identifiers", part_ctlr.Identifiers)
-	// 	r.Get("/:part", part_ctlr.PartNumber)
-	// 	r.Get("", part_ctlr.All)
-	// })
-
 	// m.Group("/salesrep", func(r martini.Router) {
 	// 	r.Get("", salesrep.GetAllSalesReps)
 	// 	r.Post("", salesrep.AddSalesRep)
