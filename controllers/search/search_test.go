@@ -2,36 +2,136 @@ package searchCtlr
 
 import (
 	"encoding/json"
+	"fmt"
+	"log"
+	"net/http"
 	"net/http/httptest"
-	"net/url"
+	"os"
+	"strings"
 	"testing"
+	"time"
 
-	"github.com/curt-labs/API/helpers/apicontextmock"
-	"github.com/curt-labs/API/helpers/error"
-	"github.com/curt-labs/API/helpers/httprunner"
+	"github.com/curt-labs/API/middleware"
+	"github.com/curt-labs/API/models/category"
+	"github.com/curt-labs/API/models/products"
+	"github.com/julienschmidt/httprouter"
+	"github.com/mattbaird/elastigo/lib"
+	"github.com/ninnemana/dockertest"
 	. "github.com/smartystreets/goconvey/convey"
 )
 
 var (
-	response httptest.ResponseRecorder
+	conn *elastigo.Conn
 )
 
-func TestSearch(t *testing.T) {
-	dtx, err := apicontextmock.Mock()
+func TestMain(m *testing.M) {
+
+	es, err := dockertest.ConnectToElasticSearch(15, time.Second, func(url string) bool {
+		conn = elastigo.NewConn()
+
+		segs := strings.Split(url, ":")
+		if len(segs) != 2 {
+			log.Fatalf("ElasticSearch connection failed, with address '%s'.", url)
+		}
+
+		conn.Domain = segs[0]
+		conn.Port = segs[1]
+
+		os.Setenv("ELASTIC_HOST", conn.Domain)
+		os.Setenv("ELASTIC_PORT", conn.Port)
+
+		cat := getExampleCategory("1")
+		conn.Index("mongo_all", "category", "1", nil, cat)
+		conn.Index("mongo_curt", "category", "1", nil, cat)
+
+		part := getExamplePart("1042")
+		conn.Index("mongo_all", "part", "1042", nil, part)
+		conn.Index("mongo_aries", "part", "1042", nil, part)
+
+		return true
+	})
+
+	defer func() {
+		os.Clearenv()
+		conn.Close()
+		es.KillRemove()
+	}()
+
 	if err != nil {
-		t.Log(err)
+		log.Fatal(err)
 	}
 
-	qs := make(url.Values, 0)
-	qs.Add("key", dtx.APIKey)
+	m.Run()
 
-	Convey("Testing Search with empty term", t, func() {
-		response = httprunner.Req(Search, "GET", "/search", "/search", &qs)
-		So(response.Code, ShouldEqual, 500)
-		So(json.Unmarshal(response.Body.Bytes(), &apierror.ApiErr{}), ShouldBeNil)
+}
+
+func TestSearch(t *testing.T) {
+	Convey("Testing Search", t, func() {
+		ctx := &middleware.APIContext{
+			DataContext: &middleware.DataContext{
+				BrandID: 3,
+			},
+			Params: httprouter.Params{
+				httprouter.Param{
+					Key:   "term",
+					Value: "1042",
+				},
+			},
+		}
+
+		Convey("with bad brand/part reference", func() {
+			ctx.DataContext.BrandID = 3
+			ctx.Params[0].Value = "0"
+			rec := httptest.NewRecorder()
+			req, err := http.NewRequest("GET", "http://localhost:8080/search/1042", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp, err := Search(ctx, rec, req)
+			So(err, ShouldNotBeNil)
+			So(resp, ShouldBeNil)
+		})
+
+		Convey("with good search reference", func() {
+			ctx.DataContext.BrandID = 3
+			ctx.DataContext.BrandArray = []int{1, 3}
+			ctx.Params[0].Value = "1042"
+			rec := httptest.NewRecorder()
+			req, err := http.NewRequest("GET", "http://localhost:8080/search/1042", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp, err := Search(ctx, rec, req)
+			So(err, ShouldBeNil)
+			So(resp, ShouldNotBeNil)
+		})
 	})
-	Convey("Testing Search with `Hitch`", t, func() {
-		response = httprunner.Req(Search, "GET", "/search/:term", "/search/Hitch", &qs)
-		So(response.Code, ShouldEqual, 200)
-	})
+}
+
+func getExampleCategory(cat string) category.Category {
+	u := fmt.Sprintf("http://api.curtmfg.com/v3/category/%s?key=9300f7bc-2ca6-11e4-8758-42010af0fd79", cat)
+	resp, err := http.Get(u)
+	if err != nil {
+		return category.Category{}
+	}
+	defer resp.Body.Close()
+
+	var c category.Category
+	json.NewDecoder(resp.Body).Decode(&c)
+
+	return c
+}
+
+func getExamplePart(part string) products.Part {
+	u := fmt.Sprintf("http://api.curtmfg.com/v3/part/%s?key=9300f7bc-2ca6-11e4-8758-42010af0fd79", part)
+	resp, err := http.Get(u)
+	if err != nil {
+		return products.Part{}
+	}
+	defer resp.Body.Close()
+
+	var p products.Part
+	json.NewDecoder(resp.Body).Decode(&p)
+
+	return p
 }
