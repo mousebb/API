@@ -132,59 +132,59 @@ func (b *Brand) Get(db *sql.DB) error {
 	return nil
 }
 
-func (b *Brand) Create(db *sql.DB) error {
-	if b.Name == "" {
-		return errors.New("Brand must have a name.")
-	}
-	if b.Code == "" {
-		return errors.New("Brand must have a code.")
-	}
-
-	stmt, err := db.Prepare(insertBrandStmt)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
-	res, err := stmt.Exec(b.Name, b.Code, b.Logo, b.LogoAlternate, b.FormalName, b.LongName, b.PrimaryColor, b.AutocareID)
-	if err != nil {
-		return err
-	}
-
-	id, err := res.LastInsertId()
-	b.ID = int(id)
-	return err
-}
-
-func (b *Brand) Update(db *sql.DB) error {
-	if b.Name == "" {
-		return errors.New("Brand must have a name.")
-	}
-	if b.Code == "" {
-		return errors.New("Brand must have a code.")
-	}
-
-	stmt, err := db.Prepare(updateBrandStmt)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
-	_, err = stmt.Exec(b.Name, b.Code, b.Logo, b.LogoAlternate, b.FormalName, b.LongName, b.PrimaryColor, b.AutocareID, b.ID)
-	return err
-}
-
-func (b *Brand) Delete(db *sql.DB) error {
-
-	stmt, err := db.Prepare(deleteBrandStmt)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
-	_, err = stmt.Exec(b.ID)
-	return err
-}
+// func (b *Brand) Create(db *sql.DB) error {
+// 	if b.Name == "" {
+// 		return errors.New("Brand must have a name.")
+// 	}
+// 	if b.Code == "" {
+// 		return errors.New("Brand must have a code.")
+// 	}
+//
+// 	stmt, err := db.Prepare(insertBrandStmt)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	defer stmt.Close()
+//
+// 	res, err := stmt.Exec(b.Name, b.Code, b.Logo, b.LogoAlternate, b.FormalName, b.LongName, b.PrimaryColor, b.AutocareID)
+// 	if err != nil {
+// 		return err
+// 	}
+//
+// 	id, err := res.LastInsertId()
+// 	b.ID = int(id)
+// 	return err
+// }
+//
+// func (b *Brand) Update(db *sql.DB) error {
+// 	if b.Name == "" {
+// 		return errors.New("Brand must have a name.")
+// 	}
+// 	if b.Code == "" {
+// 		return errors.New("Brand must have a code.")
+// 	}
+//
+// 	stmt, err := db.Prepare(updateBrandStmt)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	defer stmt.Close()
+//
+// 	_, err = stmt.Exec(b.Name, b.Code, b.Logo, b.LogoAlternate, b.FormalName, b.LongName, b.PrimaryColor, b.AutocareID, b.ID)
+// 	return err
+// }
+//
+// func (b *Brand) Delete(db *sql.DB) error {
+//
+// 	stmt, err := db.Prepare(deleteBrandStmt)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	defer stmt.Close()
+//
+// 	_, err = stmt.Exec(b.ID)
+// 	return err
+// }
 
 func getWebsites(brandID int, db *sql.DB) ([]Website, error) {
 	sites := make([]Website, 0)

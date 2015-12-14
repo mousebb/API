@@ -2,83 +2,162 @@ package brandCtlr
 
 import (
 	// "bytes"
-	"encoding/json"
-	"net/url"
+	"database/sql"
+	"fmt"
+	"log"
+	"net/http"
+	"net/http/httptest"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/curt-labs/API/helpers/testThatHttp"
+	"github.com/curt-labs/API/middleware"
 	"github.com/curt-labs/API/models/brand"
+	"github.com/julienschmidt/httprouter"
+	"github.com/ory-am/dockertest"
 	. "github.com/smartystreets/goconvey/convey"
 )
 
-func TestBrand(t *testing.T) {
-	var b brand.Brand
-	var err error
-	Convey("Testing Brand", t, func() {
-		//test create
-		form := url.Values{"name": {"RonCo"}, "code": {"RONCO"}}
-		v := form.Encode()
-		body := strings.NewReader(v)
+var (
+	db *sql.DB
 
-		thyme := time.Now()
-		testThatHttp.Request("post", "/brand", "", "", CreateBrand, body, "application/x-www-form-urlencoded")
-		err = json.Unmarshal(testThatHttp.Response.Body.Bytes(), &b)
+	schemas = map[string]string{
+		`brandSchema`:           `CREATE TABLE Brand (ID int(11) NOT NULL AUTO_INCREMENT,name varchar(255) NOT NULL,code varchar(255) NOT NULL,logo varchar(255) DEFAULT NULL,logoAlt varchar(255) DEFAULT NULL,formalName varchar(255) DEFAULT NULL,longName varchar(255) DEFAULT NULL,primaryColor varchar(10) DEFAULT NULL,autocareID varchar(4) DEFAULT NULL,PRIMARY KEY (ID)) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
+		`customerToBrandSchema`: `CREATE TABLE CustomerToBrand (ID int(11) NOT NULL AUTO_INCREMENT,cust_id int(11) NOT NULL,brandID int(11) NOT NULL,PRIMARY KEY (ID)) ENGINE=InnoDB AUTO_INCREMENT=54486 DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT`,
+		`websiteToBrandSchema`:  `CREATE TABLE WebsiteToBrand (ID int(11) NOT NULL AUTO_INCREMENT,WebsiteID int(11) NOT NULL,brandID int(11) NOT NULL,PRIMARY KEY (ID)) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT`,
+		`customerSchema`:        `CREATE TABLE Customer (cust_id int(11) NOT NULL AUTO_INCREMENT,name varchar(255) DEFAULT NULL,email varchar(255) DEFAULT NULL,address varchar(500) DEFAULT NULL,city varchar(150) DEFAULT NULL,stateID int(11) DEFAULT NULL,phone varchar(50) DEFAULT NULL,fax varchar(50) DEFAULT NULL,contact_person varchar(300) DEFAULT NULL,dealer_type int(11) NOT NULL,latitude varchar(200) DEFAULT NULL,longitude varchar(200) DEFAULT NULL,password varchar(255) DEFAULT NULL,website varchar(500) DEFAULT NULL,customerID int(11) DEFAULT NULL,isDummy tinyint(1) NOT NULL DEFAULT '0',parentID int(11) DEFAULT NULL,searchURL varchar(500) DEFAULT NULL,eLocalURL varchar(500) DEFAULT NULL,logo varchar(500) DEFAULT NULL,address2 varchar(500) DEFAULT NULL,postal_code varchar(25) DEFAULT NULL,mCodeID int(11) NOT NULL DEFAULT '1',salesRepID int(11) DEFAULT NULL,APIKey varchar(64) DEFAULT NULL,tier int(11) NOT NULL DEFAULT '1',showWebsite tinyint(1) NOT NULL DEFAULT '0',PRIMARY KEY (cust_id)) ENGINE=InnoDB AUTO_INCREMENT=10444525 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
+	}
 
-		So(time.Since(thyme).Nanoseconds(), ShouldBeLessThan, time.Second.Nanoseconds()/2)
-		So(err, ShouldBeNil)
-		So(testThatHttp.Response.Code, ShouldEqual, 200)
-		So(b, ShouldHaveSameTypeAs, brand.Brand{})
+	dataInserts = map[string]string{
+		`insertBrand`: `insert into Brand(name, code, logo, logoAlt, formalName, longName, primaryColor, autocareID) values ('test brand', 'code','123','345','formal brand','long name','ffffff','auto')`,
+	}
+)
 
-		//test update
-		form = url.Values{"code": {"RONCOandFriends"}}
-		v = form.Encode()
-		body = strings.NewReader(v)
-		thyme = time.Now()
-		testThatHttp.Request("put", "/brand/", ":id", strconv.Itoa(b.ID), UpdateBrand, body, "application/x-www-form-urlencoded")
-		err = json.Unmarshal(testThatHttp.Response.Body.Bytes(), &b)
+func TestMain(m *testing.M) {
 
-		So(time.Since(thyme).Nanoseconds(), ShouldBeLessThan, time.Second.Nanoseconds()/2)
-		So(err, ShouldBeNil)
-		So(testThatHttp.Response.Code, ShouldEqual, 200)
-		So(b, ShouldHaveSameTypeAs, brand.Brand{})
+	mysql, err := dockertest.ConnectToMySQL(15, time.Second*5, func(url string) bool {
+		var err error
+		db, err = sql.Open("mysql", url)
+		if err != nil {
+			log.Fatalf("MySQL connection failed, with address '%s'.", url)
+		}
 
-		//test get
-		thyme = time.Now()
-		testThatHttp.Request("get", "/brand/", ":id", strconv.Itoa(b.ID), GetBrand, nil, "")
-		err = json.Unmarshal(testThatHttp.Response.Body.Bytes(), &b)
+		for _, schema := range schemas {
+			_, err = db.Exec(schema)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
 
-		So(time.Since(thyme).Nanoseconds(), ShouldBeLessThan, time.Second.Nanoseconds()/2)
-		So(err, ShouldBeNil)
-		So(testThatHttp.Response.Code, ShouldEqual, 200)
-		So(b, ShouldHaveSameTypeAs, brand.Brand{})
+		for _, insert := range dataInserts {
+			_, err = db.Exec(insert)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
 
-		//test get all
-		thyme = time.Now()
-		testThatHttp.Request("get", "/brand", "", "", GetAllBrands, nil, "")
-		var bs brand.Brands
-		err = json.Unmarshal(testThatHttp.Response.Body.Bytes(), &bs)
+		return db.Ping() == nil
+	})
 
-		So(time.Since(thyme).Nanoseconds(), ShouldBeLessThan, time.Second.Nanoseconds()/2)
-		So(err, ShouldBeNil)
-		So(testThatHttp.Response.Code, ShouldEqual, 200)
-		So(bs, ShouldHaveSameTypeAs, brand.Brands{})
+	defer func() {
+		db.Close()
+		mysql.KillRemove()
+	}()
 
-		//test delete
-		thyme = time.Now()
-		testThatHttp.Request("delete", "/brand/", ":id", strconv.Itoa(b.ID), DeleteBrand, nil, "")
-		err = json.Unmarshal(testThatHttp.Response.Body.Bytes(), &b)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-		So(time.Since(thyme).Nanoseconds(), ShouldBeLessThan, time.Second.Nanoseconds()/2)
-		So(err, ShouldBeNil)
-		So(testThatHttp.Response.Code, ShouldEqual, 200)
-		So(b, ShouldHaveSameTypeAs, brand.Brand{})
+	m.Run()
+
+}
+
+func TestGetAllBrands(t *testing.T) {
+
+	Convey("Testing GetAllBrands", t, func() {
+		ctx := &middleware.APIContext{
+			DataContext: &middleware.DataContext{
+				BrandID: 3,
+			},
+			Params: httprouter.Params{},
+			DB:     db,
+		}
+
+		Convey("with valid db connection", func() {
+			rec := httptest.NewRecorder()
+			req, err := http.NewRequest("GET", "http://localhost:8080/brands", nil)
+			So(err, ShouldBeNil)
+
+			resp, err := GetAllBrands(ctx, rec, req)
+			So(err, ShouldBeNil)
+			So(resp, ShouldHaveSameTypeAs, brand.Brands{})
+		})
+
+	})
+}
+
+func TestGetBrand(t *testing.T) {
+
+	Convey("Testing GetBrand", t, func() {
+		ctx := &middleware.APIContext{
+			DataContext: &middleware.DataContext{
+				BrandID: 3,
+			},
+			Params: httprouter.Params{},
+			DB:     db,
+		}
+
+		Convey("with invalid brand", func() {
+			ctx.Params = httprouter.Params{
+				httprouter.Param{
+					Key:   "id",
+					Value: "a",
+				},
+			}
+			rec := httptest.NewRecorder()
+			req, err := http.NewRequest("GET", "http://localhost:8080/brands/1", nil)
+			So(err, ShouldBeNil)
+
+			resp, err := GetBrand(ctx, rec, req)
+			So(err, ShouldNotBeNil)
+			So(resp, ShouldBeNil)
+		})
+
+		Convey("with valid brand", func() {
+
+			ctx.Params = httprouter.Params{
+				httprouter.Param{
+					Key:   "id",
+					Value: "1",
+				},
+			}
+			recA := httptest.NewRecorder()
+			reqA, err := http.NewRequest("GET", "http://localhost:8080/brands", nil)
+			So(err, ShouldBeNil)
+
+			resp, err := GetAllBrands(ctx, recA, reqA)
+			So(err, ShouldBeNil)
+
+			id := resp.(brand.Brands)[0].ID
+			rec := httptest.NewRecorder()
+			req, err := http.NewRequest("GET", fmt.Sprintf("http://localhost:8080/brands/%d", id), nil)
+			So(err, ShouldBeNil)
+
+			ctx.Params = httprouter.Params{
+				httprouter.Param{
+					Key:   "id",
+					Value: strconv.Itoa(id),
+				},
+			}
+
+			resp, err = GetBrand(ctx, rec, req)
+			So(err, ShouldBeNil)
+			So(resp, ShouldHaveSameTypeAs, brand.Brand{})
+		})
+
 	})
 }
 
 func BenchmarkBrands(b *testing.B) {
-	testThatHttp.RequestBenchmark(b.N, "GET", "/brand/1", nil, GetBrand)
-	testThatHttp.RequestBenchmark(b.N, "GET", "/brand", nil, GetAllBrands)
+
 }

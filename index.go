@@ -31,19 +31,6 @@ func main() {
 
 	r := router.New()
 
-	// m.Use(middleware.Meddler())
-	// m.Use(cors.Allow(&cors.Options{
-	// 	AllowOrigins:     []string{"*"},
-	// 	AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-	// 	AllowHeaders:     []string{"Content-Type", "Accept", "Access-Control-Allow-Origin", "Authorization"},
-	// 	ExposeHeaders:    []string{"Content-Type", "Accept", "Access-Control-Allow-Origin", "Authorization"},
-	// 	AllowCredentials: false,
-	// }))
-
-	// store := sessions.NewCookieStore([]byte("api_secret_session"))
-	// m.Use(sessions.Sessions("api_sessions", store))
-	// m.Use(encoding.MapEncoder)
-
 	// m.Group("/applicationGuide", func(r martini.Router) {
 	// 	r.Delete("/:id", applicationGuide.DeleteApplicationGuide)
 	// 	r.Post("", applicationGuide.CreateApplicationGuide)
@@ -237,8 +224,6 @@ func main() {
 	// 	r.Put("/:id", salesrep.UpdateSalesRep)
 	// 	r.Delete("/:id", salesrep.DeleteSalesRep)
 	// })
-
-	// m.Get("/search/:term", search_ctlr.Search)
 
 	// m.Group("/site", func(r martini.Router) {
 	// 	m.Group("/menu", func(r martini.Router) {
