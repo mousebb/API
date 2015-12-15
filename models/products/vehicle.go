@@ -354,6 +354,6 @@ func (i *VehicleInquiry) SendEmail(ctx *middleware.APIContext) error {
 	}
 
 	// Send Email
-	return contact.SendEmail(ct, "Email from VehicleInquiry Request Form", body, ctx) //contact type id, subject, techSupport
+	return contact.SendEmail(ctx, ct, "Email from VehicleInquiry Request Form", body) //contact type id, subject, techSupport
 
 }

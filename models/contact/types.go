@@ -2,10 +2,7 @@ package contact
 
 import (
 	"errors"
-	"strings"
-
 	"github.com/curt-labs/API/middleware"
-	_ "github.com/go-sql-driver/mysql"
 )
 
 var (
@@ -14,16 +11,12 @@ var (
 		join ApiKey as ak on ak.id = akb.keyID
 		where ak.api_key = ? && (ct.brandID = ? or 0 = ?)`
 	getContactTypeStmt    = `select contactTypeID, name, showOnWebsite from ContactType where contactTypeID = ?`
-	addContactTypeStmt    = `insert into ContactType(name,showOnWebsite, brandID) values (?,?,?)`
-	updateContactTypeStmt = `update ContactType set name = ?, showOnWebsite = ?, brandID = ? where contactTypeID = ?`
-	deleteContactTypeStmt = `delete from ContactType where contactTypeID = ?`
 	getReceiverByType     = `select cr.contactReceiverID, cr.first_name, cr.last_name, cr.email from ContactReceiver_ContactType as crct
 								left join ContactReceiver as cr on crct.contactReceiverID = cr.contactReceiverID
 								where crct.contactTypeID = ?`
 	getTypeNameFromId = `select name from ContactType where contactTypeID = ?`
 )
 
-type ContactTypes []ContactType
 type ContactType struct {
 	ID            int    `json:"id" xml:"id"`
 	Name          string `json:"name" xml: "name"`
@@ -31,7 +24,7 @@ type ContactType struct {
 	BrandID       int    `json:"brandId" xml:"brandId"`
 }
 
-func GetAllContactTypes(ctx *middleware.APIContext) (types ContactTypes, err error) {
+func GetAllContactTypes(ctx *middleware.APIContext) (types []ContactType, err error) {
 
 	stmt, err := ctx.DB.Prepare(getAllContactTypesStmt)
 	if err != nil {
@@ -44,6 +37,7 @@ func GetAllContactTypes(ctx *middleware.APIContext) (types ContactTypes, err err
 		return
 	}
 	defer rows.Close()
+
 	for rows.Next() {
 		var ct ContactType
 		err = rows.Scan(
@@ -62,65 +56,38 @@ func GetAllContactTypes(ctx *middleware.APIContext) (types ContactTypes, err err
 
 func (ct *ContactType) Get(ctx *middleware.APIContext) error {
 	if ct.ID == 0 {
-		return errors.New("invalid type identifier")
+		return errors.New("invalid ContactType identifier")
 	}
 
-	stmt, err := ctx.DB.Prepare(getContactTypeStmt)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
+		stmt, err := ctx.DB.Prepare(getContactTypeStmt)
+		if err != nil {
+			return err
+		}
+		defer stmt.Close()
 
-	return stmt.QueryRow(ct.ID).Scan(
-		&ct.ID,
-		&ct.Name,
-		&ct.ShowOnWebsite,
-	)
+		return stmt.QueryRow(ct.ID).Scan(
+			&ct.ID,
+			&ct.Name,
+			&ct.ShowOnWebsite,
+		)
 }
 
-func GetContactTypeNameFromId(id int, ctx *middleware.APIContext) (string, error) {
+func GetContactTypeNameFromId(ctx *middleware.APIContext, id int) (string, error) {
+	var err error
 	var name string
 
 	stmt, err := ctx.DB.Prepare(getTypeNameFromId)
 	if err != nil {
-		return "", err
+		return name, err
 	}
 	defer stmt.Close()
 
 	err = stmt.QueryRow(id).Scan(&name)
-	if err != nil {
-		return "", err
-	}
 
-	return name, nil
+	return name, err
 }
 
-func (ct *ContactType) Add(ctx *middleware.APIContext) error {
-	if strings.TrimSpace(ct.Name) == "" {
-		return errors.New("Invalid contact name.")
-	}
-
-	stmt, err := ctx.DB.Prepare(addContactTypeStmt)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
-	res, err := stmt.Exec(ct.Name, ct.ShowOnWebsite, ct.BrandID)
-	if err != nil {
-		return err
-	}
-
-	if id, err := res.LastInsertId(); err != nil {
-		return err
-	} else {
-		ct.ID = int(id)
-	}
-
-	return nil
-}
-
-func (ct *ContactType) GetReceivers(ctx *middleware.APIContext) (crs ContactReceivers, err error) {
+func (ct *ContactType) GetReceivers(ctx *middleware.APIContext) (crs []ContactReceiver, err error) {
 
 	stmt, err := ctx.DB.Prepare(getReceiverByType)
 	if err != nil {
@@ -133,7 +100,6 @@ func (ct *ContactType) GetReceivers(ctx *middleware.APIContext) (crs ContactRece
 	if err != nil {
 		return crs, err
 	}
-	defer res.Close()
 
 	for res.Next() {
 		err = res.Scan(
@@ -147,41 +113,7 @@ func (ct *ContactType) GetReceivers(ctx *middleware.APIContext) (crs ContactRece
 		}
 		crs = append(crs, cr)
 	}
+	defer res.Close()
 
-	return crs, nil
-}
-
-func (ct *ContactType) Update(ctx *middleware.APIContext) error {
-	if ct.ID == 0 {
-		return errors.New("Invalid ContactType ID")
-	}
-	if strings.TrimSpace(ct.Name) == "" {
-		return errors.New("Invalid contact name.")
-	}
-
-	stmt, err := ctx.DB.Prepare(updateContactTypeStmt)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
-	_, err = stmt.Exec(ct.Name, ct.ShowOnWebsite, ct.BrandID, ct.ID)
-
-	return err
-}
-
-func (ct *ContactType) Delete(ctx *middleware.APIContext) error {
-	if ct.ID == 0 {
-		return errors.New("invalid type identifier")
-	}
-
-	stmt, err := ctx.DB.Prepare(deleteContactTypeStmt)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
-	_, err = stmt.Exec(ct.ID)
-
-	return err
+	return crs, err
 }
