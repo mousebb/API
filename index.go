@@ -142,39 +142,6 @@ func main() {
 	// })
 
 
-	// m.Group("/webProperties", func(r martini.Router) {
-	// 	r.Post("/json/type", webProperty_controller.CreateUpdateWebPropertyType)
-	// 	r.Post("/json/type/:id", webProperty_controller.CreateUpdateWebPropertyType)
-	// 	r.Post("/json/requirement", webProperty_controller.CreateUpdateWebPropertyRequirement)
-	// 	r.Post("/json/requirement/:id", webProperty_controller.CreateUpdateWebPropertyRequirement)
-	// 	r.Post("/json/note", webProperty_controller.CreateUpdateWebPropertyNote)
-	// 	r.Post("/json/note/:id", webProperty_controller.CreateUpdateWebPropertyNote)
-	// 	r.Post("/json/:id", webProperty_controller.CreateUpdateWebProperty)
-	// 	r.Put("/json", webProperty_controller.CreateUpdateWebProperty)
-	// 	r.Post("/note/:id", webProperty_controller.CreateUpdateWebPropertyNote)               //updates when an id is present; otherwise, creates
-	// 	r.Put("/note", webProperty_controller.CreateUpdateWebPropertyNote)                    //updates when an id is present; otherwise, creates
-	// 	r.Delete("/note/:id", webProperty_controller.DeleteWebPropertyNote)                   //{id}
-	// 	r.Get("/note/:id", webProperty_controller.GetWebPropertyNote)                         //{id}
-	// 	r.Post("/type/:id", webProperty_controller.CreateUpdateWebPropertyType)               //updates when an id is present; otherwise, creates
-	// 	r.Put("/type", webProperty_controller.CreateUpdateWebPropertyType)                    //updates when an id is present; otherwise, creates
-	// 	r.Delete("/type/:id", webProperty_controller.DeleteWebPropertyType)                   //{id}
-	// 	r.Get("/type/:id", webProperty_controller.GetWebPropertyType)                         //{id}
-	// 	r.Post("/requirement/:id", webProperty_controller.CreateUpdateWebPropertyRequirement) //updates when an id is present; otherwise, creates
-	// 	r.Put("/requirement", webProperty_controller.CreateUpdateWebPropertyRequirement)      //updates when an id is present; otherwise, creates
-	// 	r.Delete("/requirement/:id", webProperty_controller.DeleteWebPropertyRequirement)     //{id}
-	// 	r.Get("/requirement/:id", webProperty_controller.GetWebPropertyRequirement)           //{id}
-	// 	r.Get("/search", webProperty_controller.Search)
-	// 	r.Get("/type", webProperty_controller.GetAllTypes)
-	// 	r.Get("/note", webProperty_controller.GetAllNotes)
-	// 	r.Get("/requirement", webProperty_controller.GetAllRequirements)
-	// 	r.Get("/customer", webProperty_controller.GetByPrivateKey)
-	// 	r.Get("", webProperty_controller.GetAll)
-	// 	r.Get("/:id", webProperty_controller.Get)                      //?id=id
-	// 	r.Delete("/:id", webProperty_controller.DeleteWebProperty)     //{id}
-	// 	r.Post("/:id", webProperty_controller.CreateUpdateWebProperty) //
-	// 	r.Put("", webProperty_controller.CreateUpdateWebProperty)      //can create notes(text) and requirements (requirement, by requirement=requirementID) while creating a property
-	// })
-	//
 	// // ARIES Year/Make/Model/Style
 	// m.Post("/vehicle", vehicle.Query)
 	// m.Post("/findVehicle", vehicle.GetVehicle)

@@ -20,7 +20,10 @@ func GetApplicationGuide(ctx *middleware.APIContext, rw http.ResponseWriter, req
 	}
 
 	err = ag.Get(ctx)
-	if err != nil {
+	if err != nil || ag.ID == 0 {
+		if ag.ID == 0 {
+			err = fmt.Errorf("failed to find the application guide using the identifer %s", ctx.Params.ByName("id"))
+		}
 		return nil, err
 	}
 

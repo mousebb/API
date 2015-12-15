@@ -10,8 +10,8 @@ import (
 
 type ApplicationGuide struct {
 	ID       int               `json:"id,omitempty" xml:"id,omitempty"`
-	Url      string            `json:"url,omitempty" xml:"url,omitempty"`
-	Website  site.Website      `json:"website,omitempty" xml:"website,omitempty"`
+	URL      string            `json:"url,omitempty" xml:"url,omitempty"`
+	Website  website.Website   `json:"website,omitempty" xml:"website,omitempty"`
 	FileType string            `json:"fileType,omitempty" xml:"fileType,omitempty"`
 	Category products.Category `json:"category,omitempty" xml:"category,omitempty"`
 	Icon     string            `json:"icon,omitempty" xml:"icon,omitempty"`
@@ -22,9 +22,7 @@ const (
 )
 
 var (
-	createApplicationGuide = `insert into ApplicationGuides (url, websiteID, fileType, catID, icon, brandID) values (?,?,?,?,?,?)`
-	deleteApplicationGuide = `delete from ApplicationGuides where ID = ?`
-	getApplicationGuide    = `select ag.ID, ` + fields + `, c.catTitle from ApplicationGuides as ag
+	getApplicationGuide = `select ag.ID, ` + fields + `, c.catTitle from ApplicationGuides as ag
 										left join Categories as c on c.catID = ag.catID
 										Join ApiKeyToBrand as akb on akb.brandID = ag.brandID
 										Join ApiKey as ak on akb.keyID = ak.id
@@ -79,40 +77,6 @@ func (ag *ApplicationGuide) GetBySite(ctx *middleware.APIContext) (ags []Applica
 	return
 }
 
-func (ag *ApplicationGuide) Create(ctx *middleware.APIContext) (err error) {
-
-	stmt, err := ctx.DB.Prepare(createApplicationGuide)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
-	res, err := stmt.Exec(ag.Url, ag.Website.ID, ag.FileType, ag.Category.CategoryID, ag.Icon, ctx.DataContext.BrandID)
-	if err != nil {
-		return err
-	}
-
-	id, err := res.LastInsertId()
-	if err != nil {
-		return err
-	}
-
-	ag.ID = int(id)
-	return
-}
-func (ag *ApplicationGuide) Delete(ctx *middleware.APIContext) (err error) {
-
-	stmt, err := ctx.DB.Prepare(deleteApplicationGuide)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
-	_, err = stmt.Exec(ag.ID)
-
-	return err
-}
-
 func populateApplicationGuide(row *sql.Row, ch chan ApplicationGuide) {
 	var ag ApplicationGuide
 	var catID *int
@@ -120,7 +84,7 @@ func populateApplicationGuide(row *sql.Row, ch chan ApplicationGuide) {
 	var catName *string
 	err := row.Scan(
 		&ag.ID,
-		&ag.Url,
+		&ag.URL,
 		&ag.Website.ID,
 		&ag.FileType,
 		&catID,
@@ -152,7 +116,7 @@ func populateApplicationGuides(rows *sql.Rows, ch chan []ApplicationGuide) {
 	for rows.Next() {
 		err := rows.Scan(
 			&ag.ID,
-			&ag.Url,
+			&ag.URL,
 			&ag.Website.ID,
 			&ag.FileType,
 			&catID,
