@@ -16,7 +16,7 @@ import (
 	"github.com/curt-labs/API/models/products"
 	"github.com/julienschmidt/httprouter"
 	"github.com/mattbaird/elastigo/lib"
-	"github.com/ninnemana/dockertest"
+	"github.com/ory-am/dockertest"
 	. "github.com/smartystreets/goconvey/convey"
 )
 
