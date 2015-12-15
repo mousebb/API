@@ -97,7 +97,6 @@ func main() {
 	// 	r.Get("/pricesByCustomer/:id", customer_ctlr.GetPriceByCustomer) //{id} refers to customerId; returns CustomerPrices
 	//
 	// 	r.Post("/:id", customer_ctlr.SaveCustomer)
-	// 	r.Delete("/:id", customer_ctlr.DeleteCustomer)
 	// 	r.Put("", customer_ctlr.SaveCustomer)
 	// })
 
@@ -140,7 +139,6 @@ func main() {
 	// 	r.Put("/:id", testimonials.Save)
 	// 	r.Delete("/:id", testimonials.Delete)
 	// })
-
 
 	// // ARIES Year/Make/Model/Style
 	// m.Post("/vehicle", vehicle.Query)

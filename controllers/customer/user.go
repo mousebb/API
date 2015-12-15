@@ -1,4 +1,4 @@
-package customer_ctlr
+package customerCtlr
 
 import (
 	"github.com/curt-labs/API/helpers/apicontext"
@@ -137,7 +137,7 @@ func ResetPassword(rw http.ResponseWriter, r *http.Request, enc encoding.Encoder
 
 	//email
 	subject := "Your Password Has Been Reset"
-	body := `<p>Here is your new password for the ` + site + ` site.</p> 
+	body := `<p>Here is your new password for the ` + site + ` site.</p>
 	<p>Password: ` + resp + `</p><p> If you did not request this password, please contact <a href="mailto:websupport@curtmfg.com">Web Support</a></p>
 	<p>Thanks, </p>
 	<p>The Ecommerce Developer Team</P>`

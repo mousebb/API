@@ -1,8 +1,9 @@
-package customer_ctlr
+package customerCtlr
 
 import (
 	"bytes"
 	"encoding/json"
+
 	"github.com/curt-labs/API/helpers/apicontext"
 	"github.com/curt-labs/API/helpers/apicontextmock"
 	"github.com/curt-labs/API/helpers/httprunner"

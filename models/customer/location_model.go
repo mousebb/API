@@ -7,9 +7,25 @@ import (
 	"github.com/curt-labs/API/helpers/conversions"
 	"github.com/curt-labs/API/helpers/redis"
 	"github.com/curt-labs/API/middleware"
+	"github.com/curt-labs/API/models/geography"
 )
 
-type CustomerLocations []CustomerLocation
+type CustomerLocation struct {
+	Id              int             `json:"id,omitempty" xml:"id,omitempty"`
+	Name            string          `json:"name,omitempty" xml:"name,omitempty"`
+	Email           string          `json:"email,omitempty" xml:"email,omitempty"`
+	Address         string          `json:"address,omitempty" xml:"address,omitempty"`
+	City            string          `json:"city,omitempty" xml:"city,omitempty"`
+	PostalCode      string          `json:"postalCode,omitempty" xml:"postalCode,omitempty"`
+	State           geography.State `json:"state,omitempty" xml:"state,omitempty"`
+	Phone           string          `json:"phone,omitempty" xml:"phone,omitempty"`
+	Fax             string          `json:"fax,omitempty" xml:"fax,omitempty"`
+	Coordinates     Coordinates     `json:"coords,omitempty" xml:"coords,omitempty"`
+	CustomerId      int             `json:"customerId,omitempty" xml:"customerId,omitempty"`
+	ContactPerson   string          `json:"contactPerson,omitempty" xml:"contactPerson,omitempty"`
+	IsPrimary       bool            `json:"isPrimary,omitempty" xml:"isPrimary,omitempty"`
+	ShippingDefault bool            `json:"shippingDefault,omitempty" xml:"shippingDefault,omitempty"`
+}
 
 var (
 	getLocation  = "SELECT locationID, name, address, city, stateID, email, phone, fax, latitude, longitude, cust_id, contact_person, isprimary, postalCode, ShippingDefault FROM CustomerLocations WHERE locationID= ? "

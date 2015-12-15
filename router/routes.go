@@ -8,6 +8,7 @@ import (
 	"github.com/curt-labs/API/controllers/cache"
 	"github.com/curt-labs/API/controllers/cartIntegration"
 	"github.com/curt-labs/API/controllers/category"
+	"github.com/curt-labs/API/controllers/customer"
 	"github.com/curt-labs/API/controllers/part"
 	"github.com/curt-labs/API/controllers/search"
 	"github.com/curt-labs/API/middleware"
@@ -80,6 +81,9 @@ var routes = []Route{
 	Route{"Global Percentage Based Reset", "POST", "/pricing/global/:type/:percentage", middleware.APIHandler{H: pricingCtlr.Global, Middleware: commonPrivate}},
 	Route{"Upload Pricing", "POST", "/upload", middleware.APIHandler{H: pricingCtlr.Upload, Middleware: commonPrivate}},
 	Route{"Download Pricing", "POST", "/download", middleware.APIHandler{S: pricingCtlr.Download, Middleware: commonPrivate}},
+
+	// Customer Management
+	Route{"Get Customer", "GET", "/customer", middleware.APIHandler{H: customerCtlr.GetCustomer, Middleware: commonPrivate}},
 
 	// Cache Management
 	Route{"Get Cache Keys", "GET", "/cache/keys", middleware.APIHandler{H: cache.GetKeys, Middleware: common}},

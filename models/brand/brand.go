@@ -28,7 +28,6 @@ var (
 							order by w.ID`
 )
 
-type Brands []Brand
 type Brand struct {
 	ID            int       `json:"id" xml:"id,attr"`
 	Name          string    `json:"name" xml:"name,attr"`
@@ -87,7 +86,7 @@ func ScanBrand(res Scanner) (Brand, error) {
 	return b, err
 }
 
-func GetAllBrands(db *sql.DB) (brands Brands, err error) {
+func GetAllBrands(db *sql.DB) (brands []Brand, err error) {
 
 	stmt, err := db.Prepare(getAllBrandsStmt)
 	if err != nil {

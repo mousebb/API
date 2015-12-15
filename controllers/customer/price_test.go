@@ -1,16 +1,17 @@
-package customer_ctlr
+package customerCtlr
 
 import (
 	"encoding/json"
-	"github.com/curt-labs/API/helpers/httprunner"
-	"github.com/curt-labs/API/helpers/testThatHttp"
-	"github.com/curt-labs/API/models/customer"
-	. "github.com/smartystreets/goconvey/convey"
 	"net/url"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/curt-labs/API/helpers/httprunner"
+	"github.com/curt-labs/API/helpers/testThatHttp"
+	"github.com/curt-labs/API/models/customer"
+	. "github.com/smartystreets/goconvey/convey"
 )
 
 func TestCustomerPrice(t *testing.T) {

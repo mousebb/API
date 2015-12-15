@@ -83,26 +83,6 @@ type SalesRepresentative struct {
 	Code string `json:"code,omitempty" xml:"code,omitempty"`
 }
 
-type CustomerLocation struct {
-	Id              int             `json:"id,omitempty" xml:"id,omitempty"`
-	Name            string          `json:"name,omitempty" xml:"name,omitempty"`
-	Email           string          `json:"email,omitempty" xml:"email,omitempty"`
-	Address         string          `json:"address,omitempty" xml:"address,omitempty"`
-	City            string          `json:"city,omitempty" xml:"city,omitempty"`
-	PostalCode      string          `json:"postalCode,omitempty" xml:"postalCode,omitempty"`
-	State           geography.State `json:"state,omitempty" xml:"state,omitempty"`
-	Phone           string          `json:"phone,omitempty" xml:"phone,omitempty"`
-	Fax             string          `json:"fax,omitempty" xml:"fax,omitempty"`
-	Coordinates     Coordinates     `json:"coords,omitempty" xml:"coords,omitempty"`
-	CustomerId      int             `json:"customerId,omitempty" xml:"customerId,omitempty"`
-	ContactPerson   string          `json:"contactPerson,omitempty" xml:"contactPerson,omitempty"`
-	IsPrimary       bool            `json:"isPrimary,omitempty" xml:"isPrimary,omitempty"`
-	ShippingDefault bool            `json:"shippingDefault,omitempty" xml:"shippingDefault,omitempty"`
-	ShowWebSite     bool            `json:"showWebsite,omitempty" xml:"showWebsite,omitempty"`
-	ELocalUrl       url.URL         `json:"eLocalUrl,omitempty" xml:"eLocalUrl,omitempty"`
-	Website         url.URL         `json:"website,omitempty" xml:"website,omitempty"`
-}
-
 type DealerType struct {
 	Id      int     `json:"id,omitempty" xml:"id,omitempty"`
 	Type    string  `json:"type,omitempty" xml:"type,omitempty"`
@@ -554,7 +534,6 @@ func GetCustomerCartReference(ctx *middleware.APIContext, part_id int) (ref int,
 
 	return ref, err
 }
-
 
 //Scan Methods
 func (c *Customer) ScanCustomer(res Scanner, ctx *middleware.APIContext) error {
@@ -1203,172 +1182,6 @@ var (
 						join CartIntegration ci on c.cust_ID = ci.custID
 						where ak.api_key = ?
 						and ci.partID = ?`
-	etailers = `select distinct ` + customerFields + `, ` + stateFields + `, ` + countryFields + `, ` + dealerTypeFields + `, ` + dealerTierFields + `, ` + mapIconFields + `, ` + mapixCodeFields + `, ` + salesRepFields + `
-				from Customer as c
-				left join States as s on c.stateID = s.stateID
-				left join Country as cty on s.countryID = cty.countryID
-				left join DealerTypes as dt on c.dealer_type = dt.dealer_type
-				left join MapIcons as mi on dt.dealer_type = mi.dealer_type
-				left join DealerTiers as dtr on c.tier = dtr.ID
-				left join MapixCode as mpx on c.mCodeID = mpx.mCodeID
-				left join SalesRepresentative as sr on c.salesRepID = sr.salesRepID
-				join CustomerToBrand as ctb on ctb.cust_id = c.cust_id
-				join ApiKeyToBrand as atb on atb.brandID = ctb.brandID
-				join ApiKey as a on a.id = atb.keyID
-				where dt.online = 1 && c.isDummy = 0
-				&& a.api_key = ? && (ctb.brandID = ? or 0 = ?)
-				order by c.name`
-
-	localDealers = `select
-					` + customerLocationFields + `,
-					` + stateFields + `,
-					` + countryFields + `,
-					` + dealerTypeFields + `,
-					` + dealerTierFields + `,
-					` + mapIconFields + `,
-					` + mapixCodeFields + `,
-					` + salesRepFields + ` ,
-					` + showSiteFields + `,(
-						? * acos(
-							cos(
-								radians(?) ) * cos( radians( cl.latitude )
-							) * cos(
-								radians( cl.longitude ) - radians(?)
-							) + sin(
-								radians(?)
-							) * sin(
-								radians( cl.latitude )
-							)
-						)
-					) as distance
-					from CustomerLocations as cl
-					join Customer as c on cl.cust_id = c.cust_id
-					join DealerTypes as dt on c.dealer_type = dt.dealer_type
-					left join MapIcons as mi on dt.dealer_type = mi.dealer_type
-					join DealerTiers as dtr on c.tier = dtr.ID
-					left join States as s on cl.stateID = s.stateID
-					left join Country as cty on s.countryID = cty.countryID
-					left join MapixCode as mpx on c.mCodeID = mpx.mCodeID
-					left join SalesRepresentative as sr on c.salesRepID = sr.salesRepID
-					where dt.online = 0 && c.isDummy = 0 && dt.show = 1 && dtr.ID = mi.tier
-					having (distance < ?) || (? = 0)
-					limit ?,?`
-
-	polygon = `select s.stateID, s.state, s.abbr,
-					(
-						select COUNT(cl.locationID) from CustomerLocations as cl
-						join Customer as c on cl.cust_id = c.cust_id
-						join DealerTypes as dt on c.dealer_type = dt.dealer_type
-						where dt.online = 0 && cl.stateID = s.stateID
-					) as count
-					from States as s
-					where (
-						select COUNT(cl.locationID) from CustomerLocations as cl
-						join Customer as c on cl.cust_id = c.cust_id
-						join DealerTypes as dt on c.dealer_type = dt.dealer_type
-						where dt.online = 0 && cl.stateID = s.stateID
-					) > 0
-					order by s.state`
-	MapPolygonCoordinatesForState = `select mp.ID, mpc.latitude,mpc.longitude
-										from MapPolygonCoordinates as mpc
-										join MapPolygon as mp on mpc.MapPolygonID = mp.ID
-										where mp.stateID = ?
-										`
-	localDealerTiers = `select distinct dtr.* from DealerTiers as dtr
-							join Customer as c on dtr.ID = c.tier
-							join DealerTypes as dt on c.dealer_type = dt.dealer_type
-							join CustomerToBrand as ctb on ctb.cust_id = c.cust_id
-							join ApiKeyToBrand as atb on atb.brandID = ctb.brandID
-							join ApiKey as a on a.id = atb.keyID
-							where dt.online = false and dt.show = true
-							&& a.api_key = ? && (ctb.brandID = ? or 0 = ?)
-							order by dtr.sort`
-	localDealerTypes = `select distinct m.ID as iconId, m.mapicon, m.mapiconshadow,
-							dtr.ID as tierID, dtr.tier as tier, dtr.sort as tierSort,
-							dt.dealer_type as dealerTypeId, dt.type as dealerType, dt.online, dt.show, dt.label
-							from MapIcons as m
-							join DealerTypes as dt on m.dealer_type = dt.dealer_type
-							join DealerTiers as dtr on m.tier = dtr.ID
-							join Customer as c on dtr.ID = c.tier
-							join CustomerToBrand as ctb on ctb.cust_id = c.cust_id
-							join ApiKeyToBrand as atb on atb.brandID = ctb.brandID
-							join ApiKey as a on a.id = atb.keyID
-							where dt.show = true
-							&& a.api_key = ? && (atb.brandID = ? or 0 = ?)
-							order by dtr.sort desc`
-
-	whereToBuyDealers = `select distinct ` + customerFields + `, ` + stateFields + `, ` + countryFields + `, ` + dealerTypeFields + `, ` + dealerTierFields + `, ` + mapIconFields + `, ` + mapixCodeFields + `, ` + salesRepFields + `
-			from Customer as c
-				left join States as s on c.stateID = s.stateID
-				left join Country as cty on s.countryID = cty.countryID
-				left join DealerTypes as dt on c.dealer_type = dt.dealer_type
-				left join MapIcons as mi on dt.dealer_type = mi.dealer_type
-				left join DealerTiers as dtr on c.tier = dtr.ID
-				left join MapixCode as mpx on c.mCodeID = mpx.mCodeID
-				left join SalesRepresentative as sr on c.salesRepID = sr.salesRepID
-				join CustomerToBrand as ctb on ctb.cust_id = c.cust_id
-				join ApiKeyToBrand as atb on atb.brandID = ctb.brandID
-				join ApiKey as a on a.id = atb.keyID
-				where c.dealer_type = 1 and c.tier = 4 and c.isDummy = false and length(c.searchURL) > 1
-				&&(a.api_key = ? && (atb.brandID = ? or 0 = ?))`
-
-	customerByLocation = `select ` + customerLocationFields + `, ` + stateFields + `, ` + countryFields + `, ` + dealerTypeFields + `, ` + dealerTierFields + `, ` + mapIconFields + `, ` + mapixCodeFields + `, ` + salesRepFields + `  ,` + showSiteFields + `
-								from CustomerLocations as cl
-								join States as s on cl.stateID = s.stateID
-								left join Country as cty on cty.countryID = s.countryID
-								join Customer as c on cl.cust_id = c.cust_id
-								join DealerTypes as dt on c.dealer_type = dt.dealer_type
-								join DealerTiers as dtr on c.tier = dtr.ID
-								left join MapIcons as mi on dt.dealer_type = mi.dealer_type
-								left join MapixCode as mpx on c.mCodeID = mpx.mCodeID
-								left join SalesRepresentative as sr on c.salesRepID = sr.salesRepID
-								where (dt.dealer_type = 2 or dt.dealer_type = 3) and c.isDummy = false
-								and dt.show = true and (lower(cl.name) like ? || lower(c.name) like ?)`
-
-	searchDealerLocations = `select ` + customerLocationFields + `, ` + stateFields + `, ` + countryFields + `, ` + dealerTypeFields + `, ` + dealerTierFields + `, ` + mapIconFields + `, ` + mapixCodeFields + `, ` + salesRepFields + ` ,` + showSiteFields + `
-								from CustomerLocations as cl
-								join States as s on cl.stateID = s.stateID
-								left join Country as cty on cty.countryID = s.countryID
-								join Customer as c on cl.cust_id = c.cust_id
-								join DealerTypes as dt on c.dealer_type = dt.dealer_type
-								join DealerTiers as dtr on c.tier = dtr.ID
-								left join MapIcons as mi on dt.dealer_type = mi.dealer_type
-								left join MapixCode as mpx on c.mCodeID = mpx.mCodeID
-								left join SalesRepresentative as sr on c.salesRepID = sr.salesRepID
-								where (dt.dealer_type = 2 or dt.dealer_type = 3) and c.isDummy = false
-								and dt.show = true and (lower(cl.name) like ? || lower(c.name) like ?)`
-
-	dealerLocationsByType = `select ` + customerLocationFields + `, ` + stateFields + `, ` + countryFields + `, ` + dealerTypeFields + `, ` + dealerTierFields + `, ` + mapIconFields + `, ` + mapixCodeFields + `, ` + salesRepFields + ` ,` + showSiteFields + `
-								from CustomerLocations as cl
-	 							join States as s on cl.stateID = s.stateID
-	 							left join Country as cty ON cty.countryID = s.countryID
-	 							join Customer as c on cl.cust_id = c.cust_id
-	 							join DealerTypes as dt on c.dealer_type = dt.dealer_type
-	 							join DealerTiers as dtr on c.tier = dtr.ID
-	 							left join MapIcons as mi on dtr.tier = mi.tier
-	 							left join MapixCode as mpx on c.mCodeID = mpx.mCodeID
-	 							left join SalesRepresentative as sr on c.salesRepID = sr.salesRepID
-								where dt.online = false and c.isDummy = false
-								and dt.show = true and (lower(cl.name) like ? || lower(c.name) like ?)`
-
-	searchDealerLocationsByLatLng = `select ` + customerLocationFields + `, ` + stateFields + `, ` + countryFields + `, ` + dealerTypeFields + `, ` + dealerTierFields + `, ` + mapIconFields + `, ` + mapixCodeFields + `, ` + salesRepFields + `, ` + showSiteFields + `
-									from CustomerLocations as cl
-									join States as s on cl.stateID = s.stateID
-									left join Country as cty ON cty.countryID = s.countryID
-									join Customer as c on cl.cust_id = c.cust_id
-									join DealerTypes as dt on c.dealer_type = dt.dealer_type
-									join DealerTiers as dtr on c.tier = dtr.ID
-									left join MapIcons as mi on dtr.tier = mi.tier
-		 							left join MapixCode as mpx on c.mCodeID = mpx.mCodeID
-		 							left join SalesRepresentative as sr on c.salesRepID = sr.salesRepID
-									where dt.online = false and c.isDummy = false
-									and dt.show = true and
-									( ? * (
-										2 * ATAN2(
-											SQRT((SIN(((cl.latitude - ?) * (PI() / 180)) / 2) * SIN(((cl.latitude - ?) * (PI() / 180)) / 2)) + ((SIN(((cl.longitude - ?) * (PI() / 180)) / 2)) * (SIN(((cl.longitude - ?) * (PI() / 180)) / 2))) * COS(? * (PI() / 180)) * COS(cl.latitude * (PI() / 180))),
-											SQRT(1 - ((SIN(((cl.latitude - ?) * (PI() / 180)) / 2) * SIN(((cl.latitude - ?) * (PI() / 180)) / 2)) + ((SIN(((cl.longitude - ?) * (PI() / 180)) / 2)) * (SIN(((cl.longitude - ?) * (PI() / 180)) / 2))) * COS(? * (PI() / 180)) * COS(cl.latitude * (PI() / 180))))
-										)
-									) < 100.0)`
 
 	//customer Crud
 	createCustomer = `insert into Customer (name, email, address,  city, stateID, phone, fax, contact_person, dealer_type, latitude,longitude,  website, customerID, isDummy, parentID, searchURL,

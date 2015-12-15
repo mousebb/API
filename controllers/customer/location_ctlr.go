@@ -1,4 +1,4 @@
-package customer_ctlr
+package customerCtlr
 
 import (
 	"encoding/json"

@@ -1,4 +1,4 @@
-package customer_ctlr
+package customerCtlr
 
 import (
 	"github.com/curt-labs/API/helpers/apicontext"

@@ -1,12 +1,11 @@
-package customer_ctlr
+package customerCtlr
 
 import (
-	"github.com/curt-labs/API/helpers/apicontext"
 	"github.com/curt-labs/API/helpers/encoding"
 	"github.com/curt-labs/API/helpers/error"
+	"github.com/curt-labs/API/middleware"
 	"github.com/curt-labs/API/models/customer"
 	"github.com/curt-labs/API/models/products"
-	"github.com/go-martini/martini"
 
 	"encoding/json"
 	"errors"
@@ -17,21 +16,20 @@ import (
 	"strings"
 )
 
-func GetCustomer(rw http.ResponseWriter, r *http.Request, enc encoding.Encoder, params martini.Params, dtx *apicontext.DataContext) string {
+// GetCustomer Retrieves a customer.Customer based of the given API key.
+func GetCustomer(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	var err error
 	var c customer.Customer
 
-	if err = c.GetCustomerIdFromKey(dtx.APIKey); err != nil {
-		apierror.GenerateError("Trouble getting customer ID", err, rw, r)
-		return ""
+	if err = c.GetCustomerIdFromKey(ctx); err != nil {
+		return nil, err
 	}
 
-	if err = c.GetCustomer(dtx.APIKey); err != nil {
-		apierror.GenerateError("Trouble getting customer", err, rw, r, http.StatusServiceUnavailable)
-		return ""
+	if err = c.GetCustomer(ctx); err != nil {
+		return nil, err
 	}
 
-	lowerKey := strings.ToLower(dtx.APIKey)
+	lowerKey := strings.ToLower(ctx.DataContext.APIKey)
 	for i, u := range c.Users {
 		for _, k := range u.Keys {
 			if strings.ToLower(k.Key) == lowerKey {
@@ -40,27 +38,22 @@ func GetCustomer(rw http.ResponseWriter, r *http.Request, enc encoding.Encoder, 
 		}
 	}
 
-	return encoding.Must(enc.Encode(c))
+	return c, nil
 }
 
-func GetLocations(rw http.ResponseWriter, r *http.Request, enc encoding.Encoder, params martini.Params, dtx *apicontext.DataContext) string {
-	cu, err := customer.GetCustomerUserFromKey(dtx.APIKey)
+// GetLocations Returns the []customer.Location for a given customer.Customer.
+func GetLocations(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
+
+	c, err := ctx.Cu.GetCustomer(ctx.DataContext.APIKey)
 	if err != nil {
-		err = errors.New("Unauthorized!")
-		apierror.GenerateError("Unauthorized!", err, rw, r, http.StatusUnauthorized)
-		return ""
+		return nil, err
 	}
-	c, err := cu.GetCustomer(dtx.APIKey)
-	if err != nil {
-		err = errors.New("Unauthorized!")
-		apierror.GenerateError("Unauthorized!", err, rw, r, http.StatusUnauthorized)
-		return ""
-	}
-	return encoding.Must(enc.Encode(c.Locations))
+
+	return c.Locations, nil
 }
 
-//TODO - redundant
-func GetUsers(rw http.ResponseWriter, r *http.Request, enc encoding.Encoder, params martini.Params, dtx *apicontext.DataContext) string {
+// GetUsers Returns the []customer.User for a given customer.Customer.
+func GetUsers(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	user, err := customer.GetCustomerUserFromKey(dtx.APIKey)
 	if err != nil {
 		apierror.GenerateError("Trouble getting customer user", err, rw, r)
@@ -87,8 +80,7 @@ func GetUsers(rw http.ResponseWriter, r *http.Request, enc encoding.Encoder, par
 	return encoding.Must(enc.Encode(cust.Users))
 }
 
-//Todo redundant
-//Hacky like this to work with old forms of authentication
+// GetUser Returns the customer.User for the supplied API key.
 func GetUser(rw http.ResponseWriter, r *http.Request, enc encoding.Encoder) string {
 	qs, err := url.Parse(r.URL.String())
 	if err != nil {
@@ -110,7 +102,8 @@ func GetUser(rw http.ResponseWriter, r *http.Request, enc encoding.Encoder) stri
 	return encoding.Must(enc.Encode(user))
 }
 
-func GetCustomerPrice(rw http.ResponseWriter, r *http.Request, enc encoding.Encoder, params martini.Params, dtx *apicontext.DataContext) string {
+// GetCustomerPrice Returns the selling price of an item for a given customer.Customer.
+func GetCustomerPrice(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	var err error
 	var p products.Part
 
@@ -133,7 +126,9 @@ func GetCustomerPrice(rw http.ResponseWriter, r *http.Request, enc encoding.Enco
 	return encoding.Must(enc.Encode(price))
 }
 
-func GetCustomerCartReference(rw http.ResponseWriter, r *http.Request, enc encoding.Encoder, params martini.Params, dtx *apicontext.DataContext) string {
+// GetCustomerCartReference Returns the cooresponding identifier to the given product
+// identifier for the customer.
+func GetCustomerCartReference(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	var err error
 	var p products.Part
 
@@ -156,7 +151,8 @@ func GetCustomerCartReference(rw http.ResponseWriter, r *http.Request, enc encod
 	return encoding.Must(enc.Encode(ref))
 }
 
-func SaveCustomer(rw http.ResponseWriter, r *http.Request, enc encoding.Encoder, params martini.Params, dtx *apicontext.DataContext) string {
+// SaveCustomer Updates the supplied customer.Customer.
+func SaveCustomer(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	var c customer.Customer
 	var err error
 
@@ -202,28 +198,6 @@ func SaveCustomer(rw http.ResponseWriter, r *http.Request, enc encoding.Encoder,
 			msg = "Trouble updating customer"
 		}
 		apierror.GenerateError(msg, err, rw, r)
-		return ""
-	}
-
-	return encoding.Must(enc.Encode(c))
-}
-
-func DeleteCustomer(rw http.ResponseWriter, r *http.Request, enc encoding.Encoder, params martini.Params) string {
-	var c customer.Customer
-	var err error
-
-	id := r.FormValue("id")
-	if id == "" {
-		id = params["id"]
-	}
-
-	if c.Id, err = strconv.Atoi(id); err != nil {
-		apierror.GenerateError("Trouble getting customer ID", err, rw, r)
-		return ""
-	}
-
-	if err = c.Delete(); err != nil {
-		apierror.GenerateError("Trouble deleting customer", err, rw, r)
 		return ""
 	}
 

@@ -28,18 +28,15 @@ type CustomerUser struct {
 	Name               string           `json:"name" xml:"name,attr"`
 	Email              string           `json:"email" xml:"email,attr"`
 	Password           string           `json:"password,omitempty" xml:"password,omitempty"`
-	OldCustomerID      int              `json:"oldCustomerId,omitempty" xml:"oldCustomerId,omitempty"`
 	DateAdded          time.Time        `json:"date_added" xml:"date_added,attr"`
 	Active             bool             `json:"active" xml:"active,attr"`
 	Location           CustomerLocation `json:"location" xml:"location"`
 	Sudo               bool             `json:"sudo" xml:"sudo,attr"`
 	CustomerID         int              `json:"customerId,omitempty" xml:"customerId,omitempty"`
-	CustID             int              `json:"-" xml:"-"`
 	Current            bool             `json:"current" xml:"current,attr"`
-	NotCustomer        bool             `json:"notCustomer" xml:"notCustomer,attr"`
 	PasswordConversion bool             `json:"passwordConversion,omitempty" xml:"passwordConversion,omitempty"`
 	Keys               []ApiCredentials `json:"keys" xml:"keys"`
-	Brands             brand.Brands     `json:"brands,omitempty" xml:"brands,omitempty"`
+	Brands             []brand.Brand    `json:"brands,omitempty" xml:"brands,omitempty"`
 	ComnetAccounts     []ComnetAccount  `json:"accounts" xml:"accounts"`
 }
 
@@ -90,13 +87,12 @@ const (
 	AUTH_KEY_TYPE      = "AUTHENTICATION"
 	PUBLIC_KEY_TYPE    = "PUBLIC"
 	PRIVATE_KEY_TYPE   = "PRIVATE"
-	customerUserFields = ` cu.id, cu.name, cu.email, cu.password, cu.customerID, cu.date_added, cu.active, cu.locationID, cu.isSudo, cu.cust_ID, cu.NotCustomer, cu.passwordConverted `
+	customerUserFields = ` cu.id, cu.name, cu.email, cu.password, cu.customerID, cu.date_added, cu.active, cu.locationID, cu.isSudo `
 )
 
 func ScanUser(res Scanner) (*CustomerUser, error) {
 	var cu CustomerUser
 	var err error
-	var passConversionByte []byte
 	var oldId *int
 	var cur *bool
 	var name *string
@@ -112,7 +108,6 @@ func ScanUser(res Scanner) (*CustomerUser, error) {
 		&cu.Sudo,
 		&cu.CustomerID,
 		&cur,
-		&passConversionByte,
 	)
 	if err != nil {
 		return &cu, err
@@ -126,9 +121,6 @@ func ScanUser(res Scanner) (*CustomerUser, error) {
 	}
 	if name != nil {
 		cu.Name = *name
-	}
-	if oldId != nil {
-		cu.OldCustomerID = *oldId
 	}
 	if cur != nil {
 		cu.Current = *cur
@@ -265,9 +257,7 @@ func (u *CustomerUser) AuthenticateUser(ctx *middleware.APIContext) error {
 	if sudo != nil {
 		u.Sudo = *sudo
 	}
-	if custId != nil {
-		u.CustID = *custId
-	}
+
 	if passConversionByte != nil {
 		passConversion, err = strconv.ParseBool(string(passConversionByte))
 	}
