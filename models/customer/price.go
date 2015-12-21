@@ -1,8 +1,9 @@
 package customer
 
 import (
+	"database/sql"
+
 	"github.com/curt-labs/API/helpers/redis"
-	"github.com/curt-labs/API/middleware"
 
 	"encoding/json"
 	"fmt"
@@ -20,11 +21,9 @@ type Price struct {
 	SaleEnd   time.Time
 }
 
-type Prices []Price
-
 type CustomerPrices struct {
 	Customer Customer `json:"customer" xml:"customer"`
-	Prices   Prices   `json:"prices" xml:"prices"`
+	Prices   []Price  `json:"prices" xml:"prices"`
 }
 
 var (
@@ -43,7 +42,7 @@ const (
 	allPricesRedisKey = "prices"
 )
 
-func (p *Price) Get(ctx *middleware.APIContext) error {
+func (p *Price) Get(db *sql.DB) error {
 	redis_key := "price:" + strconv.Itoa(p.ID)
 	data, err := redis.Get(redis_key)
 	if err == nil && len(data) > 0 {
@@ -51,7 +50,7 @@ func (p *Price) Get(ctx *middleware.APIContext) error {
 		return err
 	}
 
-	stmt, err := ctx.DB.Prepare(getPrice)
+	stmt, err := db.Prepare(getPrice)
 	if err != nil {
 		return err
 	}
@@ -65,8 +64,8 @@ func (p *Price) Get(ctx *middleware.APIContext) error {
 	return nil
 }
 
-func GetAllPrices(ctx *middleware.APIContext) (Prices, error) {
-	var ps Prices
+func GetAllPrices(db *sql.DB) ([]Price, error) {
+	var ps []Price
 	var err error
 	data, err := redis.Get(allPricesRedisKey)
 	if err == nil && len(data) > 0 {
@@ -74,25 +73,32 @@ func GetAllPrices(ctx *middleware.APIContext) (Prices, error) {
 		return ps, err
 	}
 
-	stmt, err := ctx.DB.Prepare(getPrices)
+	stmt, err := db.Prepare(getPrices)
 	if err != nil {
 		return ps, err
 	}
 	defer stmt.Close()
+
 	res, err := stmt.Query()
+	if err != nil {
+		return ps, err
+	}
+	defer res.Close()
+
 	for res.Next() {
 		var p Price
 		err = res.Scan(&p.ID, &p.CustID, &p.PartID, &p.Price, &p.IsSale, &p.SaleStart, &p.SaleEnd)
 		ps = append(ps, p)
 	}
-	defer res.Close()
+
 	go redis.Setex(allPricesRedisKey, ps, 86400)
+
 	return ps, nil
 }
 
-func (p *Price) Create(ctx *middleware.APIContext) error {
+func (p *Price) Create(db *sql.DB) error {
 
-	tx, err := ctx.DB.Begin()
+	tx, err := db.Begin()
 	if err != nil {
 		return err
 	}
@@ -102,29 +108,34 @@ func (p *Price) Create(ctx *middleware.APIContext) error {
 		return err
 	}
 	defer stmt.Close()
+
 	res, err := stmt.Exec(p.CustID, p.PartID, p.Price, p.IsSale, p.SaleStart, p.SaleEnd)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
+
 	id, err := res.LastInsertId()
-	p.ID = int(id)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
+
+	p.ID = int(id)
+
 	err = tx.Commit()
 	if err != nil {
 		return err
 	}
+
 	go redis.Delete(allPricesRedisKey)
 	go redis.Setex("price:"+strconv.Itoa(p.ID), p, 86400)
 
 	return nil
 }
-func (p *Price) Update(ctx *middleware.APIContext) error {
+func (p *Price) Update(db *sql.DB) error {
 
-	tx, err := ctx.DB.Begin()
+	tx, err := db.Begin()
 	if err != nil {
 		return err
 	}
@@ -151,9 +162,9 @@ func (p *Price) Update(ctx *middleware.APIContext) error {
 	return nil
 }
 
-func (p *Price) Delete(ctx *middleware.APIContext) error {
+func (p *Price) Delete(db *sql.DB) error {
 
-	tx, err := ctx.DB.Begin()
+	tx, err := db.Begin()
 	if err != nil {
 		return err
 	}
@@ -181,22 +192,22 @@ func (p *Price) Delete(ctx *middleware.APIContext) error {
 	return nil
 }
 
-func (c *Customer) GetPricesByCustomer(ctx *middleware.APIContext) (CustomerPrices, error) {
+func (c *Customer) GetPricesByCustomer(db *sql.DB) (CustomerPrices, error) {
 	var cps CustomerPrices
-	redis_key := "customers:prices:" + strconv.Itoa(c.Id)
+	redis_key := "customers:prices:" + strconv.Itoa(c.ID)
 	data, err := redis.Get(redis_key)
 	if err == nil && len(data) > 0 {
 		err = json.Unmarshal(data, &cps)
 		return cps, err
 	}
 
-	stmt, err := ctx.DB.Prepare(getPricesByCustomer)
+	stmt, err := db.Prepare(getPricesByCustomer)
 	if err != nil {
 		return cps, err
 	}
 	defer stmt.Close()
 
-	res, err := stmt.Query(c.Id)
+	res, err := stmt.Query(c.ID)
 	for res.Next() {
 		var p Price
 		res.Scan(&p.ID, &p.CustID, &p.PartID, &p.Price, &p.IsSale, &p.SaleStart, &p.SaleEnd)
@@ -207,8 +218,8 @@ func (c *Customer) GetPricesByCustomer(ctx *middleware.APIContext) (CustomerPric
 	return cps, err
 }
 
-func GetPricesByPart(partID int, ctx *middleware.APIContext) (Prices, error) {
-	var ps Prices
+func GetPricesByPart(db *sql.DB, partID int) ([]Price, error) {
+	var ps []Price
 	redis_key := "prices:part:" + strconv.Itoa(partID)
 	data, err := redis.Get(redis_key)
 	if err == nil && len(data) > 0 {
@@ -216,7 +227,7 @@ func GetPricesByPart(partID int, ctx *middleware.APIContext) (Prices, error) {
 		return ps, err
 	}
 
-	stmt, err := ctx.DB.Prepare(getPricesByPart)
+	stmt, err := db.Prepare(getPricesByPart)
 	if err != nil {
 		return ps, err
 	}
@@ -239,17 +250,17 @@ func GetPricesByPart(partID int, ctx *middleware.APIContext) (Prices, error) {
 	return ps, nil
 }
 
-func (c *Customer) GetPricesBySaleRange(startDate, endDate time.Time, ctx *middleware.APIContext) (Prices, error) {
+func (c *Customer) GetPricesBySaleRange(db *sql.DB, startDate, endDate time.Time) ([]Price, error) {
 	var err error
-	var ps Prices
+	var ps []Price
 
-	stmt, err := ctx.DB.Prepare(getPricesBySaleRange)
+	stmt, err := db.Prepare(getPricesBySaleRange)
 	if err != nil {
 		return ps, err
 	}
 	defer stmt.Close()
 
-	res, err := stmt.Query(startDate, endDate, c.Id)
+	res, err := stmt.Query(startDate, endDate, c.ID)
 	if err != nil {
 		return ps, err
 	}

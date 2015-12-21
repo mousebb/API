@@ -4,9 +4,10 @@ import (
 	"database/sql"
 	"net/http"
 
+	"gopkg.in/mgo.v2"
+
 	"github.com/gorilla/context"
 	"github.com/julienschmidt/httprouter"
-	"gopkg.in/mgo.v2"
 
 	"github.com/curt-labs/API/helpers/error"
 )

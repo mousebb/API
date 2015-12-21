@@ -212,16 +212,16 @@ func (p *Part) BindCustomer(ctx *middleware.APIContext) CustomerPart {
 	refChan := make(chan int)
 
 	go func() {
-		price, _ = customer.GetCustomerPrice(ctx, p.ID)
+		price, _ = customer.GetCustomerPrice(ctx.DB, p.ID)
 		priceChan <- 1
 	}()
 
 	go func() {
-		ref, _ = customer.GetCustomerCartReference(ctx, p.ID)
+		ref, _ = customer.GetCustomerCartReference(ctx.DB, p.ID)
 		refChan <- 1
 	}()
 
-	content, _ := custcontent.GetPartContent(p.ID, ctx)
+	content, _ := customerContent.GetPartContent(ctx.DB, p.ID)
 	for _, con := range content {
 		strArr := strings.Split(con.ContentType.Type, ":")
 		cType := con.ContentType.Type

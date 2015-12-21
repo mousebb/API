@@ -24,7 +24,7 @@ func (kh Keyed) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ctx = &APIContext{}
 	}
 	if ctx.DataContext == nil {
-		ctx.DataContext = new(DataContext)
+		ctx.DataContext = &DataContext{}
 	}
 
 	qs := r.URL.Query()

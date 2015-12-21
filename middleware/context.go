@@ -1,12 +1,13 @@
 package middleware
 
 import (
-	"database/sql"
 	"fmt"
-	"strconv"
 	"strings"
 
-	"github.com/curt-labs/API/models/brand"
+	"github.com/curt-labs/API/helpers/database"
+	"github.com/curt-labs/API/models/customer"
+	"github.com/curt-labs/iapi/brand"
+	"gopkg.in/mgo.v2/bson"
 )
 
 type DataContext struct {
@@ -14,77 +15,44 @@ type DataContext struct {
 	WebsiteID   int
 	APIKey      string
 	CustomerID  int
-	UserID      string
+	User        customer.User
 	Brands      []brand.Brand
 	BrandString string
 	BrandArray  []int
 }
 
-var (
-	BuildContext = `select b.ID, b.name, b.code, ak.api_key, cu.id, c.customerID from ApiKey ak
-					join CustomerUser cu on ak.user_id = cu.id
-					join Customer c on cu.cust_ID = c.cust_id
-					join ApiKeyToBrand akb on ak.id = akb.keyID
-					join Brand b on akb.brandID = b.id
-					join ApiKeyType as akt on ak.type_id = akt.id
-					where ak.api_key = ? && (UPPER(akt.type) = ? || 1 = ?)`
-)
-
 func (ctx *APIContext) BuildDataContext(k, t string) error {
-	stmt, err := ctx.DB.Prepare(BuildContext)
+	dtx, err := new(ctx, k, t)
 	if err != nil {
 		return err
 	}
-	defer stmt.Close()
 
-	var rows *sql.Rows
-	if t != "" {
-		rows, err = stmt.Query(k, t, 0)
-	} else {
-		rows, err = stmt.Query(k, t, 1)
-	}
-
-	if err != nil {
-		if err == sql.ErrNoRows {
-			err = fmt.Errorf("%s", "authentication failed")
-		}
-		return err
-	}
-	defer rows.Close()
-
-	var brandIDStr []string
-	for rows.Next() {
-		var bID, customerID *int
-		var name, code, key, userID *string
-		err = rows.Scan(
-			&bID,
-			&name,
-			&code,
-			&key,
-			&userID,
-			&customerID,
-		)
-		if err != nil || bID == nil || name == nil || code == nil || key == nil || userID == nil || customerID == nil {
-			return fmt.Errorf("%s", "authentication failed")
-		}
-
-		if len(ctx.DataContext.Brands) == 0 {
-			ctx.DataContext.APIKey = *key
-			ctx.DataContext.CustomerID = *customerID
-			ctx.DataContext.UserID = *userID
-		}
-		ctx.DataContext.Brands = append(ctx.DataContext.Brands, brand.Brand{
-			ID:   *bID,
-			Name: *name,
-			Code: *code,
-		})
-		brandIDStr = append(brandIDStr, strconv.Itoa(*bID))
-	}
-
-	ctx.DataContext.brandArray()
-	ctx.DataContext.brandString()
+	ctx.DataContext = dtx
 
 	return nil
+}
+
+func new(ctx *APIContext, k, t string) (*DataContext, error) {
+	var dtx DataContext
+	var u customer.User
+
+	c := ctx.Session.DB(database.ProductMongoDatabase).C(database.CustomerCollectionName)
+
+	err := c.Find(bson.M{"keys.$.key": k, "keys.$.key.type.type": t, "active": 1}).One(&u)
+	if err != nil {
+		return nil, err
+	}
+	if u.ID == "" {
+		return nil, fmt.Errorf("failed to find account for the provided %s key: %s", t, k)
+	}
+
+	dtx.brandArray()
+	dtx.brandString()
+
+	dtx.User = u
+	dtx.APIKey = k
+
+	return &dtx, nil
 }
 
 func (dtx *DataContext) brandString() {

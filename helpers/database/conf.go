@@ -28,6 +28,10 @@ var (
 	// for storing categories.
 	CategoryCollectionName = "categories"
 
+	// CustomerCollectionName Reference to MongoDB
+	// for storing customers.
+	CustomerCollectionName = "customer"
+
 	// ProductMongoSession MongoDB session for interacting
 	// with products/category database.
 	ProductMongoSession *mgo.Session

@@ -14,21 +14,21 @@ import (
 
 // Video is a reresentation of a video. It contains information about the video itself, as well as any associated files.
 type Video struct {
-	ID           int          `json:"id,omitempty" xml:"id,omitempty"`
-	Title        string       `json:"title, omitempty" xml:"title,omitempty"`
-	SubjectType  string       `bson:"subject_type" json:"subject_type" xml:"subject_type"`
-	VideoType    VideoType    `json:"videoType,omitempty" xml:"videoType,omitempty"`
-	Description  string       `bson:"description" json:"description" xml:"description"`
-	DateAdded    time.Time    `bson:"date_added" json:"date_added" xml:"date_added"`
-	DateModified time.Time    `bson:"date_modified" json:"date_modified" xml:"date_modified"`
-	Thumbnail    string       `bson:"thumb_nail" json:"thumbnail" xml:"thumbnail"`
-	Channels     []Channel    `bson:"channel" json:"channel" xml:"channel"`
-	Files        []CdnFile    `bson:"cdn_file" json:"cdn_file" xml:"cdn_file"`
-	IsPrimary    bool         `json:"isPrimary,omitempty" xml:"isPrimary,omitempty"`
-	CategoryIds  []int        `json:"categoryIds,omitempty" xml:"categoryIds,omitempty"`
-	PartIds      []int        `json:"partIds,omitempty" xml:"partIds,omitempty"`
-	WebsiteId    int          `json:"websiteId,omitempty" xml:"websiteId,omitempty"`
-	Brands       brand.Brands `json:"brands,omitempty" xml:"brands,omitempty"`
+	ID           int           `json:"id,omitempty" xml:"id,omitempty"`
+	Title        string        `json:"title, omitempty" xml:"title,omitempty"`
+	SubjectType  string        `bson:"subject_type" json:"subject_type" xml:"subject_type"`
+	VideoType    VideoType     `json:"videoType,omitempty" xml:"videoType,omitempty"`
+	Description  string        `bson:"description" json:"description" xml:"description"`
+	DateAdded    time.Time     `bson:"date_added" json:"date_added" xml:"date_added"`
+	DateModified time.Time     `bson:"date_modified" json:"date_modified" xml:"date_modified"`
+	Thumbnail    string        `bson:"thumb_nail" json:"thumbnail" xml:"thumbnail"`
+	Channels     []Channel     `bson:"channel" json:"channel" xml:"channel"`
+	Files        []CdnFile     `bson:"cdn_file" json:"cdn_file" xml:"cdn_file"`
+	IsPrimary    bool          `json:"isPrimary,omitempty" xml:"isPrimary,omitempty"`
+	CategoryIds  []int         `json:"categoryIds,omitempty" xml:"categoryIds,omitempty"`
+	PartIds      []int         `json:"partIds,omitempty" xml:"partIds,omitempty"`
+	WebsiteId    int           `json:"websiteId,omitempty" xml:"websiteId,omitempty"`
+	Brands       []brand.Brand `json:"brands,omitempty" xml:"brands,omitempty"`
 }
 
 // Videos is just an easier type to work with than using an array of video types.

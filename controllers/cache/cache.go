@@ -46,8 +46,10 @@ func DeleteKey(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Reque
 func approveuser(ctx *middleware.APIContext) bool {
 
 	c := customer.Customer{}
-	err := c.GetCustomerIdFromKey(ctx)
-	if err != nil || c.Id == 0 {
+	var err error
+	// TODO - re-enable this
+	// err = c.GetCustomerIdFromKey(ctx)
+	if err != nil || c.ID == 0 {
 		return false
 	}
 	return true

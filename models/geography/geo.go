@@ -1,11 +1,11 @@
 package geography
 
 import (
+	"database/sql"
 	"strconv"
 
 	"github.com/curt-labs/API/helpers/redis"
 	"github.com/curt-labs/API/helpers/sortutil"
-	"github.com/curt-labs/API/middleware"
 )
 
 var (
@@ -32,9 +32,9 @@ type Country struct {
 	States       *States `json:"states,omitempty"`
 }
 
-func GetAllCountriesAndStates(ctx *middleware.APIContext) (countries Countries, err error) {
+func GetAllCountriesAndStates(db *sql.DB) (countries Countries, err error) {
 
-	stmt, err := ctx.DB.Prepare(getAllCountriesAndStatesStmt)
+	stmt, err := db.Prepare(getAllCountriesAndStatesStmt)
 	if err != nil {
 		return
 	}
@@ -82,9 +82,9 @@ func GetAllCountriesAndStates(ctx *middleware.APIContext) (countries Countries, 
 	return
 }
 
-func GetAllCountries(ctx *middleware.APIContext) (countries Countries, err error) {
+func GetAllCountries(db *sql.DB) (countries Countries, err error) {
 
-	stmt, err := ctx.DB.Prepare(getAllCountriesStmt)
+	stmt, err := db.Prepare(getAllCountriesStmt)
 	if err != nil {
 		return
 	}
@@ -114,9 +114,9 @@ func GetAllCountries(ctx *middleware.APIContext) (countries Countries, err error
 	return
 }
 
-func GetAllStates(ctx *middleware.APIContext) (states States, err error) {
+func GetAllStates(db *sql.DB) (states States, err error) {
 
-	stmt, err := ctx.DB.Prepare(getAllStatesStmt)
+	stmt, err := db.Prepare(getAllStatesStmt)
 	if err != nil {
 		return
 	}
@@ -148,9 +148,9 @@ func GetAllStates(ctx *middleware.APIContext) (states States, err error) {
 	return
 }
 
-func GetStateMap(ctx *middleware.APIContext) (map[int]State, error) {
+func GetStateMap(db *sql.DB) (map[int]State, error) {
 	stateMap := make(map[int]State)
-	states, err := GetAllStates(ctx)
+	states, err := GetAllStates(db)
 	for _, state := range states {
 		stateMap[state.Id] = state
 		redis_key := "state:" + strconv.Itoa(state.Id)
@@ -159,9 +159,9 @@ func GetStateMap(ctx *middleware.APIContext) (map[int]State, error) {
 	return stateMap, err
 }
 
-func GetCountryMap(ctx *middleware.APIContext) (map[int]Country, error) {
+func GetCountryMap(db *sql.DB) (map[int]Country, error) {
 	countryMap := make(map[int]Country)
-	countries, err := GetAllCountries(ctx)
+	countries, err := GetAllCountries(db)
 	for _, country := range countries {
 		countryMap[country.Id] = country
 		redis_key := "country:" + strconv.Itoa(country.Id)

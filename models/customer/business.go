@@ -1,8 +1,9 @@
 package customer
 
 import (
+	"database/sql"
+
 	"github.com/curt-labs/API/helpers/sortutil"
-	"github.com/curt-labs/API/middleware"
 )
 
 var (
@@ -25,15 +26,15 @@ type BusinessClass struct {
 	BrandID       int    `json:"brandID omitempty" xml:"brandID omitempty"`
 }
 
-func GetAllBusinessClasses(ctx *middleware.APIContext) (classes BusinessClasses, err error) {
+func GetAllBusinessClasses(db *sql.DB, key string, brandID int) (classes BusinessClasses, err error) {
 
-	stmt, err := ctx.DB.Prepare(getBusinessClassesStmt)
+	stmt, err := db.Prepare(getBusinessClassesStmt)
 	if err != nil {
 		return
 	}
 	defer stmt.Close()
 
-	rows, err := stmt.Query(ctx.DataContext.APIKey, ctx.DataContext.BrandID, ctx.DataContext.BrandID)
+	rows, err := stmt.Query(key, brandID, brandID)
 	if err != nil {
 		return
 	}
@@ -57,9 +58,9 @@ func GetAllBusinessClasses(ctx *middleware.APIContext) (classes BusinessClasses,
 	return
 }
 
-func (b *BusinessClass) Create(ctx *middleware.APIContext) error {
+func (b *BusinessClass) Create(db *sql.DB) error {
 
-	stmt, err := ctx.DB.Prepare(createBusinessClass)
+	stmt, err := db.Prepare(createBusinessClass)
 	if err != nil {
 		return err
 	}
@@ -76,9 +77,9 @@ func (b *BusinessClass) Create(ctx *middleware.APIContext) error {
 	return err
 }
 
-func (b *BusinessClass) Delete(ctx *middleware.APIContext) error {
+func (b *BusinessClass) Delete(db *sql.DB) error {
 
-	stmt, err := ctx.DB.Prepare(deleteBusinessClass)
+	stmt, err := db.Prepare(deleteBusinessClass)
 	if err != nil {
 		return err
 	}
