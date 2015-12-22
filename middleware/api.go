@@ -2,7 +2,9 @@ package middleware
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
+	"net/http/httptest"
 
 	"gopkg.in/mgo.v2"
 
@@ -77,7 +79,16 @@ func (fn APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, ps httpro
 		if m.Defer {
 			defer m.H.ServeHTTP(w, r)
 		} else {
-			m.H.ServeHTTP(w, r)
+			rec := httptest.NewRecorder()
+			m.H.ServeHTTP(rec, r)
+			if rec.Code != 200 {
+				err := fmt.Errorf("%s", rec.Body.String())
+				w.WriteHeader(rec.Code)
+				w.Write([]byte(err.Error()))
+
+				return
+			}
+
 		}
 	}
 

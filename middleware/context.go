@@ -5,8 +5,9 @@ import (
 	"strings"
 
 	"github.com/curt-labs/API/helpers/database"
+	"github.com/curt-labs/API/models/brand"
 	"github.com/curt-labs/API/models/customer"
-	"github.com/curt-labs/iapi/brand"
+	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
 
@@ -33,24 +34,41 @@ func (ctx *APIContext) BuildDataContext(k, t string) error {
 }
 
 func new(ctx *APIContext, k, t string) (*DataContext, error) {
-	var dtx DataContext
-	var u customer.User
+	resp := struct {
+		Users []customer.User
+	}{}
 
 	c := ctx.Session.DB(database.ProductMongoDatabase).C(database.CustomerCollectionName)
 
-	err := c.Find(bson.M{"keys.$.key": k, "keys.$.key.type.type": t, "active": 1}).One(&u)
-	if err != nil {
+	// we don't need the `active` operator, since only active users
+	// are being put into MongoDB.
+	qry := bson.M{"users.keys.key": k}
+	if t != "" {
+		qry["users.keys.type.type"] = t
+	}
+
+	err := c.Find(qry).Select(bson.M{"users.$.user": 1, "_id": 0}).One(&resp)
+	if err != nil && err != mgo.ErrNotFound {
 		return nil, err
 	}
-	if u.ID == "" {
+
+	if len(resp.Users) == 0 {
 		return nil, fmt.Errorf("failed to find account for the provided %s key: %s", t, k)
+	}
+
+	dtx := DataContext{
+		User:   resp.Users[0],
+		APIKey: k,
+	}
+
+	for _, apiKey := range dtx.User.Keys {
+		if apiKey.Key == k {
+			dtx.Brands = apiKey.Brands
+		}
 	}
 
 	dtx.brandArray()
 	dtx.brandString()
-
-	dtx.User = u
-	dtx.APIKey = k
 
 	return &dtx, nil
 }
