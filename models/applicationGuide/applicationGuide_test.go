@@ -1,107 +1,220 @@
 package applicationGuide
 
 import (
-	"github.com/curt-labs/API/helpers/apicontext"
-	"github.com/curt-labs/API/helpers/apicontextmock"
-	. "github.com/smartystreets/goconvey/convey"
+	"database/sql"
+	"log"
 	"testing"
+	"time"
+
+	"github.com/curt-labs/API/middleware"
+	"github.com/curt-labs/API/models/site"
+	"github.com/julienschmidt/httprouter"
+	"github.com/ory-am/dockertest"
+	. "github.com/smartystreets/goconvey/convey"
 )
 
-func TestAppGuides(t *testing.T) {
-	MockedDTX := &apicontext.DataContext{}
-	var err error
-	if MockedDTX, err = apicontextmock.Mock(); err != nil {
-		return
+var (
+	db     *sql.DB
+	apiKey string
+
+	schemas = map[string]string{
+		`applicationGuideSchema`: `CREATE TABLE ApplicationGuides (
+			  ID int(11) unsigned NOT NULL AUTO_INCREMENT,
+			  url varchar(255) NOT NULL DEFAULT '',
+			  websiteID int(11) NOT NULL,
+			  fileType varchar(15) CHARACTER SET utf8 COLLATE utf8_unicode_ci DEFAULT NULL,
+			  catID int(11) NOT NULL,
+			  icon varchar(255) NOT NULL DEFAULT '',
+			  brandID int(11) NOT NULL DEFAULT '1',
+			  PRIMARY KEY (ID)
+			) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT;`,
+		`categories`: `CREATE TABLE Categories (
+			  catID int(11) NOT NULL AUTO_INCREMENT,
+			  dateAdded timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+			  parentID int(11) NOT NULL,
+			  catTitle varchar(100) DEFAULT NULL,
+			  shortDesc varchar(255) DEFAULT NULL,
+			  longDesc longtext,
+			  image varchar(255) DEFAULT NULL,
+			  isLifestyle int(11) NOT NULL,
+			  codeID int(11) NOT NULL DEFAULT '0',
+			  sort int(11) NOT NULL DEFAULT '1',
+			  vehicleSpecific tinyint(1) NOT NULL DEFAULT '0',
+			  vehicleRequired tinyint(1) NOT NULL DEFAULT '0',
+			  metaTitle text,
+			  metaDesc text,
+			  metaKeywords text,
+			  icon varchar(255) DEFAULT NULL,
+			  path varchar(255) DEFAULT NULL,
+			  brandID int(11) NOT NULL DEFAULT '1',
+			  isDeleted tinyint(1) NOT NULL DEFAULT '0',
+			  PRIMARY KEY (catID),
+			  KEY IX_Categories_ParentID (parentID),
+			  KEY IX_Categories_Sort (sort),
+			  KEY brandID (brandID)
+			) ENGINE=InnoDB AUTO_INCREMENT=345 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT;`,
+		`apiKey`: `CREATE TABLE ApiKey (
+			  id int(11) NOT NULL AUTO_INCREMENT,
+			  api_key varchar(64) NOT NULL,
+			  type_id varchar(64) NOT NULL,
+			  user_id varchar(64) NOT NULL,
+			  date_added timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			  UNIQUE KEY id (id),
+			  KEY FK__ApiKey__type_id__5AEE1AF6 (type_id),
+			  KEY FK__ApiKey__user_id__5BE23F2F (user_id),
+			  KEY api_key (api_key)
+			) ENGINE=InnoDB AUTO_INCREMENT=14433 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT;`,
+		`apiKeyToBrand`: `CREATE TABLE ApiKeyToBrand (
+			  ID int(11) NOT NULL AUTO_INCREMENT,
+			  keyID int(11) NOT NULL,
+			  brandID int(11) NOT NULL,
+			  PRIMARY KEY (ID),
+			  KEY FK_ApiKeyToBrand_ApiKey (keyID),
+			  KEY FK_ApiKeyToBrand_Brand (brandID)
+			) ENGINE=InnoDB AUTO_INCREMENT=38350 DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT;`,
 	}
-	Convey("Test Create AppGuide", t, func() {
+
+	dataInserts = map[string]string{
+		`insertAppGuide`: `INSERT INTO ApplicationGuides (url, websiteID, fileType, catID, icon, brandID) 
+			VALUES ('http://imgur.com/gallery/anQ7zvr', 1, 'jpg', 1, 'www.curtmfg.com/assets/434da33a-2abd-4821-a236-562d38be3e79.png', 1)`,
+		`insertApiKey`: `insert into ApiKey (id, api_key, type_id, user_id, date_added)	values(1, UUID(), UUID(), UUID(), NOW())`,
+		`insertApiKeyToBrand`: `insert into ApiKeyToBrand (keyID, brandID) values(1, 1)`,
+	}
+)
+
+func TestMain(m *testing.M) {
+	mysql, err := dockertest.ConnectToMySQL(15, time.Second*5, func(url string) bool {
 		var err error
-		var ag ApplicationGuide
+		db, err = sql.Open("mysql", url+"?parseTime=true")
+		if err != nil {
+			log.Fatalf("MySQL connection failed, with address '%s'.", url)
+		}
 
-		//create
-		ag.FileType = "pdf"
-		ag.Url = "test.com"
-		ag.Website.ID = MockedDTX.WebsiteID
-		err = ag.Create(MockedDTX)
-		So(err, ShouldBeNil)
+		for _, schema := range schemas {
+			_, err = db.Exec(schema)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
 
-		//get
-		err = ag.Get(MockedDTX)
-		So(err, ShouldBeNil)
-
-		//get by site
-		ags, err := ag.GetBySite(MockedDTX)
-
-		So(err, ShouldBeNil)
-		So(len(ags), ShouldBeGreaterThanOrEqualTo, 1)
-
-		//delete
-		err = ag.Delete()
-		So(err, ShouldBeNil)
-
+		return db.Ping() == nil
 	})
-	_ = apicontextmock.DeMock(MockedDTX)
+
+	defer func() {
+		db.Close()
+		mysql.KillRemove()
+	}()
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	m.Run()
 }
 
-func BenchmarkGetAppGuide(b *testing.B) {
-	MockedDTX := &apicontext.DataContext{}
-	var err error
-	if MockedDTX, err = apicontextmock.Mock(); err != nil {
-		return
+func insertApplicationGuides() error {
+	for _, insert := range dataInserts {
+		_, err := db.Exec(insert)
+		if err != nil {
+			return err
+		}
 	}
-	var ag ApplicationGuide
-	ag.FileType = "pdf"
-	ag.Url = "http://google.com"
-	ag.Website.ID = 1
-
-	for i := 0; i < b.N; i++ {
-		b.StopTimer()
-		ag.Create(MockedDTX)
-		b.StartTimer()
-		ag.Get(MockedDTX)
-		b.StopTimer()
-		ag.Delete()
-	}
-	_ = apicontextmock.DeMock(MockedDTX)
+	return nil
 }
 
-func BenchmarkGetBySite(b *testing.B) {
-	MockedDTX := &apicontext.DataContext{}
-	var err error
-	if MockedDTX, err = apicontextmock.Mock(); err != nil {
-		return
-	}
-	var ag ApplicationGuide
-	ag.FileType = "pdf"
-	ag.Url = "http://google.com"
-	ag.Website.ID = 1
-
-	for i := 0; i < b.N; i++ {
-		b.StopTimer()
-		ag.Create(MockedDTX)
-		b.StartTimer()
-		ag.GetBySite(MockedDTX)
-		b.StopTimer()
-		ag.Delete()
-	}
-	_ = apicontextmock.DeMock(MockedDTX)
+func getApiKey() error {
+	return db.QueryRow("select api_key from ApiKey where id = 1").Scan(&apiKey)
 }
 
-func BenchmarkDeleteAppGuide(b *testing.B) {
-	MockedDTX := &apicontext.DataContext{}
-	var err error
-	if MockedDTX, err = apicontextmock.Mock(); err != nil {
-		return
-	}
-	var ag ApplicationGuide
-	ag.FileType = "pdf"
-	ag.Url = "http://google.com"
-	ag.Website.ID = 1
+func TestGetBySite(t *testing.T) {
+	Convey("GetBySite", t, func() {
+		err := getApiKey()
+		So(err, ShouldBeNil)
+		err = insertApplicationGuides()
+		So(err, ShouldBeNil)
 
-	for i := 0; i < b.N; i++ {
-		b.StopTimer()
-		ag.Create(MockedDTX)
-		b.StartTimer()
-		ag.Delete()
-	}
-	_ = apicontextmock.DeMock(MockedDTX)
+		ag := ApplicationGuide{
+			Website: website.Website{
+				ID: 1,
+			},
+		}
+
+		ctx := &middleware.APIContext{
+			DataContext: &middleware.DataContext{
+				BrandID: 3,
+				APIKey:  apiKey,
+			},
+			Params: httprouter.Params{},
+			DB:     db,
+		}
+		Convey("Bad query", func() {
+			tmp := getApplicationGuidesBySite
+			getApplicationGuidesBySite = "bogus query"
+			ags, err := ag.GetBySite(ctx)
+			So(err, ShouldNotBeNil)
+			So(len(ags), ShouldBeZeroValue)
+			getApplicationGuidesBySite = tmp
+		})
+
+		Convey("with missing select columns", func() {
+			tmp := getApplicationGuidesBySite
+			getApplicationGuidesBySite = "select ag.ID from ApplicationGuides as ag"
+			ags, err := ag.GetBySite(ctx)
+			So(err, ShouldNotBeNil)
+			So(len(ags), ShouldBeZeroValue)
+			getApplicationGuidesBySite = tmp
+		})
+
+		Convey("valid", func() {
+			insertApplicationGuides()
+			ags, err := ag.GetBySite(ctx)
+			So(err, ShouldBeNil)
+			So(len(ags), ShouldBeGreaterThan, 0)
+		})
+	})
+}
+
+func TestGet(t *testing.T) {
+	Convey("Get", t, func() {
+		err := getApiKey()
+		So(err, ShouldBeNil)
+		err = insertApplicationGuides()
+		So(err, ShouldBeNil)
+
+		ag := ApplicationGuide{
+			Website: website.Website{
+				ID: 1,
+			},
+		}
+
+		ctx := &middleware.APIContext{
+			DataContext: &middleware.DataContext{
+				BrandID: 3,
+				APIKey:  apiKey,
+			},
+			Params: httprouter.Params{},
+			DB:     db,
+		}
+		Convey("Bad query", func() {
+			tmp := getApplicationGuide
+			getApplicationGuide = "bogus query"
+			err := ag.Get(ctx)
+			So(err, ShouldNotBeNil)
+			getApplicationGuidesBySite = tmp
+		})
+
+		Convey("with missing select columns", func() {
+			tmp := getApplicationGuide
+			getApplicationGuide = "select ag.ID from ApplicationGuides as ag"
+			err := ag.Get(ctx)
+			So(err, ShouldNotBeNil)
+			getApplicationGuide = tmp
+		})
+
+		Convey("valid", func() {
+			insertApplicationGuides()
+			err := ag.Get(ctx)
+			So(err, ShouldBeNil)
+		})
+	})
 }
