@@ -87,16 +87,11 @@ func TestGetAllKeyTypes(t *testing.T) {
 			getAllKeyTypes = tmp
 		})
 
-		// Convey("with no data", func() {
-		// 	tmp := getAllKeyTypes
-		// 	getAllKeyTypes = "truncate table ApiKeyType"
-		//
-		// 	as, err := GetAllKeyTypes(ctx)
-		// 	So(err, ShouldBeNil)
-		// 	So(as, ShouldBeNil)
-		//
-		// 	getAllKeyTypes = tmp
-		// })
+		Convey("with no data", func() {
+			as, err := GetAllKeyTypes(ctx)
+			So(err, ShouldBeNil)
+			So(as, ShouldBeNil)
+		})
 
 		Convey("with missing select columns", func() {
 			tmp := getAllKeyTypes

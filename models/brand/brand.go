@@ -4,15 +4,14 @@ import (
 	"database/sql"
 	"errors"
 	"net/url"
+
+	"github.com/curt-labs/API/helpers/database"
 )
 
 var (
 	brandFields           = `ID, name, code, logo, logoAlt, formalName, longName, primaryColor, autocareID`
 	getAllBrandsStmt      = `select ` + brandFields + ` from Brand`
 	getBrandStmt          = `select ` + brandFields + ` from Brand where ID = ?`
-	insertBrandStmt       = `insert into Brand(name, code, logo, logoAlt, formalName, longName, primaryColor, autocareID) values (?,?,?,?,?,?,?,?)`
-	updateBrandStmt       = `update Brand set name = ?, code = ?, logo = ?, logoAlt = ?, formalName = ?, longName = ?, primaryColor = ?, autocareID = ? where ID = ?`
-	deleteBrandStmt       = `delete from Brand where ID = ?`
 	getCustomerUserBrands = `select b.ID, b.name, b.code, b.logo, b.logoAlt, b.formalName, b.longName, b.primaryColor, b.autocareID
 								from Brand as b
 								join CustomerToBrand as ctb on ctb.BrandID = b.ID
@@ -48,44 +47,6 @@ type Website struct {
 	BrandID     int      `json:"brand_id" xml:"brand_id"`
 }
 
-type Scanner interface {
-	Scan(...interface{}) error
-}
-
-func ScanBrand(res Scanner) (Brand, error) {
-	var logo, logoAlt, formal, long, primary, autocare *string
-	var b Brand
-	err := res.Scan(&b.ID, &b.Name, &b.Code, &logo, &logoAlt, &formal, &long, &primary, &autocare)
-	if err != nil {
-		return b, err
-	}
-	if logo != nil {
-		b.Logo, err = url.Parse(*logo)
-		if err != nil {
-			return b, err
-		}
-	}
-	if logoAlt != nil {
-		b.LogoAlternate, err = url.Parse(*logoAlt)
-		if err != nil {
-			return b, err
-		}
-	}
-	if formal != nil {
-		b.FormalName = *formal
-	}
-	if long != nil {
-		b.LongName = *long
-	}
-	if primary != nil {
-		b.PrimaryColor = *primary
-	}
-	if autocare != nil {
-		b.AutocareID = *autocare
-	}
-	return b, err
-}
-
 func GetAllBrands(db *sql.DB) (brands []Brand, err error) {
 
 	stmt, err := db.Prepare(getAllBrandsStmt)
@@ -101,7 +62,7 @@ func GetAllBrands(db *sql.DB) (brands []Brand, err error) {
 
 	for rows.Next() {
 		var b Brand
-		b, err = ScanBrand(rows)
+		b, err = scan(rows)
 		if err != nil {
 			return
 		}
@@ -124,7 +85,7 @@ func (b *Brand) Get(db *sql.DB) error {
 	defer stmt.Close()
 
 	res := stmt.QueryRow(b.ID)
-	*b, err = ScanBrand(res)
+	*b, err = scan(res)
 	if err != nil {
 		return err
 	}
@@ -209,7 +170,7 @@ func GetUserBrands(id int, db *sql.DB) ([]Brand, error) {
 
 	for rows.Next() {
 		var b Brand
-		b, err = ScanBrand(rows)
+		b, err = scan(rows)
 		if err != nil {
 			return brands, err
 		}
@@ -218,4 +179,38 @@ func GetUserBrands(id int, db *sql.DB) ([]Brand, error) {
 		brands = append(brands, b)
 	}
 	return brands, nil
+}
+
+func scan(res database.Scanner) (Brand, error) {
+	var logo, logoAlt, formal, long, primary, autocare *string
+	var b Brand
+	err := res.Scan(&b.ID, &b.Name, &b.Code, &logo, &logoAlt, &formal, &long, &primary, &autocare)
+	if err != nil {
+		return b, err
+	}
+	if logo != nil {
+		b.Logo, err = url.Parse(*logo)
+		if err != nil {
+			return b, err
+		}
+	}
+	if logoAlt != nil {
+		b.LogoAlternate, err = url.Parse(*logoAlt)
+		if err != nil {
+			return b, err
+		}
+	}
+	if formal != nil {
+		b.FormalName = *formal
+	}
+	if long != nil {
+		b.LongName = *long
+	}
+	if primary != nil {
+		b.PrimaryColor = *primary
+	}
+	if autocare != nil {
+		b.AutocareID = *autocare
+	}
+	return b, err
 }

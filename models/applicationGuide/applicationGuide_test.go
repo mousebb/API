@@ -75,10 +75,10 @@ var (
 	}
 
 	dataInserts = map[string]string{
-		`insertAppGuide`: `INSERT INTO ApplicationGuides (url, websiteID, fileType, catID, icon, brandID) 
-			VALUES ('http://imgur.com/gallery/anQ7zvr', 1, 'jpg', 1, 'www.curtmfg.com/assets/434da33a-2abd-4821-a236-562d38be3e79.png', 1)`,
+		`insertAppGuide`: `INSERT INTO ApplicationGuides (ID, url, websiteID, fileType, catID, icon, brandID)
+			VALUES (1, 'http://imgur.com/gallery/anQ7zvr', 1, 'jpg', 1, 'www.curtmfg.com/assets/434da33a-2abd-4821-a236-562d38be3e79.png', 3)`,
 		`insertApiKey`: `insert into ApiKey (id, api_key, type_id, user_id, date_added)	values(1, UUID(), UUID(), UUID(), NOW())`,
-		`insertApiKeyToBrand`: `insert into ApiKeyToBrand (keyID, brandID) values(1, 1)`,
+		`insertApiKeyToBrand`: `insert into ApiKeyToBrand (keyID, brandID) values(1, 3)`,
 	}
 )
 
@@ -95,6 +95,16 @@ func TestMain(m *testing.M) {
 			if err != nil {
 				log.Fatal(err)
 			}
+		}
+
+		err = insertApplicationGuides()
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		err = getAPIKey()
+		if err != nil {
+			log.Fatal(err)
 		}
 
 		return db.Ping() == nil
@@ -122,22 +132,12 @@ func insertApplicationGuides() error {
 	return nil
 }
 
-func getApiKey() error {
+func getAPIKey() error {
 	return db.QueryRow("select api_key from ApiKey where id = 1").Scan(&apiKey)
 }
 
 func TestGetBySite(t *testing.T) {
 	Convey("GetBySite", t, func() {
-		err := getApiKey()
-		So(err, ShouldBeNil)
-		err = insertApplicationGuides()
-		So(err, ShouldBeNil)
-
-		ag := ApplicationGuide{
-			Website: website.Website{
-				ID: 1,
-			},
-		}
 
 		ctx := &middleware.APIContext{
 			DataContext: &middleware.DataContext{
@@ -148,6 +148,12 @@ func TestGetBySite(t *testing.T) {
 			DB:     db,
 		}
 		Convey("Bad query", func() {
+			ag := ApplicationGuide{
+				Website: website.Website{
+					ID: 1,
+				},
+			}
+
 			tmp := getApplicationGuidesBySite
 			getApplicationGuidesBySite = "bogus query"
 			ags, err := ag.GetBySite(ctx)
@@ -157,6 +163,12 @@ func TestGetBySite(t *testing.T) {
 		})
 
 		Convey("with missing select columns", func() {
+			ag := ApplicationGuide{
+				Website: website.Website{
+					ID: 1,
+				},
+			}
+
 			tmp := getApplicationGuidesBySite
 			getApplicationGuidesBySite = "select ag.ID from ApplicationGuides as ag"
 			ags, err := ag.GetBySite(ctx)
@@ -165,8 +177,25 @@ func TestGetBySite(t *testing.T) {
 			getApplicationGuidesBySite = tmp
 		})
 
+		Convey("invalid website", func() {
+			ag := ApplicationGuide{
+				Website: website.Website{
+					ID: 10,
+				},
+			}
+
+			ags, err := ag.GetBySite(ctx)
+			So(err, ShouldBeNil)
+			So(len(ags), ShouldEqual, 0)
+		})
+
 		Convey("valid", func() {
-			insertApplicationGuides()
+			ag := ApplicationGuide{
+				Website: website.Website{
+					ID: 1,
+				},
+			}
+
 			ags, err := ag.GetBySite(ctx)
 			So(err, ShouldBeNil)
 			So(len(ags), ShouldBeGreaterThan, 0)
@@ -176,16 +205,6 @@ func TestGetBySite(t *testing.T) {
 
 func TestGet(t *testing.T) {
 	Convey("Get", t, func() {
-		err := getApiKey()
-		So(err, ShouldBeNil)
-		err = insertApplicationGuides()
-		So(err, ShouldBeNil)
-
-		ag := ApplicationGuide{
-			Website: website.Website{
-				ID: 1,
-			},
-		}
 
 		ctx := &middleware.APIContext{
 			DataContext: &middleware.DataContext{
@@ -196,14 +215,26 @@ func TestGet(t *testing.T) {
 			DB:     db,
 		}
 		Convey("Bad query", func() {
+			ag := ApplicationGuide{
+				Website: website.Website{
+					ID: 1,
+				},
+			}
+
 			tmp := getApplicationGuide
 			getApplicationGuide = "bogus query"
 			err := ag.Get(ctx)
 			So(err, ShouldNotBeNil)
-			getApplicationGuidesBySite = tmp
+			getApplicationGuide = tmp
 		})
 
 		Convey("with missing select columns", func() {
+			ag := ApplicationGuide{
+				Website: website.Website{
+					ID: 1,
+				},
+			}
+
 			tmp := getApplicationGuide
 			getApplicationGuide = "select ag.ID from ApplicationGuides as ag"
 			err := ag.Get(ctx)
@@ -212,7 +243,9 @@ func TestGet(t *testing.T) {
 		})
 
 		Convey("valid", func() {
-			insertApplicationGuides()
+			ag := ApplicationGuide{
+				ID: 1,
+			}
 			err := ag.Get(ctx)
 			So(err, ShouldBeNil)
 		})

@@ -2,6 +2,7 @@ package applicationGuide
 
 import (
 	"database/sql"
+	"fmt"
 
 	"github.com/curt-labs/API/middleware"
 	"github.com/curt-labs/API/models/products"
@@ -40,6 +41,7 @@ var (
 										where (ak.api_key = ? && (ag.brandID = ? OR 0=?)) && websiteID = ?`
 )
 
+// Get Returns the infomration for the given ApplicationGuide
 func (ag *ApplicationGuide) Get(ctx *middleware.APIContext) (err error) {
 
 	stmt, err := ctx.DB.Prepare(getApplicationGuide)
@@ -52,6 +54,10 @@ func (ag *ApplicationGuide) Get(ctx *middleware.APIContext) (err error) {
 	ch := make(chan ApplicationGuide)
 	go populateApplicationGuide(row, ch)
 	*ag = <-ch
+
+	if ag.ID == 0 {
+		return fmt.Errorf("failed to retrieve application guide")
+	}
 	return
 }
 
