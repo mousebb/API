@@ -9,10 +9,10 @@ import (
 )
 
 var (
-	brandFields           = `ID, name, code, logo, logoAlt, formalName, longName, primaryColor, autocareID`
-	getAllBrandsStmt      = `select ` + brandFields + ` from Brand`
-	getBrandStmt          = `select ` + brandFields + ` from Brand where ID = ?`
-	getCustomerUserBrands = `select b.ID, b.name, b.code, b.logo, b.logoAlt, b.formalName, b.longName, b.primaryColor, b.autocareID
+	brandFields       = `ID, name, code, logo, logoAlt, formalName, longName, primaryColor, autocareID`
+	getAllBrandsStmt  = `select ` + brandFields + ` from Brand`
+	getBrandStmt      = `select ` + brandFields + ` from Brand where ID = ?`
+	getCustomerBrands = `select b.ID, b.name, b.code, b.logo, b.logoAlt, b.formalName, b.longName, b.primaryColor, b.autocareID
 								from Brand as b
 								join CustomerToBrand as ctb on ctb.BrandID = b.ID
 								join Customer as c on c.cust_id = ctb.cust_id
@@ -27,6 +27,8 @@ var (
 							order by w.ID`
 )
 
+// Brand Holds the information assoicated to a company's
+// represented brand.
 type Brand struct {
 	ID            int       `json:"id" xml:"id,attr"`
 	Name          string    `json:"name" xml:"name,attr"`
@@ -40,6 +42,7 @@ type Brand struct {
 	Websites      []Website `json:"websites" xml:"websites"`
 }
 
+// Website Online web property assoicated with a Brand.
 type Website struct {
 	ID          int      `json:"id" xml:"id,attr"`
 	Description string   `json:"description" xml:"description"`
@@ -47,6 +50,7 @@ type Website struct {
 	BrandID     int      `json:"brand_id" xml:"brand_id"`
 }
 
+// GetAllBrands Returns all Brand data for the given database.
 func GetAllBrands(db *sql.DB) (brands []Brand, err error) {
 
 	stmt, err := db.Prepare(getAllBrandsStmt)
@@ -73,6 +77,7 @@ func GetAllBrands(db *sql.DB) (brands []Brand, err error) {
 	return
 }
 
+// Get Returns the information assoicated to the given ID.
 func (b *Brand) Get(db *sql.DB) error {
 	if b.ID == 0 {
 		return errors.New("Invalid Brand ID")
@@ -92,8 +97,52 @@ func (b *Brand) Get(db *sql.DB) error {
 	return nil
 }
 
+// GetCustomerBrands Returns the Brand slice assoicated to
+// a given customer.
+func GetCustomerBrands(id int, db *sql.DB) ([]Brand, error) {
+	var brands []Brand
+	var err error
+
+	stmt, err := db.Prepare(getCustomerBrands)
+	if err != nil {
+		return brands, err
+	}
+	defer stmt.Close()
+
+	rows, err := stmt.Query(id)
+	if err != nil {
+		return brands, err
+	}
+
+	sites, err := getWebsites(0, db)
+	if err != nil {
+		return brands, err
+	}
+
+	indexedSites := make(map[int][]Website, 0)
+	for _, site := range sites {
+		if _, ok := indexedSites[site.BrandID]; !ok {
+			indexedSites[site.BrandID] = make([]Website, 0)
+		}
+
+		indexedSites[site.BrandID] = append(indexedSites[site.BrandID], site)
+	}
+
+	for rows.Next() {
+		var b Brand
+		b, err = scan(rows)
+		if err != nil {
+			return brands, err
+		}
+
+		b.Websites = indexedSites[b.ID]
+		brands = append(brands, b)
+	}
+	return brands, nil
+}
+
 func getWebsites(brandID int, db *sql.DB) ([]Website, error) {
-	sites := make([]Website, 0)
+	var sites []Website
 
 	var err error
 	var rows *sql.Rows
@@ -137,48 +186,6 @@ func getWebsites(brandID int, db *sql.DB) ([]Website, error) {
 	}
 
 	return sites, nil
-}
-
-func GetUserBrands(id int, db *sql.DB) ([]Brand, error) {
-	brands := make([]Brand, 0)
-	var err error
-
-	stmt, err := db.Prepare(getCustomerUserBrands)
-	if err != nil {
-		return brands, err
-	}
-	defer stmt.Close()
-
-	rows, err := stmt.Query(id)
-	if err != nil {
-		return brands, err
-	}
-
-	sites, err := getWebsites(0, db)
-	if err != nil {
-		return brands, err
-	}
-
-	indexedSites := make(map[int][]Website, 0)
-	for _, site := range sites {
-		if _, ok := indexedSites[site.BrandID]; !ok {
-			indexedSites[site.BrandID] = make([]Website, 0)
-		}
-
-		indexedSites[site.BrandID] = append(indexedSites[site.BrandID], site)
-	}
-
-	for rows.Next() {
-		var b Brand
-		b, err = scan(rows)
-		if err != nil {
-			return brands, err
-		}
-
-		b.Websites = indexedSites[b.ID]
-		brands = append(brands, b)
-	}
-	return brands, nil
 }
 
 func scan(res database.Scanner) (Brand, error) {

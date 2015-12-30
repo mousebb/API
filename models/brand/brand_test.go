@@ -1,117 +1,184 @@
 package brand
 
 import (
-	"github.com/curt-labs/API/helpers/apicontextmock"
-	. "github.com/smartystreets/goconvey/convey"
+	"database/sql"
+	"log"
+	"strings"
 	"testing"
+	"time"
+
+	"github.com/ory-am/dockertest"
+	. "github.com/smartystreets/goconvey/convey"
 )
 
-func TestBrands(t *testing.T) {
-	var err error
-	b := setupDummyBrand()
-	dtx, err := apicontextmock.Mock()
-	if err != nil {
-		return
+var (
+	db *sql.DB
+
+	schemas = map[string]string{
+		`brandSchema`:           `CREATE TABLE Brand (ID int(11) NOT NULL AUTO_INCREMENT,name varchar(255) NOT NULL,code varchar(255) NOT NULL,logo varchar(255) DEFAULT NULL,logoAlt varchar(255) DEFAULT NULL,formalName varchar(255) DEFAULT NULL,longName varchar(255) DEFAULT NULL,primaryColor varchar(10) DEFAULT NULL,autocareID varchar(4) DEFAULT NULL,PRIMARY KEY (ID)) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
+		`customerToBrandSchema`: `CREATE TABLE CustomerToBrand (ID int(11) NOT NULL AUTO_INCREMENT,cust_id int(11) NOT NULL,brandID int(11) NOT NULL,PRIMARY KEY (ID)) ENGINE=InnoDB AUTO_INCREMENT=54486 DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT`,
+		`websiteToBrandSchema`:  `CREATE TABLE WebsiteToBrand (ID int(11) NOT NULL AUTO_INCREMENT,WebsiteID int(11) NOT NULL,brandID int(11) NOT NULL,PRIMARY KEY (ID)) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT`,
+		`websiteSchema`:         `CREATE TABLE Website (ID int(11) NOT NULL AUTO_INCREMENT,url varchar(255) DEFAULT NULL,description varchar(255) DEFAULT NULL,PRIMARY KEY (ID)) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
+		`customerSchema`:        `CREATE TABLE Customer (cust_id int(11) NOT NULL AUTO_INCREMENT,name varchar(255) DEFAULT NULL,email varchar(255) DEFAULT NULL,address varchar(500) DEFAULT NULL,city varchar(150) DEFAULT NULL,stateID int(11) DEFAULT NULL,phone varchar(50) DEFAULT NULL,fax varchar(50) DEFAULT NULL,contact_person varchar(300) DEFAULT NULL,dealer_type int(11) NOT NULL,latitude varchar(200) DEFAULT NULL,longitude varchar(200) DEFAULT NULL,password varchar(255) DEFAULT NULL,website varchar(500) DEFAULT NULL,customerID int(11) DEFAULT NULL,isDummy tinyint(1) NOT NULL DEFAULT '0',parentID int(11) DEFAULT NULL,searchURL varchar(500) DEFAULT NULL,eLocalURL varchar(500) DEFAULT NULL,logo varchar(500) DEFAULT NULL,address2 varchar(500) DEFAULT NULL,postal_code varchar(25) DEFAULT NULL,mCodeID int(11) NOT NULL DEFAULT '1',salesRepID int(11) DEFAULT NULL,APIKey varchar(64) DEFAULT NULL,tier int(11) NOT NULL DEFAULT '1',showWebsite tinyint(1) NOT NULL DEFAULT '0',PRIMARY KEY (cust_id)) ENGINE=InnoDB AUTO_INCREMENT=10444525 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
 	}
 
-	Convey("Testing GetAll", t, func() {
-		brands, err := GetAllBrands()
-		So(err, ShouldBeNil)
-		So(len(brands), ShouldBeGreaterThanOrEqualTo, 0)
+	dataInserts = map[string]string{
+		`insertBrand`: `insert into Brand(ID, name, code, logo, logoAlt, formalName, longName, primaryColor, autocareID) values (1, 'test brand', 'code','123','345','formal brand','long name','ffffff','auto')`,
+	}
+)
+
+func TestMain(m *testing.M) {
+
+	mysql, err := dockertest.ConnectToMySQL(15, time.Second*5, func(url string) bool {
+		var err error
+		db, err = sql.Open("mysql", url)
+		if err != nil {
+			log.Fatalf("MySQL connection failed, with address '%s'.", url)
+		}
+
+		for _, schema := range schemas {
+			_, err = db.Exec(schema)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+
+		for _, insert := range dataInserts {
+			_, err = db.Exec(insert)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+
+		return db.Ping() == nil
 	})
 
-	Convey("Testing Brands - CRUD", t, func() {
-		Convey("Testing Create", func() {
-			err = b.Create()
-			So(err, ShouldBeNil)
-			So(b.ID, ShouldNotEqual, 0)
+	defer func() {
+		db.Close()
+		mysql.KillRemove()
+	}()
 
-			err = b.Get()
-			So(err, ShouldBeNil)
-			So(b.ID, ShouldBeGreaterThan, 0)
-			So(b.Name, ShouldEqual, "TESTER")
+	if err != nil {
+		log.Fatal(err)
+	}
 
-			b.Name = "TESTING"
-			err = b.Update()
-			So(err, ShouldBeNil)
-			So(b.Name, ShouldEqual, "TESTING")
+	m.Run()
 
-			sites, err := getWebsites(b.ID)
-			So(err, ShouldBeNil)
-			So(sites, ShouldHaveSameTypeAs, []Website{})
+}
 
-			brands, err := GetUserBrands(dtx.CustomerID)
-			So(err, ShouldBeNil)
+func TestGetAllBrands(t *testing.T) {
+
+	Convey("Testing GetAllBrands", t, func() {
+
+		Convey("with invalid db query", func() {
+			tmp := getAllBrandsStmt
+			getAllBrandsStmt = "invalid database query"
+
+			brands, err := GetAllBrands(db)
+			So(err, ShouldNotBeNil)
 			So(brands, ShouldHaveSameTypeAs, []Brand{})
 
-			err = b.Delete()
-			So(err, ShouldBeNil)
-
+			getAllBrandsStmt = tmp
 		})
-		Convey("Testing Get - Bad ID", func() {
-			br := Brand{}
-			err = br.Get()
+
+		Convey("with missing select columns", func() {
+			tmp := getAllBrandsStmt
+			getAllBrandsStmt = strings.Replace(getAllBrandsStmt, "ID, ", "", 1)
+
+			brands, err := GetAllBrands(db)
 			So(err, ShouldNotBeNil)
+			So(brands, ShouldHaveSameTypeAs, []Brand{})
+
+			getAllBrandsStmt = tmp
 		})
+
+		Convey("with valid db connection", func() {
+
+			brands, err := GetAllBrands(db)
+			So(err, ShouldBeNil)
+			So(brands, ShouldHaveSameTypeAs, []Brand{})
+		})
+
 	})
-	apicontextmock.DeMock(dtx)
-
 }
 
-func BenchmarkGetAllBrands(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		GetAllBrands()
-	}
+func TestGet(t *testing.T) {
+
+	Convey("Testing Get", t, func() {
+
+		Convey("with invalid db query", func() {
+			tmp := getBrandStmt
+			getBrandStmt = "invalid database query"
+
+			b := Brand{}
+			err := b.Get(db)
+			So(err, ShouldNotBeNil)
+			So(b.ID, ShouldEqual, 0)
+
+			getBrandStmt = tmp
+		})
+
+		Convey("with missing select columns", func() {
+			tmp := getBrandStmt
+			getBrandStmt = strings.Replace(getBrandStmt, "ID, ", "", 1)
+
+			b := Brand{
+				ID: 1,
+			}
+			err := b.Get(db)
+			t.Log(err)
+			So(err, ShouldNotBeNil)
+			So(b.ID, ShouldEqual, 0)
+
+			getBrandStmt = tmp
+		})
+
+		Convey("with valid db connection", func() {
+
+			b := Brand{
+				ID: 1,
+			}
+
+			err := b.Get(db)
+			So(err, ShouldBeNil)
+			So(b.Code, ShouldNotEqual, "")
+		})
+
+	})
 }
 
-func BenchmarkGetBrand(b *testing.B) {
-	br := setupDummyBrand()
-	br.Create()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		br.Get()
-	}
-	b.StopTimer()
-	br.Delete()
-}
+func TestGetCustomerBrands(t *testing.T) {
 
-func BenchmarkCreateBrand(b *testing.B) {
-	br := setupDummyBrand()
-	for i := 0; i < b.N; i++ {
-		br.Create()
-		b.StopTimer()
-		br.Delete()
-		b.StartTimer()
-	}
-}
+	Convey("Testing GetCustomerBrands", t, func() {
 
-func BenchmarkUpdateBrand(b *testing.B) {
-	br := setupDummyBrand()
-	br.Create()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		br.Name = "TESTING"
-		br.Code = "TEST"
-		br.Update()
-	}
-	b.StopTimer()
-	br.Delete()
-}
+		Convey("with invalid db query", func() {
+			tmp := getCustomerBrands
+			getCustomerBrands = "invalid database query"
 
-func BenchmarkDeleteBrand(b *testing.B) {
-	br := setupDummyBrand()
-	br.Create()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		br.Delete()
-	}
-	b.StopTimer()
-	br.Delete()
-}
+			brands, err := GetCustomerBrands(0, db)
+			So(err, ShouldNotBeNil)
+			So(brands, ShouldHaveSameTypeAs, []Brand{})
 
-func setupDummyBrand() *Brand {
-	return &Brand{
-		Name: "TESTER",
-		Code: "TESTER",
-	}
+			getCustomerBrands = tmp
+		})
+
+		Convey("with missing select columns", func() {
+			tmp := getCustomerBrands
+			getCustomerBrands = strings.Replace(getCustomerBrands, "ID, ", "", 1)
+
+			brands, err := GetCustomerBrands(-1, db)
+			So(err, ShouldNotBeNil)
+			So(brands, ShouldHaveSameTypeAs, []Brand{})
+
+			getCustomerBrands = tmp
+		})
+
+		Convey("with valid db connection", func() {
+
+			brands, err := GetCustomerBrands(1, db)
+			So(err, ShouldBeNil)
+			So(brands, ShouldHaveSameTypeAs, []Brand{})
+		})
+
+	})
 }
