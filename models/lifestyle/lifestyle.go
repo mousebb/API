@@ -1,15 +1,13 @@
 package lifestyle
 
 import (
-	"database/sql"
 	"encoding/json"
-	"errors"
-	"github.com/curt-labs/API/helpers/apicontext"
-	"github.com/curt-labs/API/helpers/database"
-	"github.com/curt-labs/API/helpers/redis"
-	_ "github.com/go-sql-driver/mysql"
 	"strconv"
 	"time"
+
+	"github.com/curt-labs/API/helpers/redis"
+	"github.com/curt-labs/API/middleware"
+	_ "github.com/go-sql-driver/mysql"
 )
 
 type Lifestyle struct {
@@ -100,46 +98,30 @@ var (
 								Join ApiKey as ak on akb.keyID = ak.id
 								where (ak.api_key = ? && (cat.brandID = ? OR 0=?))
 								order by t.TW`
-
-	createLifestyle = `INSERT INTO Categories (dateAdded, parentID, catTitle, shortDesc, longDesc, image, isLifestyle, sort, brandID) VALUES (?,?,?,?,?,?,?,?,?)`
-	updateLifestyle = `UPDATE Categories SET dateAdded = ?, parentID = ?, catTitle = ?, shortDesc = ?, longDesc = ?, image = ?, isLifestyle = ?, sort = ?, brandID = ? WHERE catID = ?`
-	deleteLifestyle = `DELETE FROM Categories WHERE catID = ?`
-	deleteContents  = `DELETE FROM ContentBridge WHERE catID = ?`
-	deleteTowables  = `DELETE FROM Lifestyle_Trailer WHERE catID = ?`
-	insertContent   = `INSERT INTO ContentBridge (catID,  contentID) VALUES (?,?)`
-	insertTowable   = `INSERT INTO Lifestyle_Trailer (catID, trailerID) VALUES (?,?)`
-	createContent   = `INSERT INTO Content (text, cTypeID, userID, deleted) VALUES (?,?,?,?)`
-	createTowable   = `INSERT INTO Trailers (image, name, TW, GTW, hitchClass, shortDesc, message) VALUES (?,?,?,?,?,?,?)`
-	getContent      = `SELECT c.contentID, c.text, c.cTypeID, c.userID, c.deleted, ct.type, ct.allowHTML FROM Content AS c LEFT JOIN ContentType AS ct ON ct.cTypeId = c.cTypeId WHERE c.contentID = ?`
-	getTowable      = `SELECT trailerID, image, name, TW, GTW, hitchClass, shortDesc, message FROM Trailer WHERE trailerID = ?`
+	getContent = `SELECT c.contentID, c.text, c.cTypeID, c.userID, c.deleted, ct.type, ct.allowHTML FROM Content AS c LEFT JOIN ContentType AS ct ON ct.cTypeId = c.cTypeId WHERE c.contentID = ?`
+	getTowable = `SELECT trailerID, image, name, TW, GTW, hitchClass, shortDesc, message FROM Trailer WHERE trailerID = ?`
 )
 
-func GetAll(dtx *apicontext.DataContext) (ls Lifestyles, err error) {
-	redis_key := "lifestyle:all:" + dtx.BrandString
+func GetAll(ctx *middleware.APIContext) (ls Lifestyles, err error) {
+	redis_key := "lifestyle:all:" + ctx.DataContext.BrandString
 	data, err := redis.Get(redis_key)
 	if err == nil && len(data) > 0 {
 		err = json.Unmarshal(data, &ls)
 		return ls, err
 	}
 
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return ls, err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(getAllLifestyles)
+	stmt, err := ctx.DB.Prepare(getAllLifestyles)
 	if err != nil {
 		return ls, err
 	}
 	defer stmt.Close()
 	//get content and towables
-	cs, err := getAllContent(dtx)
+	cs, err := getAllContent(ctx)
 	contentMap := cs.ToMap()
-	ts, err := getAllTowables(dtx)
+	ts, err := getAllTowables(ctx)
 	towMap := ts.ToMap()
 
-	res, err := stmt.Query(dtx.APIKey, dtx.BrandID, dtx.BrandID)
+	res, err := stmt.Query(ctx.DataContext.APIKey, ctx.DataContext.BrandID, ctx.DataContext.BrandID)
 	for res.Next() {
 		var l Lifestyle
 		err = res.Scan(&l.ID, &l.Name, &l.DateAdded, &l.ParentID, &l.ShortDesc, &l.LongDesc, &l.Image, &l.IsLifestyle, &l.Sort)
@@ -177,35 +159,29 @@ func GetAll(dtx *apicontext.DataContext) (ls Lifestyles, err error) {
 	return ls, err
 }
 
-func (l *Lifestyle) Get(dtx *apicontext.DataContext) (err error) {
-	redis_key := "lifestyle:get:" + strconv.Itoa(l.ID) + ":" + dtx.BrandString
+func (l *Lifestyle) Get(ctx *middleware.APIContext) (err error) {
+	redis_key := "lifestyle:get:" + strconv.Itoa(l.ID) + ":" + ctx.DataContext.BrandString
 	data, err := redis.Get(redis_key)
 	if err == nil && len(data) > 0 {
 		err = json.Unmarshal(data, &l)
 		return err
 	}
 
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(getLifestyle)
+	stmt, err := ctx.DB.Prepare(getLifestyle)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 
-	err = stmt.QueryRow(l.ID, dtx.APIKey, dtx.BrandID, dtx.BrandID).Scan(&l.ID, &l.Name, &l.DateAdded, &l.ParentID, &l.ShortDesc, &l.LongDesc, &l.Image, &l.IsLifestyle, &l.Sort)
+	err = stmt.QueryRow(l.ID, ctx.DataContext.APIKey, ctx.DataContext.BrandID, ctx.DataContext.BrandID).Scan(&l.ID, &l.Name, &l.DateAdded, &l.ParentID, &l.ShortDesc, &l.LongDesc, &l.Image, &l.IsLifestyle, &l.Sort)
 	if err != nil {
 		return err
 	}
-	err = l.GetContents()
+	err = l.contents(ctx)
 	if err != nil {
 		return err
 	}
-	err = l.GetTowables()
+	err = l.towables(ctx)
 	if err != nil {
 		return err
 	}
@@ -213,20 +189,15 @@ func (l *Lifestyle) Get(dtx *apicontext.DataContext) (err error) {
 	return nil
 }
 
-func getAllContent(dtx *apicontext.DataContext) (cs Contents, err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return cs, err
-	}
-	defer db.Close()
+func getAllContent(ctx *middleware.APIContext) (cs Contents, err error) {
 
-	stmt, err := db.Prepare(getAllLifestyleContent)
+	stmt, err := ctx.DB.Prepare(getAllLifestyleContent)
 	if err != nil {
 		return cs, err
 	}
 	defer stmt.Close()
 
-	res, err := stmt.Query(dtx.APIKey, dtx.BrandID, dtx.BrandID)
+	res, err := stmt.Query(ctx.DataContext.APIKey, ctx.DataContext.BrandID, ctx.DataContext.BrandID)
 	for res.Next() {
 		var c Content
 		err = res.Scan(&c.ID, &c.ContentType.HTML, &c.ContentType.Name, &c.Text)
@@ -239,19 +210,14 @@ func getAllContent(dtx *apicontext.DataContext) (cs Contents, err error) {
 	return cs, err
 }
 
-func getAllTowables(dtx *apicontext.DataContext) (ts Towables, err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return ts, err
-	}
-	defer db.Close()
+func getAllTowables(ctx *middleware.APIContext) (ts Towables, err error) {
 
-	stmt, err := db.Prepare(getAllLifestyleTowables)
+	stmt, err := ctx.DB.Prepare(getAllLifestyleTowables)
 	if err != nil {
 		return ts, err
 	}
 	defer stmt.Close()
-	res, err := stmt.Query(dtx.APIKey, dtx.BrandID, dtx.BrandID)
+	res, err := stmt.Query(ctx.DataContext.APIKey, ctx.DataContext.BrandID, ctx.DataContext.BrandID)
 	for res.Next() {
 		var t Towable
 		err = res.Scan(&t.ID, &t.CatId, &t.Name, &t.ShortDesc, &t.HitchClass, &t.Image, &t.TW, &t.GTW, &t.Message)
@@ -264,14 +230,9 @@ func getAllTowables(dtx *apicontext.DataContext) (ts Towables, err error) {
 	return ts, err
 }
 
-func (l *Lifestyle) GetContents() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
+func (l *Lifestyle) contents(ctx *middleware.APIContext) (err error) {
 
-	stmt, err := db.Prepare(getLifestyleContent)
+	stmt, err := ctx.DB.Prepare(getLifestyleContent)
 	if err != nil {
 		return err
 	}
@@ -290,14 +251,9 @@ func (l *Lifestyle) GetContents() (err error) {
 	return err
 }
 
-func (l *Lifestyle) GetTowables() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
+func (l *Lifestyle) towables(ctx *middleware.APIContext) (err error) {
 
-	stmt, err := db.Prepare(getLifestyleTowables)
+	stmt, err := ctx.DB.Prepare(getLifestyleTowables)
 	if err != nil {
 		return err
 	}
@@ -315,262 +271,9 @@ func (l *Lifestyle) GetTowables() (err error) {
 	return err
 }
 
-func (l *Lifestyle) Create(dtx *apicontext.DataContext) (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	tx, err := db.Begin()
+func (c *Content) get(ctx *middleware.APIContext) (err error) {
 
-	stmt, err := tx.Prepare(createLifestyle)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-	l.DateAdded = time.Now()
-	res, err := stmt.Exec(l.DateAdded, l.ParentID, l.Name, l.ShortDesc, l.LongDesc, l.Image, l.IsLifestyle, l.Sort, dtx.BrandID)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-	id, err := res.LastInsertId()
-	l.ID = int(id)
-	err = tx.Commit()
-
-	cChan := make(chan int)
-	tChan := make(chan int)
-
-	//insert content and/or joins
-	go func() {
-		cChan <- 1
-		for _, content := range l.Contents {
-			err = content.Get()
-			if err != nil {
-				err = content.Create()
-				if err != nil {
-					return
-				}
-			}
-			err = content.insertContent(*l)
-			if err != nil {
-				return
-			}
-		}
-	}()
-
-	//insert towable and/or joins
-	go func() {
-		tChan <- 1
-		for _, towable := range l.Towables {
-			err = towable.Get()
-			if err != nil {
-				err = towable.Create()
-				if err != nil {
-					return
-				}
-			}
-			err = towable.insertTowable()
-			if err != nil {
-				return
-			}
-		}
-
-	}()
-	<-cChan
-	<-tChan
-
-	return err
-}
-
-func (l *Lifestyle) Update(dtx *apicontext.DataContext) (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	tx, err := db.Begin()
-
-	stmt, err := tx.Prepare(updateLifestyle)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-	_, err = stmt.Exec(l.DateAdded, l.ParentID, l.Name, l.ShortDesc, l.LongDesc, l.Image, l.IsLifestyle, l.Sort, dtx.BrandID, l.ID)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-	err = tx.Commit()
-
-	//delete content and towable joins
-	err = l.deleteContents()
-	err = l.deleteTowables()
-	if err != nil {
-		return err
-	}
-
-	//insert content and/or joins
-	for _, content := range l.Contents {
-		err = content.Get()
-		if err != nil {
-			err = content.Create()
-			if err != nil {
-				return err
-			}
-		}
-		err = content.insertContent(*l)
-		if err != nil {
-			return err
-		}
-	}
-	//insert towable and/or joins
-	for _, towable := range l.Towables {
-		err = towable.Get()
-		if err != nil {
-			err = towable.Create()
-			if err != nil {
-				return err
-			}
-		}
-		err = towable.insertTowable()
-		if err != nil {
-			return err
-		}
-	}
-
-	redis_key := "lifestyle:get:" + strconv.Itoa(l.ID) + ":" + dtx.BrandString
-	go redis.Setex(redis_key, l, redis.CacheTimeout)
-	return err
-}
-
-func (l *Lifestyle) Delete() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	tx, err := db.Begin()
-
-	stmt, err := tx.Prepare(deleteLifestyle)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-	_, err = stmt.Exec(l.ID)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-	err = tx.Commit()
-	if err != nil {
-		return err
-	}
-
-	err = l.deleteContents()
-	err = l.deleteTowables()
-	return err
-}
-
-func (l *Lifestyle) deleteContents() (err error) {
-	if l.ID == 0 {
-		return errors.New("Lifestyle content ID is zero.")
-	}
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	tx, err := db.Begin()
-
-	stmt, err := tx.Prepare(deleteContents)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-	_, err = stmt.Exec(l.ID)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-	err = tx.Commit()
-	return err
-}
-
-func (l *Lifestyle) deleteTowables() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	tx, err := db.Begin()
-
-	stmt, err := tx.Prepare(deleteTowables)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-	_, err = stmt.Exec(l.ID)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-	err = tx.Commit()
-	return err
-}
-
-func (c *Content) insertContent(l Lifestyle) (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	tx, err := db.Begin()
-
-	stmt, err := tx.Prepare(insertContent)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-	_, err = stmt.Exec(l.ID, c.ID)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-	err = tx.Commit()
-	return err
-}
-
-func (t *Towable) insertTowable() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	tx, err := db.Begin()
-
-	stmt, err := tx.Prepare(insertTowable)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-	_, err = stmt.Exec(t.CatId, t.ID)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-	err = tx.Commit()
-	return err
-}
-
-func (c *Content) Get() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(getContent)
+	stmt, err := ctx.DB.Prepare(getContent)
 	if err != nil {
 		return err
 	}
@@ -580,67 +283,14 @@ func (c *Content) Get() (err error) {
 	return err
 }
 
-func (t *Towable) Get() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
+func (t *Towable) get(ctx *middleware.APIContext) (err error) {
 
-	stmt, err := db.Prepare(getTowable)
+	stmt, err := ctx.DB.Prepare(getTowable)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 	err = stmt.QueryRow(t.ID).Scan(&t.ID, &t.Image, &t.Name, &t.TW, &t.GTW, &t.HitchClass, &t.ShortDesc, &t.Message)
 
-	return err
-}
-
-func (c *Content) Create() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	tx, err := db.Begin()
-
-	stmt, err := tx.Prepare(createContent)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-	res, err := stmt.Exec(c.Text, c.ContentType.ID, c.UserID, c.Deleted)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-	id, err := res.LastInsertId()
-	c.ID = int(id)
-	return err
-	//TODO - content types
-}
-
-func (t *Towable) Create() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	tx, err := db.Begin()
-
-	stmt, err := tx.Prepare(createTowable)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-	res, err := stmt.Exec(t.Image, t.Name, t.TW, t.GTW, t.HitchClass, t.ShortDesc, t.Message)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-	id, err := res.LastInsertId()
-	t.ID = int(id)
-	err = tx.Commit()
 	return err
 }

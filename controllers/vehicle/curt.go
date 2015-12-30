@@ -32,17 +32,17 @@ func CurtLookup(ctx *middleware.APIContext, w http.ResponseWriter, r *http.Reque
 
 	var err error
 	if v.Year == "" {
-		err = cl.GetYears()
+		err = cl.GetYears(ctx)
 	} else if v.Make == "" {
-		err = cl.GetMakes()
+		err = cl.GetMakes(ctx)
 	} else if v.Model == "" {
-		err = cl.GetModels()
+		err = cl.GetModels(ctx)
 	} else {
-		err = cl.GetStyles()
+		err = cl.GetStyles(ctx)
 		if err != nil {
 			return nil, err
 		}
-		err = cl.GetParts(dtx)
+		err = cl.GetParts(ctx)
 	}
 
 	return cl, err

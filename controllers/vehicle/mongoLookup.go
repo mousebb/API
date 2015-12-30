@@ -10,7 +10,7 @@ import (
 )
 
 func Collections(ctx *middleware.APIContext, w http.ResponseWriter, r *http.Request) (interface{}, error) {
-	return products.GetAriesVehicleCollections()
+	return products.GetAriesVehicleCollections(ctx)
 }
 
 func Lookup(ctx *middleware.APIContext, w http.ResponseWriter, r *http.Request) (interface{}, error) {
@@ -37,7 +37,7 @@ func Lookup(ctx *middleware.APIContext, w http.ResponseWriter, r *http.Request) 
 	v.Style = r.FormValue("style")
 	delete(r.Form, "style")
 
-	return products.FindVehicles(v, collection, dtx)
+	return products.FindVehicles(ctx, v, collection)
 }
 
 func ByCategory(ctx *middleware.APIContext, w http.ResponseWriter, r *http.Request) (interface{}, error) {
@@ -53,7 +53,7 @@ func ByCategory(ctx *middleware.APIContext, w http.ResponseWriter, r *http.Reque
 		offset = page*limit + 1
 	}
 
-	return products.FindApplications(collection, offset, limit)
+	return products.FindApplications(ctx, collection, offset, limit)
 }
 
 //Hack version that slowly traverses all the collection and aggregates results
@@ -61,7 +61,7 @@ func AllCollectionsLookup(ctx *middleware.APIContext, w http.ResponseWriter, r *
 	var v products.NoSqlVehicle
 
 	//Get all collections
-	cols, err := products.GetAriesVehicleCollections()
+	cols, err := products.GetAriesVehicleCollections(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +85,7 @@ func AllCollectionsLookup(ctx *middleware.APIContext, w http.ResponseWriter, r *
 	var collectionVehicleArray []products.NoSqlLookup
 
 	for _, col := range cols {
-		noSqlLookup, err := products.FindVehiclesWithParts(v, col, dtx)
+		noSqlLookup, err := products.FindVehiclesWithParts(ctx, v, col)
 		if err != nil {
 			return nil, err
 		}
@@ -99,8 +99,6 @@ func AllCollectionsLookup(ctx *middleware.APIContext, w http.ResponseWriter, r *
 //return parts for a vehicle(incl style) within a specific category
 func AllCollectionsLookupCategory(ctx *middleware.APIContext, w http.ResponseWriter, r *http.Request) (interface{}, error) {
 	var v products.NoSqlVehicle
-	noSqlLookup := make(map[string]products.NoSqlLookup)
-	var err error
 
 	// Get vehicle year
 	v.Year = r.FormValue("year")
@@ -120,10 +118,10 @@ func AllCollectionsLookupCategory(ctx *middleware.APIContext, w http.ResponseWri
 
 	collection := r.FormValue("collection")
 	if collection == "" {
-		return products.FindVehiclesFromAllCategories(v, dtx)
+		return products.FindVehiclesFromAllCategories(ctx, v)
 	}
 
-	return products.FindPartsFromOneCategory(v, collection, dtx)
+	return products.FindPartsFromOneCategory(ctx, v, collection)
 }
 
 func makeLookupFrommanyLookups(lookupArrays []products.NoSqlLookup) (l products.NoSqlLookup) {

@@ -1,17 +1,17 @@
 package apifilter
 
 import (
-	"database/sql"
 	"fmt"
-	"github.com/curt-labs/API/helpers/database"
-	"github.com/curt-labs/API/helpers/sortutil"
-	"github.com/curt-labs/API/models/products"
-	_ "github.com/go-sql-driver/mysql"
 	"net/http"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/curt-labs/API/helpers/sortutil"
+	"github.com/curt-labs/API/middleware"
+	"github.com/curt-labs/API/models/products"
+	_ "github.com/go-sql-driver/mysql"
 )
 
 var (
@@ -42,14 +42,14 @@ func RenderSelections(r *http.Request) map[string][]string {
 	return data
 }
 
-func CategoryFilter(cat products.Category, specs *map[string][]string) ([]Options, error) {
+func CategoryFilter(ctx *middleware.APIContext, cat products.Category, specs *map[string][]string) ([]Options, error) {
 
 	var filtered FilteredOptions
 
 	attrChan := make(chan error)
 
 	go func() {
-		if results, err := filtered.categoryGroupAttributes(cat, specs); err == nil {
+		if results, err := filtered.categoryGroupAttributes(ctx, cat, specs); err == nil {
 			filtered = append(filtered, results...)
 		}
 		attrChan <- nil
@@ -67,15 +67,9 @@ func CategoryFilter(cat products.Category, specs *map[string][]string) ([]Option
 	return filtered, nil
 }
 
-func (filtered FilteredOptions) categoryGroupAttributes(cat products.Category, specs *map[string][]string) (FilteredOptions, error) {
+func (filtered FilteredOptions) categoryGroupAttributes(ctx *middleware.APIContext, cat products.Category, specs *map[string][]string) (FilteredOptions, error) {
 
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return FilteredOptions{}, err
-	}
-	defer db.Close()
-
-	idQry, err := db.Prepare(GetCategoryGroup)
+	idQry, err := ctx.DB.Prepare(GetCategoryGroup)
 	if err != nil {
 		return FilteredOptions{}, err
 	}
@@ -97,12 +91,12 @@ func (filtered FilteredOptions) categoryGroupAttributes(cat products.Category, s
 		}
 	}
 
-	excludedAttributeTypes := getExcludedAttributeTypes()
+	excludedAttributeTypes := getExcludedAttributeTypes(ctx)
 	filterResults := make(map[string]Options, 0)
 	attrCh := make(chan error)
 	for _, id := range ids {
 		go func(catID int) {
-			if results, err := categoryAttributes(catID, excludedAttributeTypes); err == nil {
+			if results, err := categoryAttributes(ctx, catID, excludedAttributeTypes); err == nil {
 				for key, result := range results {
 					filterResults[key] = result
 				}
@@ -119,7 +113,7 @@ func (filtered FilteredOptions) categoryGroupAttributes(cat products.Category, s
 
 	for _, id := range ids {
 		go func(catID int) {
-			if results, err := categoryPrices(catID); err == nil {
+			if results, err := categoryPrices(ctx, catID); err == nil {
 				opts := make([]Option, 0)
 				for _, res := range results {
 					opts = append(opts, res.Options...)
@@ -190,7 +184,7 @@ func (filtered FilteredOptions) categoryGroupAttributes(cat products.Category, s
 	return filtered, nil
 }
 
-func categoryAttributes(catID int, excludedAttributeTypes []string) (map[string]Options, error) {
+func categoryAttributes(ctx *middleware.APIContext, catID int, excludedAttributeTypes []string) (map[string]Options, error) {
 	mapped := make(map[string]Options, 0)
 
 	var exs string
@@ -202,13 +196,7 @@ func categoryAttributes(catID int, excludedAttributeTypes []string) (map[string]
 		}
 	}
 
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return map[string]Options{}, err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(GetCategoryAttributes)
+	stmt, err := ctx.DB.Prepare(GetCategoryAttributes)
 	if err != nil {
 		return map[string]Options{}, err
 	}
@@ -264,20 +252,14 @@ func categoryAttributes(catID int, excludedAttributeTypes []string) (map[string]
 	return mapped, nil
 }
 
-func categoryPrices(catID int) (map[string]Options, error) {
+func categoryPrices(ctx *middleware.APIContext, catID int) (map[string]Options, error) {
 	mapped := make(map[string]Options, 0)
 	opt := Options{
 		Key:     "Price",
 		Options: make([]Option, 0),
 	}
 
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return mapped, err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(GetCategoryPrices)
+	stmt, err := ctx.DB.Prepare(GetCategoryPrices)
 	if err != nil {
 		return mapped, err
 	}

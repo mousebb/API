@@ -3,8 +3,6 @@ package vehicle
 import (
 	"fmt"
 
-	"github.com/curt-labs/API/helpers/encoding"
-	"github.com/curt-labs/API/helpers/error"
 	"github.com/curt-labs/API/middleware"
 	"github.com/curt-labs/API/models/products"
 
@@ -14,69 +12,59 @@ import (
 )
 
 func GetAllCollectionApplications(ctx *middleware.APIContext, w http.ResponseWriter, r *http.Request) (interface{}, error) {
-	collection := params["collection"]
+
+	collection := ctx.Params.ByName("collection")
 	if collection == "" {
-		apierror.GenerateError("No Collection in URL", nil, w, r)
-		return ""
+		return nil, fmt.Errorf("collection was empty")
 	}
-	apps, err := products.GetAllCollectionApplications(collection)
-	if err != nil {
-		apierror.GenerateError(err.Error(), err, w, r)
-		return ""
-	}
-	return encoding.Must(enc.Encode(apps))
+
+	return products.GetAllCollectionApplications(ctx, collection)
 }
 
 func UpdateApplication(ctx *middleware.APIContext, w http.ResponseWriter, r *http.Request) (interface{}, error) {
 	var app products.NoSqlVehicle
-	collection := params["collection"]
+	collection := ctx.Params.ByName("collection")
 	if collection == "" {
-		apierror.GenerateError("No Collection in URL", nil, w, r)
-		return ""
+		return nil, fmt.Errorf("collection was empty")
 	}
 
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		apierror.GenerateError("Error reading request body", nil, w, r)
-		return ""
+		return nil, fmt.Errorf("error reading request body: %v", err)
 	}
 
 	if err = json.Unmarshal(body, &app); err != nil {
-		apierror.GenerateError("Error decoding vehicle application", nil, w, r)
-		return ""
+		return nil, fmt.Errorf("error decode vehicle object: %v", err)
 	}
 
-	if err = app.Update(collection); err != nil {
-		apierror.GenerateError("Error updating vehicle", nil, w, r)
-		return ""
+	if err = app.Update(ctx, collection); err != nil {
+		return nil, fmt.Errorf("error updating vehicle: %v", err)
 	}
-	return encoding.Must(enc.Encode(app))
+
+	return app, nil
 }
 
 func DeleteApplication(ctx *middleware.APIContext, w http.ResponseWriter, r *http.Request) (interface{}, error) {
 	var app products.NoSqlVehicle
-	collection := params["collection"]
+	collection := ctx.Params.ByName("collection")
 	if collection == "" {
-		apierror.GenerateError("No Collection in URL", nil, w, r)
-		return ""
+		return nil, fmt.Errorf("collection was empty")
 	}
 
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		apierror.GenerateError("Error reading request body", nil, w, r)
-		return ""
+		return nil, fmt.Errorf("error reading request body: %v", err)
 	}
 
 	if err = json.Unmarshal(body, &app); err != nil {
-		apierror.GenerateError("Error decoding vehicle application", nil, w, r)
-		return ""
+		return nil, fmt.Errorf("error decode vehicle object: %v", err)
 	}
 
-	if err = app.Delete(collection); err != nil {
-		apierror.GenerateError("Error updating vehicle", nil, w, r)
-		return ""
+	if err = app.Delete(ctx, collection); err != nil {
+		return nil, fmt.Errorf("error deleting vehicle: %v", err)
 	}
-	return encoding.Must(enc.Encode(app))
+
+	return app, nil
 }
 
 func CreateApplication(ctx *middleware.APIContext, w http.ResponseWriter, r *http.Request) (interface{}, error) {
@@ -95,7 +83,7 @@ func CreateApplication(ctx *middleware.APIContext, w http.ResponseWriter, r *htt
 		return nil, err
 	}
 
-	err = app.Create(collection)
+	err = app.Create(ctx, collection)
 
 	return app, err
 }

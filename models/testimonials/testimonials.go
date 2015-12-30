@@ -1,9 +1,7 @@
 package testimonials
 
 import (
-	"github.com/curt-labs/API/helpers/apicontext"
-	"github.com/curt-labs/API/helpers/database"
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/curt-labs/API/middleware"
 
 	"database/sql"
 	"errors"
@@ -15,11 +13,11 @@ const (
 )
 
 var (
-	getAllTestimonialsStmt = `select ` + testimonialFields + ` from Testimonial as t 
+	getAllTestimonialsStmt = `select ` + testimonialFields + ` from Testimonial as t
 																	Join ApiKeyToBrand as akb on akb.brandID = t.brandID
 																	Join ApiKey as ak on akb.keyID = ak.id
 																	where (ak.api_key = ? && (t.brandID = ? OR 0=?)) && t.active = 1 && t.approved = 1 order by t.dateAdded desc`
-	getTestimonialsByPageStmt = `select ` + testimonialFields + ` from Testimonial as t 
+	getTestimonialsByPageStmt = `select ` + testimonialFields + ` from Testimonial as t
 																	Join ApiKeyToBrand as akb on akb.brandID = t.brandID
 																	Join ApiKey as ak on akb.keyID = ak.id
 																	where (ak.api_key = ? && (t.brandID = ? OR 0=?)) && t.active = 1 && t.approved = 1 order by t.dateAdded desc limit ?,?`
@@ -27,7 +25,7 @@ var (
 																	Join ApiKeyToBrand as akb on akb.brandID = t.brandID
 																	Join ApiKey as ak on akb.keyID = ak.id
 																	where (ak.api_key = ? && (t.brandID = ? OR 0=?)) && t.active = 1 && t.approved = 1 order by Rand() limit ?`
-	getTestimonialStmt = `select ` + testimonialFields + ` from Testimonial as t 
+	getTestimonialStmt = `select ` + testimonialFields + ` from Testimonial as t
 																	Join ApiKeyToBrand as akb on akb.brandID = t.brandID
 																	Join ApiKey as ak on akb.keyID = ak.id
 																	where (ak.api_key = ? && (t.brandID = ? OR 0=?)) && t.testimonialID = ?`
@@ -51,37 +49,31 @@ type Testimonial struct {
 	BrandID   int       `json:"brandId,omitempty" xml:"brandId,omitempty"`
 }
 
-func GetAllTestimonials(page int, count int, randomize bool, dtx *apicontext.DataContext) (tests Testimonials, err error) {
+func GetAllTestimonials(ctx *middleware.APIContext, page int, count int, randomize bool) (tests Testimonials, err error) {
 	var stmt *sql.Stmt
 	var rows *sql.Rows
 
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return
-	}
-	defer db.Close()
-
 	if page == 0 && count == 0 {
-		stmt, err = db.Prepare(getAllTestimonialsStmt)
+		stmt, err = ctx.DB.Prepare(getAllTestimonialsStmt)
 		if err != nil {
 			return
 		}
 		defer stmt.Close()
-		rows, err = stmt.Query(dtx.APIKey, dtx.BrandID, dtx.BrandID)
+		rows, err = stmt.Query(ctx.DataContext.APIKey, ctx.DataContext.BrandID, ctx.DataContext.BrandID)
 	} else if randomize {
-		stmt, err = db.Prepare(getRandomTestimonalsStmt)
+		stmt, err = ctx.DB.Prepare(getRandomTestimonalsStmt)
 		if err != nil {
 			return
 		}
 		defer stmt.Close()
-		rows, err = stmt.Query(dtx.APIKey, dtx.BrandID, dtx.BrandID, count)
+		rows, err = stmt.Query(ctx.DataContext.APIKey, ctx.DataContext.BrandID, ctx.DataContext.BrandID, count)
 	} else {
-		stmt, err = db.Prepare(getTestimonialsByPageStmt)
+		stmt, err = ctx.DB.Prepare(getTestimonialsByPageStmt)
 		if err != nil {
 			return
 		}
 		defer stmt.Close()
-		rows, err = stmt.Query(dtx.APIKey, dtx.BrandID, dtx.BrandID, page, count)
+		rows, err = stmt.Query(ctx.DataContext.APIKey, ctx.DataContext.BrandID, ctx.DataContext.BrandID, page, count)
 	}
 
 	if err != nil {
@@ -113,23 +105,17 @@ func GetAllTestimonials(page int, count int, randomize bool, dtx *apicontext.Dat
 	return
 }
 
-func (t *Testimonial) Get(dtx *apicontext.DataContext) error {
+func (t *Testimonial) Get(ctx *middleware.APIContext) error {
 	if t.ID == 0 {
 		return errors.New("Invalid testimonial ID")
 	}
 
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(getTestimonialStmt)
+	stmt, err := ctx.DB.Prepare(getTestimonialStmt)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
-	err = stmt.QueryRow(dtx.APIKey, dtx.BrandID, dtx.BrandID, t.ID).Scan(
+	err = stmt.QueryRow(ctx.DataContext.APIKey, ctx.DataContext.BrandID, ctx.DataContext.BrandID, t.ID).Scan(
 		&t.ID,
 		&t.Rating,
 		&t.Title,
@@ -146,13 +132,9 @@ func (t *Testimonial) Get(dtx *apicontext.DataContext) error {
 	return err
 }
 
-func (t *Testimonial) Create() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(createTestimonial)
+func (t *Testimonial) Create(ctx *middleware.APIContext) (err error) {
+
+	stmt, err := ctx.DB.Prepare(createTestimonial)
 	if err != nil {
 		return err
 	}
@@ -168,39 +150,28 @@ func (t *Testimonial) Create() (err error) {
 	return nil
 }
 
-func (t *Testimonial) Update() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(updateTestimonial)
+func (t *Testimonial) Update(ctx *middleware.APIContext) (err error) {
+
+	stmt, err := ctx.DB.Prepare(updateTestimonial)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
+
 	t.DateAdded = time.Now()
 	_, err = stmt.Exec(t.Rating, t.Title, t.Content, t.Approved, t.Active, t.FirstName, t.LastName, t.Location, t.BrandID, t.ID)
-	if err != nil {
-		return err
-	}
-	return nil
+
+	return err
 }
 
-func (t *Testimonial) Delete() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(deleteTestimonial)
+func (t *Testimonial) Delete(ctx *middleware.APIContext) (err error) {
+
+	stmt, err := ctx.DB.Prepare(deleteTestimonial)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 	_, err = stmt.Exec(t.ID)
-	if err != nil {
-		return err
-	}
-	return nil
+
+	return err
 }

@@ -1,16 +1,16 @@
 package apifilter
 
 import (
-	"database/sql"
 	"fmt"
-	"github.com/curt-labs/API/helpers/database"
-	"github.com/curt-labs/API/helpers/sortutil"
-	"github.com/curt-labs/API/models/products"
-	_ "github.com/go-sql-driver/mysql"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/curt-labs/API/helpers/sortutil"
+	"github.com/curt-labs/API/middleware"
+	"github.com/curt-labs/API/models/products"
+	_ "github.com/go-sql-driver/mysql"
 )
 
 var (
@@ -18,7 +18,7 @@ var (
 																where canFilter = 0`
 )
 
-func PartFilter(parts []products.Part, specs []interface{}) ([]Options, error) {
+func PartFilter(ctx *middleware.APIContext, parts []products.Part, specs []interface{}) ([]Options, error) {
 
 	var filtered FilteredOptions
 
@@ -27,7 +27,7 @@ func PartFilter(parts []products.Part, specs []interface{}) ([]Options, error) {
 	catChan := make(chan error)
 	classChan := make(chan error)
 	go func() {
-		filtered = append(filtered, filtered.partAttributes(parts)...)
+		filtered = append(filtered, filtered.partAttributes(ctx, parts)...)
 		attrChan <- nil
 	}()
 	go func() {
@@ -61,9 +61,9 @@ func PartFilter(parts []products.Part, specs []interface{}) ([]Options, error) {
 	return filtered, nil
 }
 
-func (filtered FilteredOptions) partAttributes(parts []products.Part) FilteredOptions {
+func (filtered FilteredOptions) partAttributes(ctx *middleware.APIContext, parts []products.Part) FilteredOptions {
 
-	excludedAttributes := getExcludedAttributeTypes()
+	excludedAttributes := getExcludedAttributeTypes(ctx)
 
 	attributeDefinitions := make(map[string]Options, 0)
 	for _, part := range parts {
@@ -267,15 +267,10 @@ func (filtered FilteredOptions) partClass(parts []products.Part) Options {
 	return opt
 }
 
-func getExcludedAttributeTypes() []string {
+func getExcludedAttributeTypes(ctx *middleware.APIContext) []string {
 	var ats []string
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return ats
-	}
-	defer db.Close()
 
-	stmt, err := db.Prepare(GetExcludedAttributeTypes)
+	stmt, err := ctx.DB.Prepare(GetExcludedAttributeTypes)
 	if err != nil {
 		return ats
 	}

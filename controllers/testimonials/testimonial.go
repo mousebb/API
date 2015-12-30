@@ -6,15 +6,11 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/curt-labs/API/helpers/apicontext"
-	"github.com/curt-labs/API/helpers/encoding"
-	"github.com/curt-labs/API/helpers/error"
+	"github.com/curt-labs/API/middleware"
 	"github.com/curt-labs/API/models/testimonials"
-	"github.com/go-martini/martini"
 )
 
-func GetAllTestimonials(rw http.ResponseWriter, req *http.Request, enc encoding.Encoder, dtx *apicontext.DataContext) string {
-	var err error
+func GetAllTestimonials(ctx *middleware.APIContext, rw http.ResponseWriter, req *http.Request) (interface{}, error) {
 	var page int
 	var count int
 	var randomize bool
@@ -33,77 +29,66 @@ func GetAllTestimonials(rw http.ResponseWriter, req *http.Request, enc encoding.
 	}
 
 	if qs.Get("randomize") != "" {
-		randomize, err = strconv.ParseBool(qs.Get("randomize"))
+		randomize, _ = strconv.ParseBool(qs.Get("randomize"))
 	}
 
-	tests, err := testimonials.GetAllTestimonials(page, count, randomize, dtx)
-	if err != nil {
-		apierror.GenerateError("Trouble getting all testimonials", err, rw, req)
-	}
-	return encoding.Must(enc.Encode(tests))
+	return testimonials.GetAllTestimonials(ctx, page, count, randomize)
 }
 
-func GetTestimonial(rw http.ResponseWriter, req *http.Request, params martini.Params, enc encoding.Encoder, dtx *apicontext.DataContext) string {
+func GetTestimonial(ctx *middleware.APIContext, rw http.ResponseWriter, req *http.Request) (interface{}, error) {
 	var err error
 	var test testimonials.Testimonial
 
-	if test.ID, err = strconv.Atoi(params["id"]); err != nil {
-		apierror.GenerateError("Trouble getting testimonial ID", err, rw, req)
+	if test.ID, err = strconv.Atoi(ctx.Params.ByName("id")); err != nil {
+		return nil, err
 	}
-	if err := test.Get(dtx); err != nil {
-		apierror.GenerateError("Trouble getting testimonial", err, rw, req)
-	}
-	return encoding.Must(enc.Encode(test))
+	err = test.Get(ctx)
+
+	return test, err
 }
 
-func Save(rw http.ResponseWriter, req *http.Request, enc encoding.Encoder, params martini.Params, dtx *apicontext.DataContext) string {
+func Save(ctx *middleware.APIContext, rw http.ResponseWriter, req *http.Request) (interface{}, error) {
 	var a testimonials.Testimonial
 	var err error
-	idStr := params["id"]
+	idStr := ctx.Params.ByName("id")
 	if idStr != "" {
 		a.ID, err = strconv.Atoi(idStr)
-		err = a.Get(dtx)
+		err = a.Get(ctx)
 		if err != nil {
-			apierror.GenerateError("Trouble getting testimonial", err, rw, req)
+			return nil, err
 		}
 	}
 	//json
 	requestBody, err := ioutil.ReadAll(req.Body)
 	if err != nil {
-		apierror.GenerateError("Trouble reading request body for saving testimonial", err, rw, req)
+		return nil, err
 	}
 	err = json.Unmarshal(requestBody, &a)
 	if err != nil {
-		apierror.GenerateError("Trouble unmarshalling request body for saving testimonial", err, rw, req)
+		return nil, err
 	}
 	//create or update
 	if a.ID > 0 {
-		err = a.Update()
+		err = a.Update(ctx)
 	} else {
-		err = a.Create()
+		err = a.Create(ctx)
 	}
 
-	if err != nil {
-		apierror.GenerateError("Trouble saving testimonial", err, rw, req)
-	}
-	return encoding.Must(enc.Encode(a))
+	return a, err
 }
 
-func Delete(rw http.ResponseWriter, req *http.Request, enc encoding.Encoder, params martini.Params) string {
+func Delete(ctx *middleware.APIContext, rw http.ResponseWriter, req *http.Request) (interface{}, error) {
 	var err error
 	var a testimonials.Testimonial
 
-	idStr := params["id"]
+	idStr := ctx.Params.ByName("id")
 
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		apierror.GenerateError("Trouble getting testimonial ID", err, rw, req)
+		return nil, err
 	}
 	a.ID = id
-	err = a.Delete()
-	if err != nil {
-		apierror.GenerateError("Trouble deleting testimonial", err, rw, req)
-	}
+	err = a.Delete(ctx)
 
-	return encoding.Must(enc.Encode(a))
+	return a, err
 }

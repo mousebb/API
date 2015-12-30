@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/curt-labs/API/helpers/apicontext"
 	"github.com/curt-labs/API/helpers/database"
+	"github.com/curt-labs/API/middleware"
 	"github.com/curt-labs/API/models/products"
 )
 
@@ -168,7 +168,7 @@ const (
 		ACES_CYLINDERS,ACES_RESERVED,DOOR_CNT,BODY_STYLE_DESC,WHL_BAS_SHRST_INCHS,TRK_BED_LEN_DESC,TRANS_CD,TRK_BED_LEN_CD,ENG_FUEL_DESC`
 )
 
-func VinPartLookup(vin string, dtx *apicontext.DataContext) (l products.Lookup, err error) {
+func VinPartLookup(ctx *middleware.APIContext, vin string) (l products.Lookup, err error) {
 	//get ACES vehicles
 	av, configMap, err := getAcesVehicle(vin)
 	if err != nil {
@@ -178,20 +178,20 @@ func VinPartLookup(vin string, dtx *apicontext.DataContext) (l products.Lookup, 
 	}
 
 	//get CURT vehicle
-	l, err = av.getCurtVehicles(configMap)
+	l, err = av.getCurtVehicles(ctx, configMap)
 	if err != nil {
 		return l, err
 	}
 
 	//set lookup object's brands
-	for _, brand := range dtx.BrandArray {
+	for _, brand := range ctx.DataContext.BrandArray {
 		l.Brands = append(l.Brands, brand)
 	}
 
 	//get parts
 	var ps []products.Part
 	ch := make(chan []products.Part)
-	go l.LoadParts(ch, 1, 1000, dtx)
+	go l.LoadParts(ctx, ch, 1, 1000)
 	ps = <-ch
 
 	l.Parts = ps
@@ -201,7 +201,7 @@ func VinPartLookup(vin string, dtx *apicontext.DataContext) (l products.Lookup, 
 	return l, err
 }
 
-func GetVehicleConfigs(vin string) (l products.Lookup, err error) {
+func GetVehicleConfigs(ctx *middleware.APIContext, vin string) (l products.Lookup, err error) {
 	//get ACES vehicles
 	av, configMap, err := getAcesVehicle(vin)
 	if err != nil {
@@ -211,21 +211,17 @@ func GetVehicleConfigs(vin string) (l products.Lookup, err error) {
 	}
 
 	//get CURT vehicle
-	l, err = av.getCurtVehicles(configMap)
+	l, err = av.getCurtVehicles(ctx, configMap)
 	return l, err
 }
 
 //already have vehicleID (vcdb_vehicle.ID)? get parts
-func (v *CurtVehicle) GetPartsFromVehicleConfig(dtx *apicontext.DataContext) (ps []products.Part, err error) {
+func (v *CurtVehicle) GetPartsFromVehicleConfig(ctx *middleware.APIContext) (ps []products.Part, err error) {
 	//get parts
 	var p products.Part
 	//get part id
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return ps, err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getPartID)
+
+	stmt, err := ctx.DB.Prepare(getPartID)
 	if err != nil {
 		return ps, err
 	}
@@ -237,7 +233,7 @@ func (v *CurtVehicle) GetPartsFromVehicleConfig(dtx *apicontext.DataContext) (ps
 			return ps, err
 		}
 		//get part -- adds some weight
-		err = p.FromDatabase(getBrandsFromDTX(dtx))
+		err = p.Get(ctx, 0)
 		if err != nil {
 			return ps, err
 		}
@@ -413,15 +409,10 @@ func (av *AcesVehicle) checkConfigs(responseFields []Field) (configMap map[int]i
 
 //sierra 3500 vin 1GTJK34131E957990
 
-func (av *AcesVehicle) getCurtVehicles(configMap map[int]interface{}) (products.Lookup, error) { //get CURT vehicles
+func (av *AcesVehicle) getCurtVehicles(ctx *middleware.APIContext, configMap map[int]interface{}) (products.Lookup, error) { //get CURT vehicles
 	var l products.Lookup
-	var err error
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return l, err
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(getCurtVehiclesPreConfig)
+
+	stmt, err := ctx.DB.Prepare(getCurtVehiclesPreConfig)
 	if err != nil {
 		return l, err
 	}
@@ -479,40 +470,6 @@ func (av *AcesVehicle) getCurtVehicles(configMap map[int]interface{}) (products.
 			cv.Configuration.AcesValueID = *acesConfigValID
 		}
 
-		// log.Print(configMap)
-
-		// //configs - assign to map, flag
-		// configValFlag := true
-		// if vs, ok := pcoMap[cv.Configuration.Type]; ok {
-		// 	for _, v := range vs {
-		// 		if v == cv.Configuration.Value {
-		// 			configValFlag = false
-		// 		}
-		// 	}
-		// }
-		// if configValFlag == true {
-		// 	if name, ok := configMap[cv.Configuration.TypeID]; ok {
-		// 		//configMap contains this config type
-
-		// 		if cv.Configuration.AcesValueID == name {
-		// 			pcoMap[cv.Configuration.Type] = append(pcoMap[cv.Configuration.Type], cv.Configuration.Value)
-
-		// 			//vehicleConfigs (not l.ConfugurationOption)
-		// 			vehicleConfig.Key = cv.Configuration.Type
-		// 			vehicleConfig.Value = cv.Configuration.Value
-		// 			l.Vehicle.Configurations = append(l.Vehicle.Configurations, vehicleConfig)
-		// 		}
-		// 	} else {
-		// 		pcoMap[cv.Configuration.Type] = append(pcoMap[cv.Configuration.Type], cv.Configuration.Value)
-
-		// 		//vehicleConfigs (not l.ConfugurationOption)
-		// 		vehicleConfig.Key = cv.Configuration.Type
-		// 		vehicleConfig.Value = cv.Configuration.Value
-		// 		l.Vehicle.Configurations = append(l.Vehicle.Configurations, vehicleConfig)
-		// 	}
-
-		// }
-
 		l.Vehicle.Base.Make = cv.BaseVehicle.MakeName
 		l.Vehicle.Base.Model = cv.BaseVehicle.ModelName
 		l.Vehicle.Base.Year = cv.BaseVehicle.YearID
@@ -521,15 +478,8 @@ func (av *AcesVehicle) getCurtVehicles(configMap map[int]interface{}) (products.
 	} //end scan loop
 	defer res.Close()
 
-	//assign configs
-	// for key, val := range pcoMap {
-	// 	pco.Type = key
-	// 	pco.Options = val
-	// 	l.Configurations = append(l.Configurations, pco)
-	// }
-
 	//NEW
-	curtConfigMap, err := getCurtConfigMapFromAcesConfigMap(configMap)
+	curtConfigMap, err := getCurtConfigMapFromAcesConfigMap(ctx, configMap)
 	if err != nil {
 		return l, err
 	}
@@ -547,17 +497,12 @@ func (av *AcesVehicle) getCurtVehicles(configMap map[int]interface{}) (products.
 	return l, err
 }
 
-func getCurtConfigMapFromAcesConfigMap(acesConfigMap map[int]interface{}) (map[string]string, error) {
-	var err error
+func getCurtConfigMapFromAcesConfigMap(ctx *middleware.APIContext, acesConfigMap map[int]interface{}) (map[string]string, error) {
+
 	tempMap := make(map[string]string) //maps [acestypeid:acesconfigid]curttype:curtconfig
 	curtMap := make(map[string]string) //maps [curttype]curtconfig
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return curtMap, err
-	}
-	defer db.Close()
 
-	stmt, err := db.Prepare(curtConfigTypeMapStmt)
+	stmt, err := ctx.DB.Prepare(curtConfigTypeMapStmt)
 	if err != nil {
 		return curtMap, err
 	}
@@ -593,14 +538,14 @@ func getCurtConfigMapFromAcesConfigMap(acesConfigMap map[int]interface{}) (map[s
 }
 
 //Utility
-func getBrandsFromDTX(dtx *apicontext.DataContext) []int {
+func getBrandsFromCTX(ctx *middleware.APIContext) []int {
 	var brands []int
-	if dtx.BrandID == 0 {
-		for _, b := range dtx.BrandArray {
+	if ctx.DataContext.BrandID == 0 {
+		for _, b := range ctx.DataContext.BrandArray {
 			brands = append(brands, b)
 		}
 	} else {
-		brands = append(brands, dtx.BrandID)
+		brands = append(brands, ctx.DataContext.BrandID)
 	}
 	return brands
 }

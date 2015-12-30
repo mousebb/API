@@ -41,7 +41,7 @@ func ImportCsv(ctx *middleware.APIContext, w http.ResponseWriter, r *http.Reques
 
 	collectionName := header.Filename
 
-	conversionErrs, insertErrs, err := products.Import(file, collectionName)
+	conversionErrs, insertErrs, err := products.Import(ctx, file, collectionName)
 	if err != nil {
 		return nil, err
 	}

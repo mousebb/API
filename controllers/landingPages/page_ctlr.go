@@ -5,26 +5,20 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/curt-labs/API/helpers/apicontext"
-	"github.com/curt-labs/API/helpers/encoding"
-	"github.com/curt-labs/API/helpers/error"
+	"github.com/curt-labs/API/middleware"
 	"github.com/curt-labs/API/models/landingPages"
-	"github.com/go-martini/martini"
 )
 
-func Get(rw http.ResponseWriter, req *http.Request, enc encoding.Encoder, params martini.Params, dtx *apicontext.DataContext) string {
+func Get(ctx *middleware.APIContext, rw http.ResponseWriter, req *http.Request) (interface{}, error) {
 	var lp landingPage.LandingPage
 	var err error
-	id, err := strconv.Atoi(params["id"])
+	id, err := strconv.Atoi(ctx.Params.ByName("id"))
 
 	if err != nil {
-		apierror.GenerateError("Must provide a Landing Page ID", err, rw, req)
+		return nil, err
 	}
 
 	lp.Id = id
-	err = lp.Get(dtx)
-	if err != nil {
-		apierror.GenerateError("Trouble getting Landing Page by Id.", err, rw, req)
-	}
-	return encoding.Must(enc.Encode(lp))
+	err = lp.Get(ctx)
+	return lp, err
 }

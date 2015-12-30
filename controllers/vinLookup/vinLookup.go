@@ -4,48 +4,32 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/curt-labs/API/helpers/apicontext"
-	"github.com/curt-labs/API/helpers/encoding"
-	"github.com/curt-labs/API/helpers/error"
+	"github.com/curt-labs/API/middleware"
 	"github.com/curt-labs/API/models/vinLookup"
-	"github.com/go-martini/martini"
 )
 
-func GetParts(rw http.ResponseWriter, req *http.Request, enc encoding.Encoder, params martini.Params, dtx *apicontext.DataContext) string {
-	vin := params["vin"]
+func GetParts(ctx *middleware.APIContext, rw http.ResponseWriter, req *http.Request) (interface{}, error) {
+	vin := ctx.Params.ByName("vin")
 
-	parts, err := vinLookup.VinPartLookup(vin, dtx)
-	if err != nil {
-		apierror.GenerateError("Trouble getting parts", err, rw, req)
-	}
-	//return array of vehicles containing array of parts
-	return encoding.Must(enc.Encode(parts))
-
-}
-func GetConfigs(rw http.ResponseWriter, req *http.Request, enc encoding.Encoder, params martini.Params) string {
-	vin := params["vin"]
-
-	configs, err := vinLookup.GetVehicleConfigs(vin)
-	if err != nil {
-		apierror.GenerateError("Trouble getting vehicle configurations", err, rw, req)
-	}
-
-	return encoding.Must(enc.Encode(configs))
+	return vinLookup.VinPartLookup(ctx, vin)
 }
 
-func GetPartsFromVehicleID(rw http.ResponseWriter, req *http.Request, enc encoding.Encoder, params martini.Params, dtx *apicontext.DataContext) string {
-	vehicleID := params["vehicleID"]
+func GetConfigs(ctx *middleware.APIContext, rw http.ResponseWriter, req *http.Request) (interface{}, error) {
+	vin := ctx.Params.ByName("vin")
+
+	return vinLookup.GetVehicleConfigs(ctx, vin)
+}
+
+func GetPartsFromVehicleID(ctx *middleware.APIContext, rw http.ResponseWriter, req *http.Request) (interface{}, error) {
+	vehicleID := ctx.Params.ByName("vehicleID")
 	id, err := strconv.Atoi(vehicleID)
 	if err != nil {
-		apierror.GenerateError("Trouble getting vehicle ID", err, rw, req)
-		return ""
+		return nil, err
 	}
-	var v vinLookup.CurtVehicle
-	v.ID = id
-	parts, err := v.GetPartsFromVehicleConfig(dtx)
-	if err != nil {
-		apierror.GenerateError("Trouble getting parts from vehicle configuration", err, rw, req)
 
+	v := vinLookup.CurtVehicle{
+		ID: id,
 	}
-	return encoding.Must(enc.Encode(parts))
+
+	return v.GetPartsFromVehicleConfig(ctx)
 }

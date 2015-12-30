@@ -1,12 +1,12 @@
 package landingPage
 
 import (
-	"database/sql"
-	"github.com/curt-labs/API/helpers/apicontext"
-	"github.com/curt-labs/API/helpers/database"
-	_ "github.com/go-sql-driver/mysql"
 	"net/url"
 	"time"
+
+	"github.com/curt-labs/API/helpers/database"
+	"github.com/curt-labs/API/middleware"
+	_ "github.com/go-sql-driver/mysql"
 
 	"github.com/russross/blackfriday"
 )
@@ -40,27 +40,22 @@ var (
 							Join ApiKey as ak on akb.keyID = ak.id
 							where lp.id = ? && lp.startDate <= NOW() && lp.endDate >= NOW() && (ak.api_key = ? && (wub.brandID = ? OR 0=?))
 							limit 1`
-	GetLandingPageImagesStmt = `SELECT lpi.id, lpi.landingPageID, lpi.url, lpi.sort from LandingPageImages as lpi 
+	GetLandingPageImagesStmt = `SELECT lpi.id, lpi.landingPageID, lpi.url, lpi.sort from LandingPageImages as lpi
 									WHERE lpi.landingPageID = ?
 									ORDER BY lpi.sort asc`
-	GetLandingPageDatasStmt = `SELECT lpd.id, lpd.landingPageID, lpd.dataKey, lpd.dataValue from LandingPageData as lpd 
+	GetLandingPageDatasStmt = `SELECT lpd.id, lpd.landingPageID, lpd.dataKey, lpd.dataValue from LandingPageData as lpd
 									WHERE lpd.landingPageID = ?`
 )
 
-func (lp *LandingPage) Get(dtx *apicontext.DataContext) (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return
-	}
-	defer db.Close()
-	stmt, err := db.Prepare(GetLandingPageByID)
+func (lp *LandingPage) Get(ctx *middleware.APIContext) (err error) {
+	stmt, err := ctx.DB.Prepare(GetLandingPageByID)
 	if err != nil {
 		return
 	}
 	defer stmt.Close()
-	row := stmt.QueryRow(lp.Id, dtx.APIKey, dtx.BrandID, dtx.BrandID)
+	row := stmt.QueryRow(lp.Id, ctx.DataContext.APIKey, ctx.DataContext.BrandID, ctx.DataContext.BrandID)
 
-	err = lp.PopulateLandingPageScan(row)
+	err = lp.pageScan(ctx, row)
 	if err != nil {
 		return
 	}
@@ -68,97 +63,7 @@ func (lp *LandingPage) Get(dtx *apicontext.DataContext) (err error) {
 	return
 }
 
-func GetLandingPageDatas(LandingPageID int) (datas []LandingPageData, err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return datas, err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(GetLandingPageDatasStmt)
-	if err != nil {
-		return datas, err
-	}
-	defer stmt.Close()
-	rows, err := stmt.Query(LandingPageID)
-	if err != nil {
-		return datas, err
-	}
-
-	for rows.Next() {
-		var d LandingPageData
-		d, err = PopulateLandingPageDataScan(rows)
-		if err != nil {
-			return datas, err
-		}
-		datas = append(datas, d)
-	}
-	defer rows.Close()
-	return datas, nil
-}
-
-func GetLandingPageImages(LandingPageID int) (images []LandingPageImage, err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return images, err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(GetLandingPageImagesStmt)
-	if err != nil {
-		return images, err
-	}
-	defer stmt.Close()
-	rows, err := stmt.Query(LandingPageID)
-	if err != nil {
-		return images, err
-	}
-
-	for rows.Next() {
-		var img LandingPageImage
-		img, err = PopulateLandingPageImageScan(rows)
-		if err != nil {
-			return images, err
-		}
-		images = append(images, img)
-	}
-	defer rows.Close()
-	return images, nil
-}
-
-func PopulateLandingPageImageScan(s database.Scanner) (LandingPageImage, error) {
-	var img LandingPageImage
-	var urlstr *string
-	err := s.Scan(
-		&img.Id,
-		&img.LandingPageID,
-		&urlstr,
-		&img.Sort,
-	)
-	if err != nil {
-		return img, err
-	}
-	if urlstr != nil {
-		img.Url, _ = url.Parse(*urlstr)
-	}
-	return img, nil
-}
-
-func PopulateLandingPageDataScan(s database.Scanner) (LandingPageData, error) {
-	var d LandingPageData
-	err := s.Scan(
-		&d.Id,
-		&d.LandingPageID,
-		&d.DataKey,
-		&d.DataValue,
-	)
-	if err != nil {
-		return d, err
-	}
-	return d, nil
-}
-
-func (lp *LandingPage) PopulateLandingPageScan(s database.Scanner) error {
+func (lp *LandingPage) pageScan(ctx *middleware.APIContext, s database.Scanner) error {
 	var pageContent, linkClasses, conversionID, conversionLabel, urlstr *string
 
 	err := s.Scan(
@@ -194,8 +99,87 @@ func (lp *LandingPage) PopulateLandingPageScan(s database.Scanner) error {
 	if urlstr != nil {
 		lp.Url, _ = url.Parse(*urlstr)
 	}
-	lp.LandingPageDatas, _ = GetLandingPageDatas(lp.Id)
-	lp.LandingPageImages, _ = GetLandingPageImages(lp.Id)
+	lp.LandingPageDatas, _ = data(ctx, lp.Id)
+	lp.LandingPageImages, _ = images(ctx, lp.Id)
 
 	return nil
+}
+
+func data(ctx *middleware.APIContext, LandingPageID int) (datas []LandingPageData, err error) {
+	stmt, err := ctx.DB.Prepare(GetLandingPageDatasStmt)
+	if err != nil {
+		return datas, err
+	}
+	defer stmt.Close()
+	rows, err := stmt.Query(LandingPageID)
+	if err != nil {
+		return datas, err
+	}
+
+	for rows.Next() {
+		var d LandingPageData
+		d, err = dataScan(rows)
+		if err != nil {
+			return datas, err
+		}
+		datas = append(datas, d)
+	}
+	defer rows.Close()
+	return datas, nil
+}
+
+func images(ctx *middleware.APIContext, LandingPageID int) (images []LandingPageImage, err error) {
+
+	stmt, err := ctx.DB.Prepare(GetLandingPageImagesStmt)
+	if err != nil {
+		return images, err
+	}
+	defer stmt.Close()
+	rows, err := stmt.Query(LandingPageID)
+	if err != nil {
+		return images, err
+	}
+
+	for rows.Next() {
+		var img LandingPageImage
+		img, err = imageScan(rows)
+		if err != nil {
+			return images, err
+		}
+		images = append(images, img)
+	}
+	defer rows.Close()
+	return images, nil
+}
+
+func imageScan(s database.Scanner) (LandingPageImage, error) {
+	var img LandingPageImage
+	var urlstr *string
+	err := s.Scan(
+		&img.Id,
+		&img.LandingPageID,
+		&urlstr,
+		&img.Sort,
+	)
+	if err != nil {
+		return img, err
+	}
+	if urlstr != nil {
+		img.Url, _ = url.Parse(*urlstr)
+	}
+	return img, nil
+}
+
+func dataScan(s database.Scanner) (LandingPageData, error) {
+	var d LandingPageData
+	err := s.Scan(
+		&d.Id,
+		&d.LandingPageID,
+		&d.DataKey,
+		&d.DataValue,
+	)
+	if err != nil {
+		return d, err
+	}
+	return d, nil
 }

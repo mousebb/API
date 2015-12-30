@@ -1,9 +1,8 @@
 package showcase
 
 import (
-	"github.com/curt-labs/API/helpers/apicontext"
 	"github.com/curt-labs/API/helpers/database"
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/curt-labs/API/middleware"
 
 	"database/sql"
 	"errors"
@@ -17,11 +16,11 @@ const (
 )
 
 var (
-	getAllShowcasesStmt = `select ` + showcaseFields + ` from Showcase as s 
+	getAllShowcasesStmt = `select ` + showcaseFields + ` from Showcase as s
 																	Join ApiKeyToBrand as akb on akb.brandID = s.brandID
 																	Join ApiKey as ak on akb.keyID = ak.id
 																	where (ak.api_key = ? && (s.brandID = ? OR 0=?)) && s.active = 1 && s.approved = 1 order by s.dateAdded desc`
-	getShowcaseByPageStmt = `select ` + showcaseFields + ` from Showcase as s 
+	getShowcaseByPageStmt = `select ` + showcaseFields + ` from Showcase as s
 																	Join ApiKeyToBrand as akb on akb.brandID = s.brandID
 																	Join ApiKey as ak on akb.keyID = ak.id
 																	where (ak.api_key = ? && (s.brandID = ? OR 0=?)) && s.active = 1 && s.approved = 1 order by s.dateAdded desc limit ?,?`
@@ -29,11 +28,11 @@ var (
 																	Join ApiKeyToBrand as akb on akb.brandID = s.brandID
 																	Join ApiKey as ak on akb.keyID = ak.id
 																	where (ak.api_key = ? && (s.brandID = ? OR 0=?)) && s.active = 1 && s.approved = 1 order by Rand() limit ?`
-	getShowcaseStmt = `select ` + showcaseFields + ` from Showcase as s 
+	getShowcaseStmt = `select ` + showcaseFields + ` from Showcase as s
 																	Join ApiKeyToBrand as akb on akb.brandID = s.brandID
 																	Join ApiKey as ak on akb.keyID = ak.id
 																	where (ak.api_key = ? && (s.brandID = ? OR 0=?)) && s.showcaseID = ?`
-	getShowcaseImages = `select ` + showcaseImageFields + ` from ShowcaseImage si 
+	getShowcaseImages = `select ` + showcaseImageFields + ` from ShowcaseImage si
 		join ShowcaseToShowcaseImage sti on sti.showcaseImageID = si.showcaseImageID
 		where sti.showcaseID = ?`
 	createShowcase = `insert into Showcase (rating, title, text, dateAdded, approved, active, first_name, last_name, location, brandID) values (?,?,?,?,?,?,?,?,?,?)`
@@ -68,41 +67,31 @@ type Image struct {
 	Path *url.URL `json:"path,omitempty" xml:"path,omitempty"`
 }
 
-type ShowScanner interface {
-	Scan(...interface{}) error
-}
-
-func GetAllShowcases(page int, count int, randomize bool, dtx *apicontext.DataContext) (shows []Showcase, err error) {
+func GetAllShowcases(ctx *middleware.APIContext, page int, count int, randomize bool) (shows []Showcase, err error) {
 	var stmt *sql.Stmt
 	var rows *sql.Rows
 
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return
-	}
-	defer db.Close()
-
 	if page == 0 && count == 0 {
-		stmt, err = db.Prepare(getAllShowcasesStmt)
+		stmt, err = ctx.DB.Prepare(getAllShowcasesStmt)
 		if err != nil {
 			return
 		}
 		defer stmt.Close()
-		rows, err = stmt.Query(dtx.APIKey, dtx.BrandID, dtx.BrandID)
+		rows, err = stmt.Query(ctx.DataContext.APIKey, ctx.DataContext.BrandID, ctx.DataContext.BrandID)
 	} else if randomize {
-		stmt, err = db.Prepare(getRandomShowcasesStmt)
+		stmt, err = ctx.DB.Prepare(getRandomShowcasesStmt)
 		if err != nil {
 			return
 		}
 		defer stmt.Close()
-		rows, err = stmt.Query(dtx.APIKey, dtx.BrandID, dtx.BrandID, count)
+		rows, err = stmt.Query(ctx.DataContext.APIKey, ctx.DataContext.BrandID, ctx.DataContext.BrandID, count)
 	} else {
-		stmt, err = db.Prepare(getShowcaseByPageStmt)
+		stmt, err = ctx.DB.Prepare(getShowcaseByPageStmt)
 		if err != nil {
 			return
 		}
 		defer stmt.Close()
-		rows, err = stmt.Query(dtx.APIKey, dtx.BrandID, dtx.BrandID, page, count)
+		rows, err = stmt.Query(ctx.DataContext.APIKey, ctx.DataContext.BrandID, ctx.DataContext.BrandID, page, count)
 	}
 
 	if err != nil {
@@ -115,7 +104,7 @@ func GetAllShowcases(page int, count int, randomize bool, dtx *apicontext.DataCo
 		if err != nil {
 			return shows, err
 		}
-		err = s.GetImages()
+		err = s.GetImages(ctx)
 		if err != nil {
 			return shows, err
 		}
@@ -125,7 +114,7 @@ func GetAllShowcases(page int, count int, randomize bool, dtx *apicontext.DataCo
 	return
 }
 
-func (s *Showcase) Scan(rows ShowScanner) error {
+func (s *Showcase) Scan(rows database.Scanner) error {
 	var title, text, first, last, location *string
 	err := rows.Scan(
 		&s.ID,
@@ -161,42 +150,33 @@ func (s *Showcase) Scan(rows ShowScanner) error {
 	return nil
 }
 
-func (s *Showcase) Get(dtx *apicontext.DataContext) error {
+func (s *Showcase) Get(ctx *middleware.APIContext) error {
 	if s.ID == 0 {
 		return errors.New("Invalid showcase ID")
 	}
 
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	stmt, err := db.Prepare(getShowcaseStmt)
+	stmt, err := ctx.DB.Prepare(getShowcaseStmt)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
-	row := stmt.QueryRow(dtx.APIKey, dtx.BrandID, dtx.BrandID, s.ID)
+	row := stmt.QueryRow(ctx.DataContext.APIKey, ctx.DataContext.BrandID, ctx.DataContext.BrandID, s.ID)
 	err = s.Scan(row)
 	if err != nil {
 		return err
 	}
-	return s.GetImages()
+
+	return s.GetImages(ctx)
 }
 
-func (s *Showcase) GetImages() error {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
+func (s *Showcase) GetImages(ctx *middleware.APIContext) error {
 
-	stmt, err := db.Prepare(getShowcaseImages)
+	stmt, err := ctx.DB.Prepare(getShowcaseImages)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
+
 	res, err := stmt.Query(s.ID)
 	if err != nil {
 		return err
@@ -219,13 +199,9 @@ func (s *Showcase) GetImages() error {
 	return nil
 }
 
-func (s *Showcase) Create() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	tx, err := db.Begin()
+func (s *Showcase) Create(ctx *middleware.APIContext) (err error) {
+
+	tx, err := ctx.DB.Begin()
 	if err != nil {
 		return err
 	}
@@ -282,16 +258,9 @@ func (s *Showcase) Create() (err error) {
 	return tx.Commit()
 }
 
-func (s *Showcase) Update() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	if err != nil {
-		return err
-	}
-	stmt, err := db.Prepare(updateShowcase)
+func (s *Showcase) Update(ctx *middleware.APIContext) (err error) {
+
+	stmt, err := ctx.DB.Prepare(updateShowcase)
 	if err != nil {
 		return err
 	}
@@ -304,7 +273,7 @@ func (s *Showcase) Update() (err error) {
 		return err
 	}
 	for _, i := range s.Images {
-		err = i.Update()
+		err = i.update(ctx)
 		if err != nil {
 			return err
 		}
@@ -312,20 +281,16 @@ func (s *Showcase) Update() (err error) {
 	return nil
 }
 
-func (s *Showcase) Delete() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
+func (s *Showcase) Delete(ctx *middleware.APIContext) (err error) {
+
 	for _, i := range s.Images {
-		err = i.Delete()
+		err = i.delete(ctx)
 		if err != nil {
 			return err
 		}
 	}
 
-	stmt, err := db.Prepare(deleteShowcase)
+	stmt, err := ctx.DB.Prepare(deleteShowcase)
 	if err != nil {
 		return err
 	}
@@ -333,13 +298,9 @@ func (s *Showcase) Delete() (err error) {
 	return err
 }
 
-func (i *Image) Create(showcaseID int) error {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	tx, err := db.Begin()
+func (i *Image) create(ctx *middleware.APIContext, showcaseID int) error {
+
+	tx, err := ctx.DB.Begin()
 	if err != nil {
 		return err
 	}
@@ -373,14 +334,9 @@ func (i *Image) Create(showcaseID int) error {
 	return tx.Commit()
 }
 
-func (i *Image) Delete() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
+func (i *Image) delete(ctx *middleware.APIContext) (err error) {
 
-	tx, err := db.Begin()
+	tx, err := ctx.DB.Begin()
 	if err != nil {
 		return err
 	}
@@ -409,14 +365,9 @@ func (i *Image) Delete() (err error) {
 	return tx.Commit()
 }
 
-func (i *Image) Update() (err error) {
-	db, err := sql.Open("mysql", database.ConnectionString())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
+func (i *Image) update(ctx *middleware.APIContext) (err error) {
 
-	stmt, err := db.Prepare(updateImage)
+	stmt, err := ctx.DB.Prepare(updateImage)
 	if err != nil {
 		return err
 	}

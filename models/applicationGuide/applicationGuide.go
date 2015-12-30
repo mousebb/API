@@ -4,18 +4,25 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/curt-labs/API/helpers/database"
 	"github.com/curt-labs/API/middleware"
 	"github.com/curt-labs/API/models/products"
-	"github.com/curt-labs/API/models/site"
 )
 
 type ApplicationGuide struct {
 	ID       int               `json:"id,omitempty" xml:"id,omitempty"`
 	URL      string            `json:"url,omitempty" xml:"url,omitempty"`
-	Website  website.Website   `json:"website,omitempty" xml:"website,omitempty"`
+	Website  Website           `json:"website,omitempty" xml:"website,omitempty"`
 	FileType string            `json:"fileType,omitempty" xml:"fileType,omitempty"`
 	Category products.Category `json:"category,omitempty" xml:"category,omitempty"`
 	Icon     string            `json:"icon,omitempty" xml:"icon,omitempty"`
+}
+
+type Website struct {
+	ID          int    `json:"id,omitempty" xml:"id,omitempty"`
+	Url         string `json:"url,omitempty" xml:"url,omitempty"`
+	Description string `json:"description,omitempty" xml:"description,omitempty"`
+	BrandIDs    []int  `json:"brandId,omitempty" xml:brandId,omitempty"`
 }
 
 const (
@@ -83,7 +90,7 @@ func (ag *ApplicationGuide) GetBySite(ctx *middleware.APIContext) (ags []Applica
 	return
 }
 
-func populateApplicationGuide(row *sql.Row, ch chan ApplicationGuide) {
+func populateApplicationGuide(row database.Scanner, ch chan ApplicationGuide) {
 	var ag ApplicationGuide
 	var catID *int
 	var icon []byte

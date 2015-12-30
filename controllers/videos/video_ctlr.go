@@ -4,210 +4,120 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/curt-labs/API/helpers/apicontext"
-	"github.com/curt-labs/API/helpers/encoding"
-	"github.com/curt-labs/API/helpers/error"
+	"github.com/curt-labs/API/middleware"
 	"github.com/curt-labs/API/models/video"
-	"github.com/go-martini/martini"
 )
 
 //gets old videos
-func DistinctVideos(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, dtx *apicontext.DataContext) string {
-	videos, err := video.UniqueVideos(dtx)
-	if err != nil {
-		apierror.GenerateError("Touble getting distinct videos", err, w, r)
-		return ""
-	}
-	return encoding.Must(enc.Encode(videos))
+func DistinctVideos(ctx *middleware.APIContext, rw http.ResponseWriter, req *http.Request) (interface{}, error) {
+	return video.UniqueVideos(ctx)
 }
 
 // New videos, literally from the "video_new" table
-func Get(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, params martini.Params) string {
+func Get(ctx *middleware.APIContext, rw http.ResponseWriter, req *http.Request) (interface{}, error) {
 	var v video.Video
 	var err error
 
-	if v.ID, err = strconv.Atoi(params["id"]); err != nil {
-		apierror.GenerateError("Trouble getting video ID", err, w, r)
-		return ""
+	if v.ID, err = strconv.Atoi(ctx.Params.ByName("id")); err != nil {
+		return nil, err
 	}
 
-	if err = v.Get(); err != nil {
-		apierror.GenerateError("Trouble getting video", err, w, r)
-		return ""
-	}
-
-	return encoding.Must(enc.Encode(v))
+	err = v.Get(ctx)
+	return v, err
 }
 
-func GetVideoDetails(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, params martini.Params) string {
+func GetVideoDetails(ctx *middleware.APIContext, rw http.ResponseWriter, req *http.Request) (interface{}, error) {
 	var v video.Video
 	var err error
 
-	if v.ID, err = strconv.Atoi(params["id"]); err != nil {
-		apierror.GenerateError("Trouble getting video ID", err, w, r)
-		return ""
+	if v.ID, err = strconv.Atoi(ctx.Params.ByName("id")); err != nil {
+		return nil, err
 	}
 
-	if err = v.GetVideoDetails(); err != nil {
-		apierror.GenerateError("Trouble getting video details", err, w, r)
-		return ""
-	}
-
-	return encoding.Must(enc.Encode(v))
+	err = v.GetVideoDetails(ctx)
+	return v, err
 }
 
-func GetAllVideos(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, params martini.Params, dtx *apicontext.DataContext) string {
-	vs, err := video.GetAllVideos(dtx)
-	if err != nil {
-		apierror.GenerateError("Trouble getting all videos", err, w, r)
-		return ""
-	}
-
-	return encoding.Must(enc.Encode(vs))
+func GetAllVideos(ctx *middleware.APIContext, rw http.ResponseWriter, req *http.Request) (interface{}, error) {
+	return video.GetAllVideos(ctx)
 }
 
-func GetChannel(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, params martini.Params) string {
+func GetChannel(ctx *middleware.APIContext, rw http.ResponseWriter, req *http.Request) (interface{}, error) {
 	var vchan video.Channel
 	var err error
 
-	if vchan.ID, err = strconv.Atoi(params["id"]); err != nil {
-		apierror.GenerateError("Trouble getting video channel ID", err, w, r)
-		return ""
+	if vchan.ID, err = strconv.Atoi(ctx.Params.ByName("id")); err != nil {
+		return nil, err
 	}
 
-	if err = vchan.Get(); err != nil {
-		apierror.GenerateError("Trouble getting video channel", err, w, r)
-		return ""
-	}
-
-	return encoding.Must(enc.Encode(vchan))
+	err = vchan.Get(ctx)
+	return vchan, err
 }
 
-func GetAllChannels(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, params martini.Params) string {
-
-	vchans, err := video.GetAllChannels()
-
-	if err != nil {
-		apierror.GenerateError("Trouble getting all video channels", err, w, r)
-		return ""
-	}
-
-	return encoding.Must(enc.Encode(vchans))
+func GetAllChannels(ctx *middleware.APIContext, rw http.ResponseWriter, req *http.Request) (interface{}, error) {
+	return video.GetAllChannels(ctx)
 }
 
-func GetCdn(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, params martini.Params) string {
+func GetCdn(ctx *middleware.APIContext, rw http.ResponseWriter, req *http.Request) (interface{}, error) {
 	var cdn video.CdnFile
 	var err error
 
-	if cdn.ID, err = strconv.Atoi(params["id"]); err != nil {
-		apierror.GenerateError("Trouble getting video CDN ID", err, w, r)
-		return ""
+	if cdn.ID, err = strconv.Atoi(ctx.Params.ByName("id")); err != nil {
+		return nil, err
 	}
 
-	if err = cdn.Get(); err != nil {
-		apierror.GenerateError("Trouble getting video cdn", err, w, r)
-
-		return ""
-	}
-
-	return encoding.Must(enc.Encode(cdn))
+	err = cdn.Get(ctx)
+	return cdn, err
 }
 
-func GetAllCdns(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, params martini.Params) string {
-	cdns, err := video.GetAllCdnFiles()
-
-	if err != nil {
-		apierror.GenerateError("Trouble getting all video CDNs", err, w, r)
-		return ""
-	}
-
-	return encoding.Must(enc.Encode(cdns))
+func GetAllCdns(ctx *middleware.APIContext, rw http.ResponseWriter, req *http.Request) (interface{}, error) {
+	return video.GetAllCdnFiles(ctx)
 }
 
-func GetVideoType(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, params martini.Params) string {
+func GetVideoType(ctx *middleware.APIContext, rw http.ResponseWriter, req *http.Request) (interface{}, error) {
 	var vt video.VideoType
 	var err error
 
-	if vt.ID, err = strconv.Atoi(params["id"]); err != nil {
-		apierror.GenerateError("Trouble getting video type ID", err, w, r)
-		return ""
+	if vt.ID, err = strconv.Atoi(ctx.Params.ByName("id")); err != nil {
+		return nil, err
 	}
 
-	if err = vt.Get(); err != nil {
-		apierror.GenerateError("Trouble getting video type", err, w, r)
-		return ""
-	}
-
-	return encoding.Must(enc.Encode(vt))
+	err = vt.Get(ctx)
+	return vt, err
 }
 
-func GetAllVideoTypes(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, params martini.Params) string {
-	vts, err := video.GetAllVideoTypes()
-
-	if err != nil {
-		apierror.GenerateError("Trouble getting all video types", err, w, r)
-		return ""
-	}
-
-	return encoding.Must(enc.Encode(vts))
+func GetAllVideoTypes(ctx *middleware.APIContext, rw http.ResponseWriter, req *http.Request) (interface{}, error) {
+	return video.GetAllVideoTypes(ctx)
 }
 
-func GetCdnType(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, params martini.Params) string {
+func GetCdnType(ctx *middleware.APIContext, rw http.ResponseWriter, req *http.Request) (interface{}, error) {
 	var v video.CdnFileType
 	var err error
 
-	if v.ID, err = strconv.Atoi(params["id"]); err != nil {
-		apierror.GenerateError("Trouble getting video CDN type ID", err, w, r)
-		return ""
+	if v.ID, err = strconv.Atoi(ctx.Params.ByName("id")); err != nil {
+		return nil, err
 	}
 
-	if err = v.Get(); err != nil {
-		apierror.GenerateError("Trouble deleting video CDN type", err, w, r)
-
-		return ""
-	}
-
-	return encoding.Must(enc.Encode(v))
+	err = v.Get(ctx)
+	return v, err
 }
 
-func GetAllCdnTypes(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, params martini.Params) string {
-	ct, err := video.GetAllCdnFileTypes()
-
-	if err != nil {
-
-		apierror.GenerateError("Trouble getting all video CDN types", err, w, r)
-
-		return ""
-	}
-
-	return encoding.Must(enc.Encode(ct))
+func GetAllCdnTypes(ctx *middleware.APIContext, rw http.ResponseWriter, req *http.Request) (interface{}, error) {
+	return video.GetAllCdnFileTypes(ctx)
 }
 
-func GetChannelType(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, params martini.Params) string {
+func GetChannelType(ctx *middleware.APIContext, rw http.ResponseWriter, req *http.Request) (interface{}, error) {
 	var v video.ChannelType
 	var err error
 
-	if v.ID, err = strconv.Atoi(params["id"]); err != nil {
-		apierror.GenerateError("Trouble getting video channel type ID", err, w, r)
-		return ""
+	if v.ID, err = strconv.Atoi(ctx.Params.ByName("id")); err != nil {
+		return nil, err
 	}
 
-	if err = v.Get(); err != nil {
-		apierror.GenerateError("Trouble getting video channel type", err, w, r)
-		return ""
-	}
-
-	return encoding.Must(enc.Encode(v))
+	err = v.Get(ctx)
+	return v, err
 }
 
-func GetAllChannelTypes(w http.ResponseWriter, r *http.Request, enc encoding.Encoder, params martini.Params) string {
-	cs, err := video.GetAllChannelTypes()
-
-	if err != nil {
-
-		apierror.GenerateError("Trouble getting all video channel types", err, w, r)
-		return ""
-	}
-
-	return encoding.Must(enc.Encode(cs))
+func GetAllChannelTypes(ctx *middleware.APIContext, rw http.ResponseWriter, req *http.Request) (interface{}, error) {
+	return video.GetAllChannelTypes(ctx)
 }

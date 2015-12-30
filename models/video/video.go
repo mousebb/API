@@ -1,6 +1,7 @@
 package video
 
 import (
+	"github.com/curt-labs/API/helpers/database"
 	"github.com/curt-labs/API/helpers/redis"
 	"github.com/curt-labs/API/middleware"
 	"github.com/curt-labs/API/models/brand"
@@ -730,7 +731,7 @@ func GetAllChannelTypes(ctx *middleware.APIContext) (cts []ChannelType, err erro
 }
 
 // Populates a video + type
-func populateVideo(row *sql.Row, ch chan Video) {
+func populateVideo(row database.Scanner, ch chan Video) {
 	var v Video
 	var tName, tIcon *string
 	err := row.Scan(

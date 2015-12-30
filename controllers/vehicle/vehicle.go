@@ -10,8 +10,6 @@ import (
 	"time"
 
 	"github.com/curt-labs/API/helpers/apifilter"
-	"github.com/curt-labs/API/helpers/encoding"
-	"github.com/curt-labs/API/helpers/error"
 	"github.com/curt-labs/API/middleware"
 	"github.com/curt-labs/API/models/products"
 	"github.com/curt-labs/API/models/vehicle"
@@ -38,7 +36,7 @@ func Query(ctx *middleware.APIContext, w http.ResponseWriter, r *http.Request) (
 
 	l.Vehicle = LoadVehicle(r)
 
-	l.Brands = dtx.BrandArray
+	l.Brands = ctx.DataContext.BrandArray
 
 	if qs.Get("key") != "" {
 		l.CustomerKey = qs.Get("key")
@@ -50,29 +48,29 @@ func Query(ctx *middleware.APIContext, w http.ResponseWriter, r *http.Request) (
 	}
 
 	if l.Vehicle.Base.Year == 0 { // Get Years
-		if err := l.GetYears(dtx); err != nil {
+		if err := l.GetYears(ctx); err != nil {
 			return nil, errors.New("Trouble getting years for vehicle lookup")
 		}
 	} else if l.Vehicle.Base.Make == "" { // Get Makes
-		if err := l.GetMakes(dtx); err != nil {
+		if err := l.GetMakes(ctx); err != nil {
 			return nil, errors.New("Trouble getting makes for vehicle lookup")
 		}
 	} else if l.Vehicle.Base.Model == "" { // Get Models
-		if err := l.GetModels(); err != nil {
+		if err := l.GetModels(ctx); err != nil {
 			return nil, errors.New("Trouble getting models for vehicle lookup")
 		}
 	} else {
 
 		// Kick off part getter
 		partChan := make(chan []products.Part)
-		go l.LoadParts(partChan, page, count, dtx)
+		go l.LoadParts(ctx, partChan, page, count)
 
 		if l.Vehicle.Submodel == "" { // Get Submodels
-			if err := l.GetSubmodels(); err != nil {
+			if err := l.GetSubmodels(ctx); err != nil {
 				return nil, errors.New("Trouble getting submodels for vehicle lookup")
 			}
 		} else { // Get configurations
-			if err := l.GetConfigurations(); err != nil {
+			if err := l.GetConfigurations(ctx); err != nil {
 				return nil, errors.New("Trouble getting configurations for vehicle lookup")
 			}
 		}
@@ -81,7 +79,7 @@ func Query(ctx *middleware.APIContext, w http.ResponseWriter, r *http.Request) (
 		case parts := <-partChan:
 			if len(parts) > 0 {
 				l.Parts = parts
-				l.Filter, _ = apifilter.PartFilter(l.Parts, nil)
+				l.Filter, _ = apifilter.PartFilter(ctx, l.Parts, nil)
 			}
 		case <-time.After(5 * time.Second):
 
@@ -161,27 +159,21 @@ func LoadVehicle(r *http.Request) (v products.Vehicle) {
 	return
 }
 
-func GetVehicle(w http.ResponseWriter, r *http.Request, enc encoding.Encoder) string {
-	var v vehicle.Vehicle
-	var err error
+func GetVehicle(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 
 	baseId, err := strconv.Atoi(r.FormValue("base"))
 	if err != nil {
-		apierror.GenerateError("Error parsing AAIA BaseId", err, w, r)
+		return nil, err
 	}
+
 	subId, err := strconv.Atoi(r.FormValue("sub"))
 	if err != nil {
-		apierror.GenerateError("Error parsing AAIA SubId", err, w, r)
+		return nil, err
 	}
 	configVals := r.FormValue("configs")
 	configs := strings.Split(configVals, ",")
 
-	v, err = vehicle.GetVehicle(baseId, subId, configs)
-	if err != nil {
-		apierror.GenerateError("Error getting vehicle", err, w, r)
-	}
-
-	return encoding.Must(enc.Encode(v))
+	return vehicle.GetVehicle(ctx, baseId, subId, configs)
 }
 
 func Inquire(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
@@ -198,7 +190,7 @@ func Inquire(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request
 		return nil, errors.New("bad payload")
 	}
 
-	err = i.Push()
+	err = i.Push(ctx)
 	if err != nil {
 		return nil, errors.New("failed submission")
 	}
