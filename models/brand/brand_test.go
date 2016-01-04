@@ -3,6 +3,7 @@ package brand
 import (
 	"database/sql"
 	"log"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -23,7 +24,11 @@ var (
 	}
 
 	dataInserts = map[string]string{
-		`insertBrand`: `insert into Brand(ID, name, code, logo, logoAlt, formalName, longName, primaryColor, autocareID) values (1, 'test brand', 'code','123','345','formal brand','long name','ffffff','auto')`,
+		`insertBrand`:           `insert into Brand(ID, name, code, logo, logoAlt, formalName, longName, primaryColor, autocareID) values (1, 'test brand', 'code','123','345','formal brand','long name','ffffff','auto')`,
+		`insertWebsite`:         `insert into Website(ID, url, description) values (1, 'www.website', 'test site')`,
+		`insertWebsiteToBrand`:  `insert into WebsiteToBrand(ID, WebsiteID, brandID) values(1,1,1)`,
+		`insertCustomer`:        `insert into Customer (cust_id, name, dealer_type) values (1, 'test', 1)`,
+		`insertCustomerToBrand`: `insert into CustomerToBrand (ID, cust_id, brandID) values (1,1,1)`,
 	}
 )
 
@@ -62,7 +67,7 @@ func TestMain(m *testing.M) {
 		log.Fatal(err)
 	}
 
-	m.Run()
+	os.Exit(m.Run())
 
 }
 
@@ -126,7 +131,6 @@ func TestGet(t *testing.T) {
 				ID: 1,
 			}
 			err := b.Get(db)
-			t.Log(err)
 			So(err, ShouldNotBeNil)
 			So(b.ID, ShouldEqual, 0)
 
@@ -180,5 +184,13 @@ func TestGetCustomerBrands(t *testing.T) {
 			So(brands, ShouldHaveSameTypeAs, []Brand{})
 		})
 
+	})
+}
+
+func TestGetWebsites(t *testing.T) {
+	Convey("Testing with brand > 0", t, func() {
+		ws, err := getWebsites(1, db)
+		So(err, ShouldBeNil)
+		So(len(ws), ShouldBeGreaterThan, 0)
 	})
 }
