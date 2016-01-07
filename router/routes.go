@@ -47,6 +47,15 @@ var commonPrivate = []middleware.Middleware{
 	middleware.WrapMiddleware(middleware.Logger{}),
 }
 
+var commonSudo = []middleware.Middleware{
+	middleware.WrapMiddleware(middleware.DB{}),
+	middleware.WrapMiddleware(middleware.Keyed{
+		Type: "PRIVATE",
+		Sudo: true,
+	}),
+	middleware.WrapMiddleware(middleware.Logger{}),
+}
+
 var routes = []Route{
 
 	// Static handlers
@@ -84,6 +93,7 @@ var routes = []Route{
 
 	// Customer Management
 	Route{"Get Customer", "GET", "/customer", middleware.APIHandler{H: customerCtlr.GetCustomer, Middleware: commonPrivate}},
+	Route{"Get User", "GET", "/customer/user/:key", middleware.APIHandler{H: customerCtlr.GetUser, Middleware: commonSudo}},
 
 	// Cache Management
 	Route{"Get Cache Keys", "GET", "/cache/keys", middleware.APIHandler{H: cache.GetKeys, Middleware: common}},

@@ -173,17 +173,17 @@ type User struct {
 	Password       string    `bson:"password" json:"-" xml:"-"`
 	DateAdded      time.Time `bson:"dateAdded" json:"dateAdded" xml:"dateAdded,attr"`
 
-	Location  Location `bson:"location" json:"location" xml:"location"`
-	SuperUser bool     `bson:"superUser" json:"superUser" xml:"superUser,attr"`
+	Location  *Location `bson:"location" json:"location" xml:"location"`
+	SuperUser bool      `bson:"superUser" json:"superUser" xml:"superUser,attr"`
 
 	Keys []APIKey `bson:"keys" json:"keys" xml:"keys"`
 
 	ComnetAccounts []ComnetAccount `bson:"comnetAccounts" json:"comnetAccounts" xml:"comnetAccounts"`
 }
 
-type Scanner interface {
-	Scan(...interface{}) error
-}
+// type Scanner interface {
+// 	Scan(...interface{}) error
+// }
 
 type StateRegion struct {
 	Id           int          `json:"id,omitempty" xml:"id,omitempty"`

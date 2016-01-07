@@ -13,6 +13,7 @@ import (
 // API key usage
 type Keyed struct {
 	Type    string
+	Sudo    bool
 	Error   error
 	Status  int
 	handler http.Handler
@@ -65,7 +66,7 @@ func (kh Keyed) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	//load brands in dtx
 	//returns our data context...shared amongst controllers
-	err = ctx.BuildDataContext(apiKey, kh.Type)
+	err = ctx.BuildDataContext(apiKey, kh.Type, kh.Sudo)
 	if err != nil {
 		err = fmt.Errorf("failed to authenticate for %s key %s", kh.Type, apiKey)
 		apierror.GenerateError(err.Error(), err, w, r, http.StatusUnauthorized)

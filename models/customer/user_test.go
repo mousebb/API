@@ -18,9 +18,10 @@ import (
 var (
 	session *mgo.Session
 
-	API_KEY       = uuid.NewV4()
-	TEST_EMAIl    = "test@example.com"
-	TEST_PASSWORD = "test_password"
+	API_KEY         = uuid.NewV4()
+	PRIVATE_API_KEY = uuid.NewV4()
+	TEST_EMAIl      = "test@example.com"
+	TEST_PASSWORD   = "test_password"
 )
 
 func TestMain(m *testing.M) {
@@ -51,6 +52,12 @@ func TestMain(m *testing.M) {
 							Key: API_KEY.String(),
 							Type: APIKeyType{
 								Type: "Public",
+							},
+						},
+						APIKey{
+							Key: PRIVATE_API_KEY.String(),
+							Type: APIKeyType{
+								Type: "Private",
 							},
 						},
 					},
@@ -120,6 +127,34 @@ func TestAuthenticateUser(t *testing.T) {
 
 		Convey("valid email and password", func() {
 			user, err := AuthenticateUser(session, TEST_EMAIl, TEST_PASSWORD)
+			So(err, ShouldBeNil)
+			So(user, ShouldNotBeNil)
+		})
+	})
+}
+
+func TestAuthenticateUserByKey(t *testing.T) {
+	Convey("Test AuthenticateUserByKey", t, func() {
+
+		Convey("invalid mongo session", func() {
+			tmp := database.CustomerCollectionName
+			database.CustomerCollectionName = "example"
+
+			user, err := AuthenticateUserByKey(session, PRIVATE_API_KEY.String())
+			So(err, ShouldNotBeNil)
+			So(user, ShouldBeNil)
+
+			database.CustomerCollectionName = tmp
+		})
+
+		Convey("invalid key", func() {
+			user, err := AuthenticateUserByKey(session, uuid.NewV4().String())
+			So(err, ShouldNotBeNil)
+			So(user, ShouldBeNil)
+		})
+
+		Convey("valid key", func() {
+			user, err := AuthenticateUserByKey(session, PRIVATE_API_KEY.String())
 			So(err, ShouldBeNil)
 			So(user, ShouldNotBeNil)
 		})

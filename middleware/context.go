@@ -22,8 +22,8 @@ type DataContext struct {
 	BrandArray  []int
 }
 
-func (ctx *APIContext) BuildDataContext(k, t string) error {
-	dtx, err := new(ctx, k, t)
+func (ctx *APIContext) BuildDataContext(k string, t string, requireSudo bool) error {
+	dtx, err := new(ctx, k, t, requireSudo)
 	if err != nil {
 		return err
 	}
@@ -33,7 +33,7 @@ func (ctx *APIContext) BuildDataContext(k, t string) error {
 	return nil
 }
 
-func new(ctx *APIContext, k, t string) (*DataContext, error) {
+func new(ctx *APIContext, k string, t string, requireSudo bool) (*DataContext, error) {
 	resp := struct {
 		Users []customer.User
 	}{}
@@ -45,6 +45,9 @@ func new(ctx *APIContext, k, t string) (*DataContext, error) {
 	qry := bson.M{"users.keys.key": k}
 	if t != "" {
 		qry["users.keys.type.type"] = t
+	}
+	if requireSudo {
+		qry["users.superUser"] = true
 	}
 
 	err := c.Find(qry).Select(bson.M{"users.$.user": 1, "_id": 0}).One(&resp)

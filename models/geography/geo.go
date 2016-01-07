@@ -18,7 +18,7 @@ var (
 
 type States []State
 type State struct {
-	Id           int      `json:"state_id"`
+	Id           int      `json:"-" xml:"-"`
 	State        string   `json:"state"`
 	Abbreviation string   `json:"abbreviation"`
 	Country      *Country `json:"country,omitempty"`
@@ -26,7 +26,7 @@ type State struct {
 
 type Countries []Country
 type Country struct {
-	Id           int     `json:"country_id"`
+	Id           int     `json:"-" xml:"-"`
 	Country      string  `json:"country"`
 	Abbreviation string  `json:"abbreviation"`
 	States       *States `json:"states,omitempty"`
