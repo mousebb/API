@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"reflect"
 	"strings"
 
 	"gopkg.in/yaml.v2"
@@ -84,6 +85,10 @@ func toText(r *http.Request, w http.ResponseWriter, obj interface{}) error {
 }
 
 func toHTML(r *http.Request, w http.ResponseWriter, obj interface{}) error {
+
+	if reflect.TypeOf(obj) != reflect.TypeOf(HtmlReponse{}) {
+		return toJSON(r, w, obj)
+	}
 
 	hr := obj.(HtmlReponse)
 

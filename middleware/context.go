@@ -44,7 +44,11 @@ func new(ctx *APIContext, k string, t string, requireSudo bool) (*DataContext, e
 	// are being put into MongoDB.
 	qry := bson.M{"users.keys.key": k}
 	if t != "" {
-		qry["users.keys.type.type"] = t
+		pattern := bson.RegEx{
+			Pattern: "^" + t + "$",
+			Options: "i",
+		}
+		qry["users.keys.type.type"] = pattern
 	}
 	if requireSudo {
 		qry["users.superUser"] = true
