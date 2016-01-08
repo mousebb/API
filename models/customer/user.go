@@ -15,20 +15,18 @@ import (
 	"gopkg.in/mgo.v2/bson"
 )
 
-const (
+var (
+	insertUser = `insert into CustomerUser(id, name, email, password, customerID, date_added, active, locationID, isSudo, cust_ID, NotCustomer, passwordConverted)
+					values(UUID(),?, ?, ?, ?, ?, 1, ?, ?, (
+						select cust_id from Customer where customerID = ? limit 1
+					), 1, 1)`
+	getNewUserID = `select id from CustomerUser where email = ? && password = ? limit 1`
+
 	// GeocodingAPIKey API Key for Google Maps Geocoding API.
 	GeocodingAPIKey = `AIzaSyAKINnVskCaZkQhhh6I2D6DOpeylY1G1-Q`
 	// PasswordCharset The character set that we want to use for
 	// generating random passwords.
 	PasswordCharset = `ABCDEFGHJKMNPQRTUVWXYZabcdefghijkmnpqrtuvwxyz12346789`
-)
-
-var (
-	insertUser = `insert into CustomerUser(id, name, email, password, customerID, date_added, active, locationID, isSudo, cust_ID, NotCustomer, passwordConverted)
-					values(UUID,?, ?, ?, ?, ?, 1, ?, ?, (
-						select cust_id from Customer where customerID = ? limit 1
-					), 1, 1)`
-	getNewUserID = `select id from CustomerUser where email = ? && password = ? limit 1`
 )
 
 type userResult struct {
@@ -112,6 +110,10 @@ func AuthenticateUser(sess *mgo.Session, email, pass string) (*User, error) {
 // 7. Call fanner process for the associated `Customer`
 func AddUser(sess *mgo.Session, db *sql.DB, user *User, requestorKey string) error {
 
+	if user == nil {
+		return fmt.Errorf("user object was null")
+	}
+
 	// validate
 	errors := user.validate()
 	if len(errors) > 0 {
@@ -121,7 +123,7 @@ func AddUser(sess *mgo.Session, db *sql.DB, user *User, requestorKey string) err
 	// fetch requestor
 	requestor, err := GetUserByKey(sess, requestorKey, "Private")
 	if err != nil || requestor.CustomerNumber == 0 {
-		return fmt.Errorf("failed to retrieve the requesting users information %s", err.Error())
+		return fmt.Errorf("failed to retrieve the requesting users information %v", err)
 	}
 
 	// set customer number from requestor
@@ -129,7 +131,10 @@ func AddUser(sess *mgo.Session, db *sql.DB, user *User, requestorKey string) err
 
 	if user.Password == "" {
 		pass, err := randutil.String(8, PasswordCharset)
-		if err != nil {
+		if err != nil || strings.TrimSpace(pass) == "" {
+			if err == nil {
+				err = fmt.Errorf("generated password was empty")
+			}
 			return fmt.Errorf("failed to generate password %s", err.Error())
 		}
 
@@ -171,7 +176,7 @@ func AddUser(sess *mgo.Session, db *sql.DB, user *User, requestorKey string) err
 		user.Email,
 		user.Password,
 		user.CustomerNumber,
-		user.DateAdded.String(),
+		user.DateAdded,
 		user.Location.ID,
 		user.SuperUser,
 		user.CustomerNumber,

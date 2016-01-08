@@ -33,6 +33,9 @@ func (l *Location) Exists(db *sql.DB, customerID int) (bool, error) {
 	var locID *int
 	err = stmt.QueryRow(qry, customerID).Scan(&locID)
 	if err != nil || locID == nil || *locID == 0 {
+		if err == sql.ErrNoRows {
+			err = nil
+		}
 		return false, err
 	}
 
