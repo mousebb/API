@@ -3,12 +3,14 @@ package customer
 import (
 	"database/sql"
 	"log"
+	"strings"
 	"testing"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/curt-labs/API/helpers/database"
+	"github.com/curt-labs/API/models/geography"
 	"github.com/ory-am/dockertest"
 	. "github.com/smartystreets/goconvey/convey"
 	"github.com/twinj/uuid"
@@ -38,7 +40,7 @@ var (
 
 	dataInserts = map[string]string{
 		`insertBrand`:           `insert into Brand(ID, name, code, logo, logoAlt, formalName, longName, primaryColor, autocareID) values (1, 'test brand', 'code','123','345','formal brand','long name','ffffff','auto')`,
-		`insertCustomer`:        `insert into Customer (cust_id, name, dealer_type) values (1, 'test', 1)`,
+		`insertCustomer`:        `insert into Customer (cust_id, name, dealer_type, customerID) values (1, 'test', 1, 1)`,
 		`insertCustomerToBrand`: `insert into CustomerToBrand (ID, cust_id, brandID) values (1,1,1)`,
 		`insertKeyType`:         `INSERT INTO ApiKeyType (id, type, date_added) VALUES ('a46ceab9-df0c-44a2-b21d-a859fc2c839c','random type', NOW())`,
 	}
@@ -218,6 +220,27 @@ func TestMain(m *testing.M) {
 func TestAddUser(t *testing.T) {
 	Convey("Test AddUser", t, func() {
 
+		validLocation := Location{
+			Address: Address{
+				StreetAddress: "6208 Industrial Drive",
+				City:          "Eau Claire",
+				PostalCode:    "54701",
+				State: geography.State{
+					Abbreviation: "WI",
+					State:        "Wisconsin",
+					Country: &geography.Country{
+						Abbreviation: "USA",
+						Country:      "United States of Ameria",
+					},
+				},
+			},
+			ContactPerson: "Test User",
+			Phone:         "7155555555",
+			Fax:           "7154444444",
+			Name:          "Test Location",
+			Email:         "test@example.com",
+		}
+
 		Convey("with nil User", func() {
 			err := AddUser(session, db, nil, API_KEY.String())
 			So(err, ShouldNotBeNil)
@@ -279,6 +302,90 @@ func TestAddUser(t *testing.T) {
 			}
 			err := AddUser(session, db, u, PRIVATE_API_KEY.String())
 			So(err, ShouldNotBeNil)
+		})
+
+		Convey("with invalid insertUser query", func() {
+			tmp := insertUser
+			insertUser = "bad query"
+
+			u := &User{
+				Name:     "Test User",
+				Email:    TEST_EMAIl,
+				Password: "",
+				Location: &validLocation,
+			}
+			err := AddUser(session, db, u, PRIVATE_API_KEY.String())
+			So(err, ShouldNotBeNil)
+
+			insertUser = tmp
+		})
+
+		Convey("with invalid insert params", func() {
+
+			tmp := insertUser
+			insertUser = strings.Replace(insertUser, ", passwordConverted", "", 1)
+			insertUser = strings.Replace(insertUser, ", 1)", ")", 1)
+
+			u := &User{
+				Name:     "Test User",
+				Email:    TEST_EMAIl,
+				Password: "",
+				Location: &validLocation,
+			}
+			err := AddUser(session, db, u, PRIVATE_API_KEY.String())
+			So(err, ShouldNotBeNil)
+
+			insertUser = tmp
+		})
+
+		Convey("with invalid getNewUserID query", func() {
+
+			tmp := getNewUserID
+			getNewUserID = "bad query"
+
+			u := &User{
+				Name:           "Test User",
+				Email:          TEST_EMAIl,
+				Password:       "",
+				CustomerNumber: 1,
+				Location:       &validLocation,
+			}
+			err := AddUser(session, db, u, PRIVATE_API_KEY.String())
+			So(err, ShouldNotBeNil)
+
+			getNewUserID = tmp
+		})
+
+		Convey("with invalid where params in getNewUserID", func() {
+
+			tmp := getNewUserID
+			getNewUserID = strings.Replace(getNewUserID, "email = ? && ", "", 1)
+
+			u := &User{
+				Name:           "Test User",
+				Email:          TEST_EMAIl,
+				Password:       "",
+				CustomerNumber: 1,
+				Location:       &validLocation,
+			}
+			err := AddUser(session, db, u, PRIVATE_API_KEY.String())
+			So(err, ShouldNotBeNil)
+
+			getNewUserID = tmp
+		})
+
+		Convey("valid", func() {
+
+			u := &User{
+				Name:           "Test User",
+				Email:          TEST_EMAIl,
+				Password:       "",
+				CustomerNumber: 1,
+				Location:       &validLocation,
+			}
+			err := AddUser(session, db, u, PRIVATE_API_KEY.String())
+			So(err, ShouldBeNil)
+
 		})
 
 	})
