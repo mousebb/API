@@ -2,7 +2,9 @@ package customer
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -11,7 +13,7 @@ import (
 
 	"github.com/curt-labs/API/helpers/database"
 	"github.com/curt-labs/API/models/geography"
-	"github.com/ory-am/dockertest"
+	"github.com/ninnemana/dockertest"
 	. "github.com/smartystreets/goconvey/convey"
 	"github.com/twinj/uuid"
 	"gopkg.in/mgo.v2"
@@ -134,6 +136,23 @@ func TestMain(m *testing.M) {
 		mongo.KillRemove()
 	}()
 
+	nsqd, err := dockertest.ConnectToNSQd(15, time.Second, func(ip string, httpPort int, tcpPort int) bool {
+		// var err error
+
+		resp, err := http.Get(fmt.Sprintf("http://%s:%d/ping", ip, httpPort))
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		NsqHost = fmt.Sprintf("%s:%d", ip, tcpPort)
+
+		return resp.StatusCode == 200
+	})
+
+	defer func() {
+		nsqd.KillRemove()
+	}()
+
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -141,81 +160,81 @@ func TestMain(m *testing.M) {
 	m.Run()
 }
 
-// func TestGetUserByKey(t *testing.T) {
-// 	Convey("Test GetUserByKey", t, func() {
-// 		Convey("invalid mongo session", func() {
-// 			tmp := database.CustomerCollectionName
-// 			database.CustomerCollectionName = "example"
-//
-// 			user, err := GetUserByKey(session, API_KEY.String(), "Public")
-// 			So(err, ShouldNotBeNil)
-// 			So(user, ShouldBeNil)
-//
-// 			database.CustomerCollectionName = tmp
-// 		})
-// 		Convey("valid key and type", func() {
-// 			user, err := GetUserByKey(session, API_KEY.String(), "Public")
-// 			So(err, ShouldBeNil)
-// 			So(user, ShouldNotBeNil)
-// 		})
-// 	})
-// }
-//
-// func TestAuthenticateUser(t *testing.T) {
-// 	Convey("Test AuthenticateUser", t, func() {
-//
-// 		Convey("invalid mongo session", func() {
-// 			tmp := database.CustomerCollectionName
-// 			database.CustomerCollectionName = "example"
-//
-// 			user, err := AuthenticateUser(session, TEST_EMAIl, TEST_PASSWORD)
-// 			So(err, ShouldNotBeNil)
-// 			So(user, ShouldBeNil)
-//
-// 			database.CustomerCollectionName = tmp
-// 		})
-//
-// 		Convey("valid email and invalid password", func() {
-// 			user, err := AuthenticateUser(session, TEST_EMAIl, "bad_password")
-// 			So(err, ShouldNotBeNil)
-// 			So(user, ShouldBeNil)
-// 		})
-//
-// 		Convey("valid email and password", func() {
-// 			user, err := AuthenticateUser(session, TEST_EMAIl, TEST_PASSWORD)
-// 			So(err, ShouldBeNil)
-// 			So(user, ShouldNotBeNil)
-// 		})
-// 	})
-// }
-//
-// func TestAuthenticateUserByKey(t *testing.T) {
-// 	Convey("Test AuthenticateUserByKey", t, func() {
-//
-// 		Convey("invalid mongo session", func() {
-// 			tmp := database.CustomerCollectionName
-// 			database.CustomerCollectionName = "example"
-//
-// 			user, err := AuthenticateUserByKey(session, PRIVATE_API_KEY.String())
-// 			So(err, ShouldNotBeNil)
-// 			So(user, ShouldBeNil)
-//
-// 			database.CustomerCollectionName = tmp
-// 		})
-//
-// 		Convey("invalid key", func() {
-// 			user, err := AuthenticateUserByKey(session, uuid.NewV4().String())
-// 			So(err, ShouldNotBeNil)
-// 			So(user, ShouldBeNil)
-// 		})
-//
-// 		Convey("valid key", func() {
-// 			user, err := AuthenticateUserByKey(session, PRIVATE_API_KEY.String())
-// 			So(err, ShouldBeNil)
-// 			So(user, ShouldNotBeNil)
-// 		})
-// 	})
-// }
+func TestGetUserByKey(t *testing.T) {
+	Convey("Test GetUserByKey", t, func() {
+		Convey("invalid mongo session", func() {
+			tmp := database.CustomerCollectionName
+			database.CustomerCollectionName = "example"
+
+			user, err := GetUserByKey(session, API_KEY.String(), "Public")
+			So(err, ShouldNotBeNil)
+			So(user, ShouldBeNil)
+
+			database.CustomerCollectionName = tmp
+		})
+		Convey("valid key and type", func() {
+			user, err := GetUserByKey(session, API_KEY.String(), "Public")
+			So(err, ShouldBeNil)
+			So(user, ShouldNotBeNil)
+		})
+	})
+}
+
+func TestAuthenticateUser(t *testing.T) {
+	Convey("Test AuthenticateUser", t, func() {
+
+		Convey("invalid mongo session", func() {
+			tmp := database.CustomerCollectionName
+			database.CustomerCollectionName = "example"
+
+			user, err := AuthenticateUser(session, TEST_EMAIl, TEST_PASSWORD)
+			So(err, ShouldNotBeNil)
+			So(user, ShouldBeNil)
+
+			database.CustomerCollectionName = tmp
+		})
+
+		Convey("valid email and invalid password", func() {
+			user, err := AuthenticateUser(session, TEST_EMAIl, "bad_password")
+			So(err, ShouldNotBeNil)
+			So(user, ShouldBeNil)
+		})
+
+		Convey("valid email and password", func() {
+			user, err := AuthenticateUser(session, TEST_EMAIl, TEST_PASSWORD)
+			So(err, ShouldBeNil)
+			So(user, ShouldNotBeNil)
+		})
+	})
+}
+
+func TestAuthenticateUserByKey(t *testing.T) {
+	Convey("Test AuthenticateUserByKey", t, func() {
+
+		Convey("invalid mongo session", func() {
+			tmp := database.CustomerCollectionName
+			database.CustomerCollectionName = "example"
+
+			user, err := AuthenticateUserByKey(session, PRIVATE_API_KEY.String())
+			So(err, ShouldNotBeNil)
+			So(user, ShouldBeNil)
+
+			database.CustomerCollectionName = tmp
+		})
+
+		Convey("invalid key", func() {
+			user, err := AuthenticateUserByKey(session, uuid.NewV4().String())
+			So(err, ShouldNotBeNil)
+			So(user, ShouldBeNil)
+		})
+
+		Convey("valid key", func() {
+			user, err := AuthenticateUserByKey(session, PRIVATE_API_KEY.String())
+			So(err, ShouldBeNil)
+			So(user, ShouldNotBeNil)
+		})
+	})
+}
 
 func TestAddUser(t *testing.T) {
 	Convey("Test AddUser", t, func() {
@@ -372,6 +391,25 @@ func TestAddUser(t *testing.T) {
 			So(err, ShouldNotBeNil)
 
 			getNewUserID = tmp
+		})
+
+		Convey("invalid NSQ host", func() {
+
+			tmp := NsqHost
+			NsqHost = "1.2.3.4:4150"
+
+			u := &User{
+				Name:           "Test User",
+				Email:          TEST_EMAIl,
+				Password:       "",
+				CustomerNumber: 1,
+				Location:       &validLocation,
+			}
+			err := AddUser(session, db, u, PRIVATE_API_KEY.String())
+			So(err, ShouldNotBeNil)
+
+			NsqHost = tmp
+
 		})
 
 		Convey("valid", func() {
