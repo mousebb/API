@@ -13,7 +13,7 @@ import (
 
 	"github.com/curt-labs/API/helpers/database"
 	"github.com/curt-labs/API/models/geography"
-	"github.com/ninnemana/dockertest"
+	"github.com/ory-am/dockertest"
 	. "github.com/smartystreets/goconvey/convey"
 	"github.com/twinj/uuid"
 	"gopkg.in/mgo.v2"
