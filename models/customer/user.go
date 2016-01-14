@@ -20,7 +20,8 @@ var (
 					values(UUID(),?, ?, ?, ?, ?, 1, ?, ?, (
 						select cust_id from Customer where customerID = ? limit 1
 					), 1, 1)`
-	getNewUserID = `select id from CustomerUser where email = ? && password = ? limit 1`
+	getNewUserID  = `select id from CustomerUser where email = ? && password = ? limit 1`
+	checkForEmail = `select id from CustomerUser where email = ? limit 1`
 
 	// GeocodingAPIKey API Key for Google Maps Geocoding API.
 	GeocodingAPIKey = `AIzaSyAKINnVskCaZkQhhh6I2D6DOpeylY1G1-Q`
@@ -40,11 +41,24 @@ func GetUserByKey(sess *mgo.Session, key, t string) (*User, error) {
 
 	c := sess.DB(database.ProductMongoDatabase).C(database.CustomerCollectionName)
 
-	qry := bson.M{
-		"users.keys.key": key,
-	}
+	var qry bson.M
 	if t != "" {
-		qry["users.keys.type.type"] = t
+		qry = bson.M{
+			"users": bson.M{
+				"$elemMatch": bson.M{
+					"keys.key":       key,
+					"keys.type.type": t,
+				},
+			},
+		}
+	} else {
+		qry = bson.M{
+			"users": bson.M{
+				"$elemMatch": bson.M{
+					"keys.key": key,
+				},
+			},
+		}
 	}
 
 	var res userResult
@@ -92,6 +106,40 @@ func AuthenticateUser(sess *mgo.Session, email, pass string) (*User, error) {
 	return &u, nil
 }
 
+// AuthenticateUserByKey Allows a user to authenticate using the `Private` APIKey.
+// If a user tries to authenticate against this with their `Public` APIKey,
+// they should fail, since the `Public` APIKey is something you would embed
+// in public eyes.
+// func AuthenticateUserByKey(sess *mgo.Session, key string) (*User, error) {
+// 	var err error
+//
+// 	c := sess.DB(database.ProductMongoDatabase).C(database.CustomerCollectionName)
+//
+// 	qry := bson.M{
+// 		"users.keys.key":       key,
+// 		"users.keys.type.type": "Private",
+// 	}
+//
+// 	var res userResult
+// 	err = c.Find(qry).Select(bson.M{"_id": 0, "users.$": 1}).One(&res)
+// 	if err != nil {
+// 		if err == mgo.ErrNotFound {
+// 			err = fmt.Errorf("authentication failed for %s", key)
+// 		}
+// 		return nil, err
+// 	}
+//
+// 	u := res.Users[0]
+//
+// 	// checkout the TODO on resetAuth() func definition
+// 	// err = u.resetAuth()
+// 	// if err != nil {
+// 	// 	return nil, err
+// 	// }
+//
+// 	return &u, nil
+// }
+
 // AddUser Will commit a new user to the same Customer object as
 // the requestor's Customer reference. It will not update the following
 // fields from the submitted User object: `ID`, `CustomerNumber`, `DateAdded`, `Keys`, or `ComnetAccounts`.
@@ -115,7 +163,7 @@ func AddUser(sess *mgo.Session, db *sql.DB, user *User, requestorKey string) err
 	}
 
 	// validate
-	errors := user.validate()
+	errors := user.validate(db)
 	if len(errors) > 0 {
 		return fmt.Errorf(strings.Join(errors, ","))
 	}
@@ -209,7 +257,42 @@ func AddUser(sess *mgo.Session, db *sql.DB, user *User, requestorKey string) err
 	return PushCustomer(db, user.CustomerNumber, "update", bson.NewObjectId())
 }
 
-func (user User) validate() []string {
+func GetUsers(sess *mgo.Session, requestorKey string) ([]User, error) {
+
+	// fetch requestor
+	requestor, err := GetUserByKey(sess, requestorKey, "Private")
+	if err != nil || requestor.CustomerNumber == 0 {
+		return nil, fmt.Errorf("failed to retrieve the requesting users information %v", err)
+	}
+	if !requestor.SuperUser {
+		return nil, fmt.Errorf("this information is only available for super users")
+	}
+
+	c := sess.DB(database.ProductMongoDatabase).C(database.CustomerCollectionName)
+
+	qry := bson.M{
+		"customerNumber": requestor.CustomerNumber,
+	}
+
+	var res userResult
+	err = c.Find(qry).Select(bson.M{"_id": 0, "users": 1}).One(&res)
+	if err != nil {
+		if err == mgo.ErrNotFound {
+			err = nil
+		}
+		return nil, err
+	}
+
+	for i, u := range res.Users {
+		if u.ID == requestor.ID {
+			res.Users = append(res.Users[:i], res.Users[i+1:]...)
+		}
+	}
+
+	return res.Users, nil
+}
+
+func (user User) validate(db *sql.DB) []string {
 	var errs []string
 	if user.Name == "" {
 		errs = append(errs, "name is required")
@@ -217,12 +300,44 @@ func (user User) validate() []string {
 
 	if user.Email == "" {
 		errs = append(errs, "e-mail is required")
+		return errs
+	}
+
+	if db == nil {
+		return append(errs, "database connection not valid")
+	}
+
+	// make sure there are no other user records using this email
+	stmt, err := db.Prepare(checkForEmail)
+	if err != nil {
+		return append(errs, err.Error())
+	}
+	defer stmt.Close()
+
+	var id *string
+	err = stmt.QueryRow(user.Email).Scan(&id)
+	if err != nil && err != sql.ErrNoRows {
+		return append(errs, err.Error())
+	} else if id != nil && *id != "" {
+		errs = append(errs, "there is a user registered with this e-mail")
 	}
 
 	return errs
 }
 
 func (user User) storeLocation(tx *sql.Tx) error {
+	if user.Location == nil {
+		return fmt.Errorf("location cannot be null")
+	}
+	if user.Location.Name == "" {
+		return fmt.Errorf("invalid name")
+	}
+	if user.Location.Email == "" {
+		return fmt.Errorf("invalid email")
+	}
+	if user.Location.Phone == "" {
+		return fmt.Errorf("invalid phone")
+	}
 	if user.Location.Address.City == "" || (user.Location.Address.State.State == "" && user.Location.Address.State.Abbreviation == "") {
 		if user.Location.Address.PostalCode == "" {
 			return fmt.Errorf("invalid address")
@@ -248,58 +363,13 @@ func (user User) storeLocation(tx *sql.Tx) error {
 	if err != nil || point == nil {
 		return fmt.Errorf("failed to get geospatial data %s", err.Error())
 	}
+
 	user.Location.Address.Coordinates = Coordinates{
 		Latitude:  point.Lat(),
 		Longitude: point.Lng(),
 	}
 
-	if user.Location.Name == "" {
-		return fmt.Errorf("invalid name")
-	}
-	if user.Location.Email == "" {
-		return fmt.Errorf("invalid email")
-	}
-	if user.Location.Phone == "" {
-		return fmt.Errorf("invalid phone")
-	}
-
-	user.Location.insert(tx, user.CustomerNumber)
-
-	return nil
-}
-
-// AuthenticateUserByKey Allows a user to authenticate using the `Private` APIKey.
-// If a user tries to authenticate against this with their `Public` APIKey,
-// they should fail, since the `Public` APIKey is something you would embed
-// in public eyes.
-func AuthenticateUserByKey(sess *mgo.Session, key string) (*User, error) {
-	var err error
-
-	c := sess.DB(database.ProductMongoDatabase).C(database.CustomerCollectionName)
-
-	qry := bson.M{
-		"users.keys.key":       key,
-		"users.keys.type.type": "Private",
-	}
-
-	var res userResult
-	err = c.Find(qry).Select(bson.M{"_id": 0, "users.$": 1}).One(&res)
-	if err != nil {
-		if err == mgo.ErrNotFound {
-			err = fmt.Errorf("authentication failed for %s", key)
-		}
-		return nil, err
-	}
-
-	u := res.Users[0]
-
-	// checkout the TODO on resetAuth() func definition
-	// err = u.resetAuth()
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	return &u, nil
+	return user.Location.insert(tx, user.CustomerNumber)
 }
 
 // TODO: I'd like to bring up the argument that

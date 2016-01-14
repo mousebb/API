@@ -24,13 +24,21 @@ var (
 	session *mgo.Session
 	db      *sql.DB
 
-	API_KEY         = uuid.NewV4()
-	PRIVATE_API_KEY = uuid.NewV4()
-	TEST_EMAIl      = "test@example.com"
-	TEST_PASSWORD   = "test_password"
+	TestUserAPIKey              = uuid.NewV4()
+	TestUserPrivateAPIKey       = uuid.NewV4()
+	TestSingleUserAPIKey        = uuid.NewV4()
+	TestSingleUserPrivateAPIKey = uuid.NewV4()
+	TestSuperUserAPIKey         = uuid.NewV4()
+	TestSuperUserPrivateAPIKey  = uuid.NewV4()
+	TestEmail                   = time.Now().String() + "_test@example.com"
+	TestSuperEmail              = time.Now().String() + "_super@example.com"
+	TestSingleUserEmail         = time.Now().String() + "_single@example.com"
+	TestPassword                = "TestPassword"
+	TestSuperPassword           = "TestSuperPassword"
+	TestSingleUserPassword      = "single_password"
 
 	schemas = map[string]string{
-		`apiKeySchema`:           `CREATE TABLE ApiKey (id int(11) NOT NULL AUTO_INCREMENT,api_key varchar(64) NOT NULL,type_id varchar(64) NOT NULL,user_id varchar(64) NOT NULL,date_added timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,UNIQUE KEY id (id)) ENGINE=InnoDB AUTO_INCREMENT=14489 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
+		`apiKeySchema`:           `CREATE TABLE ApiKey (id int(11) NOT NULL AUTO_INCREMENT,TestUserAPIKey varchar(64) NOT NULL,type_id varchar(64) NOT NULL,user_id varchar(64) NOT NULL,date_added timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,UNIQUE KEY id (id)) ENGINE=InnoDB AUTO_INCREMENT=14489 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
 		`apiKeyBrandSchema`:      `CREATE TABLE ApiKeyToBrand (ID int(11) NOT NULL AUTO_INCREMENT,keyID int(11) NOT NULL,brandID int(11) NOT NULL,PRIMARY KEY (ID)) ENGINE=InnoDB AUTO_INCREMENT=38361 DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT`,
 		`apiKeyTypeSchema`:       `CREATE TABLE ApiKeyType (id varchar(64) NOT NULL,type varchar(500) DEFAULT NULL,date_added timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY (id)) ENGINE=InnoDB DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
 		`brandSchema`:            `CREATE TABLE Brand (ID int(11) NOT NULL AUTO_INCREMENT,name varchar(255) NOT NULL,code varchar(255) NOT NULL,logo varchar(255) DEFAULT NULL,logoAlt varchar(255) DEFAULT NULL,formalName varchar(255) DEFAULT NULL,longName varchar(255) DEFAULT NULL,primaryColor varchar(10) DEFAULT NULL,autocareID varchar(4) DEFAULT NULL,PRIMARY KEY (ID)) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
@@ -41,10 +49,12 @@ var (
 	}
 
 	dataInserts = map[string]string{
-		`insertBrand`:           `insert into Brand(ID, name, code, logo, logoAlt, formalName, longName, primaryColor, autocareID) values (1, 'test brand', 'code','123','345','formal brand','long name','ffffff','auto')`,
-		`insertCustomer`:        `insert into Customer (cust_id, name, dealer_type, customerID) values (1, 'test', 1, 1)`,
-		`insertCustomerToBrand`: `insert into CustomerToBrand (ID, cust_id, brandID) values (1,1,1)`,
-		`insertKeyType`:         `INSERT INTO ApiKeyType (id, type, date_added) VALUES ('a46ceab9-df0c-44a2-b21d-a859fc2c839c','random type', NOW())`,
+		`insertBrand`:                     `insert into Brand(ID, name, code, logo, logoAlt, formalName, longName, primaryColor, autocareID) values (1, 'test brand', 'code','123','345','formal brand','long name','ffffff','auto')`,
+		`insertCustomer`:                  `insert into Customer (cust_id, name, dealer_type, customerID) values (1, 'test', 1, 1)`,
+		`insertSingleUserCustomer`:        `insert into Customer (cust_id, name, dealer_type, customerID) values (2, 'test single user', 1, 2)`,
+		`insertCustomerToBrand`:           `insert into CustomerToBrand (ID, cust_id, brandID) values (1,1,1)`,
+		`insertSingleUserCustomerToBrand`: `insert into CustomerToBrand (ID, cust_id, brandID) values (2,2,3)`,
+		`insertKeyType`:                   `INSERT INTO ApiKeyType (id, type, date_added) VALUES ('a46ceab9-df0c-44a2-b21d-a859fc2c839c','random type', NOW())`,
 	}
 )
 
@@ -92,28 +102,62 @@ func TestMain(m *testing.M) {
 
 		session.SetMode(mgo.Monotonic, true)
 
-		encryptedPass, err := bcrypt.GenerateFromPassword([]byte(TEST_PASSWORD), bcrypt.DefaultCost)
+		encryptedPass, err := bcrypt.GenerateFromPassword([]byte(TestPassword), bcrypt.DefaultCost)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		encryptedSuperPass, err := bcrypt.GenerateFromPassword([]byte(TestSuperPassword), bcrypt.DefaultCost)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		encryptedSinglePass, err := bcrypt.GenerateFromPassword([]byte(TestSingleUserPassword), bcrypt.DefaultCost)
 		if err != nil {
 			log.Fatal(err)
 		}
 
 		c := Customer{
-			Identifier: bson.NewObjectId(),
+			Identifier:     bson.NewObjectId(),
+			CustomerNumber: 1,
 			Users: []User{
 				User{
+					ID:             uuid.NewV4().String(),
 					Name:           "Test User",
-					Email:          TEST_EMAIl,
+					Email:          TestEmail,
 					Password:       string(encryptedPass),
 					CustomerNumber: 1,
 					Keys: []APIKey{
 						APIKey{
-							Key: API_KEY.String(),
+							Key: TestUserAPIKey.String(),
 							Type: APIKeyType{
 								Type: "Public",
 							},
 						},
 						APIKey{
-							Key: PRIVATE_API_KEY.String(),
+							Key: TestUserPrivateAPIKey.String(),
+							Type: APIKeyType{
+								Type: "Private",
+							},
+						},
+					},
+				},
+				User{
+					ID:             uuid.NewV4().String(),
+					Name:           "Test Super User",
+					Email:          TestSuperEmail,
+					Password:       string(encryptedSuperPass),
+					CustomerNumber: 1,
+					SuperUser:      true,
+					Keys: []APIKey{
+						APIKey{
+							Key: TestSuperUserAPIKey.String(),
+							Type: APIKeyType{
+								Type: "Public",
+							},
+						},
+						APIKey{
+							Key: TestSuperUserPrivateAPIKey.String(),
 							Type: APIKeyType{
 								Type: "Private",
 							},
@@ -124,6 +168,40 @@ func TestMain(m *testing.M) {
 		}
 
 		err = session.DB(database.ProductMongoDatabase).C(database.CustomerCollectionName).Insert(&c)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		singleUser := Customer{
+			Identifier:     bson.NewObjectId(),
+			CustomerNumber: 2,
+			Users: []User{
+				User{
+					ID:             uuid.NewV4().String(),
+					Name:           "Test Single User",
+					Email:          TestSingleUserEmail,
+					Password:       string(encryptedSinglePass),
+					CustomerNumber: 2,
+					SuperUser:      true,
+					Keys: []APIKey{
+						APIKey{
+							Key: TestSingleUserAPIKey.String(),
+							Type: APIKeyType{
+								Type: "Public",
+							},
+						},
+						APIKey{
+							Key: TestSingleUserPrivateAPIKey.String(),
+							Type: APIKeyType{
+								Type: "Private",
+							},
+						},
+					},
+				},
+			},
+		}
+
+		err = session.DB(database.ProductMongoDatabase).C(database.CustomerCollectionName).Insert(&singleUser)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -166,14 +244,20 @@ func TestGetUserByKey(t *testing.T) {
 			tmp := database.CustomerCollectionName
 			database.CustomerCollectionName = "example"
 
-			user, err := GetUserByKey(session, API_KEY.String(), "Public")
+			user, err := GetUserByKey(session, TestUserAPIKey.String(), "Public")
 			So(err, ShouldNotBeNil)
 			So(user, ShouldBeNil)
 
 			database.CustomerCollectionName = tmp
 		})
 		Convey("valid key and type", func() {
-			user, err := GetUserByKey(session, API_KEY.String(), "Public")
+			user, err := GetUserByKey(session, TestUserAPIKey.String(), "Public")
+			So(err, ShouldBeNil)
+			So(user, ShouldNotBeNil)
+		})
+
+		Convey("valid key and no type", func() {
+			user, err := GetUserByKey(session, TestUserAPIKey.String(), "")
 			So(err, ShouldBeNil)
 			So(user, ShouldNotBeNil)
 		})
@@ -187,7 +271,7 @@ func TestAuthenticateUser(t *testing.T) {
 			tmp := database.CustomerCollectionName
 			database.CustomerCollectionName = "example"
 
-			user, err := AuthenticateUser(session, TEST_EMAIl, TEST_PASSWORD)
+			user, err := AuthenticateUser(session, TestEmail, TestPassword)
 			So(err, ShouldNotBeNil)
 			So(user, ShouldBeNil)
 
@@ -195,41 +279,13 @@ func TestAuthenticateUser(t *testing.T) {
 		})
 
 		Convey("valid email and invalid password", func() {
-			user, err := AuthenticateUser(session, TEST_EMAIl, "bad_password")
+			user, err := AuthenticateUser(session, TestEmail, "bad_password")
 			So(err, ShouldNotBeNil)
 			So(user, ShouldBeNil)
 		})
 
 		Convey("valid email and password", func() {
-			user, err := AuthenticateUser(session, TEST_EMAIl, TEST_PASSWORD)
-			So(err, ShouldBeNil)
-			So(user, ShouldNotBeNil)
-		})
-	})
-}
-
-func TestAuthenticateUserByKey(t *testing.T) {
-	Convey("Test AuthenticateUserByKey", t, func() {
-
-		Convey("invalid mongo session", func() {
-			tmp := database.CustomerCollectionName
-			database.CustomerCollectionName = "example"
-
-			user, err := AuthenticateUserByKey(session, PRIVATE_API_KEY.String())
-			So(err, ShouldNotBeNil)
-			So(user, ShouldBeNil)
-
-			database.CustomerCollectionName = tmp
-		})
-
-		Convey("invalid key", func() {
-			user, err := AuthenticateUserByKey(session, uuid.NewV4().String())
-			So(err, ShouldNotBeNil)
-			So(user, ShouldBeNil)
-		})
-
-		Convey("valid key", func() {
-			user, err := AuthenticateUserByKey(session, PRIVATE_API_KEY.String())
+			user, err := AuthenticateUser(session, TestEmail, TestPassword)
 			So(err, ShouldBeNil)
 			So(user, ShouldNotBeNil)
 		})
@@ -261,14 +317,14 @@ func TestAddUser(t *testing.T) {
 		}
 
 		Convey("with nil User", func() {
-			err := AddUser(session, db, nil, API_KEY.String())
+			err := AddUser(session, db, nil, TestUserAPIKey.String())
 			So(err, ShouldNotBeNil)
 			So(err.Error(), ShouldEqual, "user object was null")
 		})
 
 		Convey("with no name and no email", func() {
 			u := &User{}
-			err := AddUser(session, db, u, API_KEY.String())
+			err := AddUser(session, db, u, TestUserAPIKey.String())
 			So(err, ShouldNotBeNil)
 			So(err.Error(), ShouldResemble, "name is required,e-mail is required")
 		})
@@ -276,7 +332,7 @@ func TestAddUser(t *testing.T) {
 		Convey("with invalid requestor key", func() {
 			u := &User{
 				Name:  "Test User",
-				Email: TEST_EMAIl,
+				Email: TestEmail,
 			}
 			err := AddUser(session, db, u, "")
 			So(err, ShouldNotBeNil)
@@ -288,10 +344,10 @@ func TestAddUser(t *testing.T) {
 			PasswordCharset = " "
 			u := &User{
 				Name:     "Test User",
-				Email:    TEST_EMAIl,
+				Email:    TestEmail,
 				Password: "",
 			}
-			err := AddUser(session, db, u, PRIVATE_API_KEY.String())
+			err := AddUser(session, db, u, TestUserPrivateAPIKey.String())
 			So(err, ShouldNotBeNil)
 
 			PasswordCharset = set
@@ -304,10 +360,10 @@ func TestAddUser(t *testing.T) {
 
 			u := &User{
 				Name:     "Test User",
-				Email:    TEST_EMAIl,
+				Email:    TestEmail,
 				Password: "",
 			}
-			err = AddUser(session, badDb, u, PRIVATE_API_KEY.String())
+			err = AddUser(session, badDb, u, TestUserPrivateAPIKey.String())
 			So(err, ShouldNotBeNil)
 		})
 
@@ -315,11 +371,11 @@ func TestAddUser(t *testing.T) {
 
 			u := &User{
 				Name:     "Test User",
-				Email:    TEST_EMAIl,
+				Email:    TestEmail,
 				Password: "",
 				Location: &Location{},
 			}
-			err := AddUser(session, db, u, PRIVATE_API_KEY.String())
+			err := AddUser(session, db, u, TestUserPrivateAPIKey.String())
 			So(err, ShouldNotBeNil)
 		})
 
@@ -329,11 +385,11 @@ func TestAddUser(t *testing.T) {
 
 			u := &User{
 				Name:     "Test User",
-				Email:    TEST_EMAIl,
+				Email:    TestEmail,
 				Password: "",
 				Location: &validLocation,
 			}
-			err := AddUser(session, db, u, PRIVATE_API_KEY.String())
+			err := AddUser(session, db, u, TestUserPrivateAPIKey.String())
 			So(err, ShouldNotBeNil)
 
 			insertUser = tmp
@@ -347,11 +403,11 @@ func TestAddUser(t *testing.T) {
 
 			u := &User{
 				Name:     "Test User",
-				Email:    TEST_EMAIl,
+				Email:    TestEmail,
 				Password: "",
 				Location: &validLocation,
 			}
-			err := AddUser(session, db, u, PRIVATE_API_KEY.String())
+			err := AddUser(session, db, u, TestUserPrivateAPIKey.String())
 			So(err, ShouldNotBeNil)
 
 			insertUser = tmp
@@ -364,12 +420,12 @@ func TestAddUser(t *testing.T) {
 
 			u := &User{
 				Name:           "Test User",
-				Email:          TEST_EMAIl,
+				Email:          TestEmail,
 				Password:       "",
 				CustomerNumber: 1,
 				Location:       &validLocation,
 			}
-			err := AddUser(session, db, u, PRIVATE_API_KEY.String())
+			err := AddUser(session, db, u, TestUserPrivateAPIKey.String())
 			So(err, ShouldNotBeNil)
 
 			getNewUserID = tmp
@@ -382,12 +438,12 @@ func TestAddUser(t *testing.T) {
 
 			u := &User{
 				Name:           "Test User",
-				Email:          TEST_EMAIl,
+				Email:          TestEmail,
 				Password:       "",
 				CustomerNumber: 1,
 				Location:       &validLocation,
 			}
-			err := AddUser(session, db, u, PRIVATE_API_KEY.String())
+			err := AddUser(session, db, u, TestUserPrivateAPIKey.String())
 			So(err, ShouldNotBeNil)
 
 			getNewUserID = tmp
@@ -400,12 +456,12 @@ func TestAddUser(t *testing.T) {
 
 			u := &User{
 				Name:           "Test User",
-				Email:          TEST_EMAIl,
+				Email:          TestEmail,
 				Password:       "",
 				CustomerNumber: 1,
 				Location:       &validLocation,
 			}
-			err := AddUser(session, db, u, PRIVATE_API_KEY.String())
+			err := AddUser(session, db, u, TestUserPrivateAPIKey.String())
 			So(err, ShouldNotBeNil)
 
 			NsqHost = tmp
@@ -416,15 +472,287 @@ func TestAddUser(t *testing.T) {
 
 			u := &User{
 				Name:           "Test User",
-				Email:          TEST_EMAIl,
+				Email:          "valid" + TestEmail,
 				Password:       "",
 				CustomerNumber: 1,
 				Location:       &validLocation,
 			}
-			err := AddUser(session, db, u, PRIVATE_API_KEY.String())
+			err := AddUser(session, db, u, TestUserPrivateAPIKey.String())
 			So(err, ShouldBeNil)
 
 		})
 
+		Convey("duplicate e-mail", func() {
+
+			u := &User{
+				Name:           "Test User",
+				Email:          "valid" + TestEmail,
+				Password:       "",
+				CustomerNumber: 1,
+				Location:       &validLocation,
+			}
+			err := AddUser(session, db, u, TestUserPrivateAPIKey.String())
+			So(err, ShouldNotBeNil)
+			So(err.Error(), ShouldContainSubstring, "there is a user registered with this e-mail")
+
+		})
+
+	})
+}
+
+func TestGetUsers(t *testing.T) {
+	Convey("GetUsers(*mgo.Session, string)", t, func() {
+		Convey("with invalid requestor key", func() {
+			users, err := GetUsers(session, "")
+			So(users, ShouldBeNil)
+			So(err, ShouldNotBeNil)
+			So(err.Error(), ShouldContainSubstring, "failed to retrieve the requesting users information")
+		})
+
+		Convey("with valid requestor key that isn't super user", func() {
+			users, err := GetUsers(session, TestUserPrivateAPIKey.String())
+			So(users, ShouldBeNil)
+			So(err, ShouldNotBeNil)
+			So(err.Error(), ShouldEqual, "this information is only available for super users")
+		})
+
+		Convey("customer with one user requesting all users", func() {
+			users, err := GetUsers(session, TestSingleUserPrivateAPIKey.String())
+			So(err, ShouldBeNil)
+			So(len(users), ShouldEqual, 0)
+		})
+
+		Convey("valid", func() {
+			users, err := GetUsers(session, TestSuperUserPrivateAPIKey.String())
+			So(err, ShouldBeNil)
+			So(len(users), ShouldBeGreaterThan, 0)
+		})
+	})
+}
+
+func TestValidate(t *testing.T) {
+	Convey("validate()", t, func() {
+		Convey("should fail and return two errors when empty", func() {
+			var u User
+			errs := u.validate(db)
+			So(len(errs), ShouldEqual, 2)
+			So(errs[0], ShouldEqual, "name is required")
+			So(errs[1], ShouldEqual, "e-mail is required")
+		})
+
+		Convey("should fail on name with valid e-mail", func() {
+			u := User{
+				Email: "test@example.com",
+			}
+			errs := u.validate(db)
+			So(len(errs), ShouldEqual, 1)
+			So(errs[0], ShouldEqual, "name is required")
+		})
+
+		Convey("should fail on email with valid name", func() {
+			u := User{
+				Name: "Test User",
+			}
+			errs := u.validate(db)
+			So(len(errs), ShouldEqual, 1)
+			So(errs[0], ShouldEqual, "e-mail is required")
+		})
+
+		Convey("with invalid database connection", func() {
+			u := User{
+				Name:  "Test User",
+				Email: "test@example.com",
+			}
+			errs := u.validate(nil)
+			So(len(errs), ShouldEqual, 1)
+		})
+
+		Convey("with invalid checkForEmail query", func() {
+			tmp := checkForEmail
+			checkForEmail = strings.Replace(checkForEmail, " where email = ?", "", 1)
+			u := User{
+				Name:  "Test User",
+				Email: "test@example.com",
+			}
+			errs := u.validate(db)
+			So(len(errs), ShouldEqual, 1)
+
+			checkForEmail = tmp
+		})
+
+		Convey("should pass", func() {
+			u := User{
+				Name:  "Test User",
+				Email: "test@example.com",
+			}
+			errs := u.validate(db)
+			So(len(errs), ShouldEqual, 0)
+		})
+	})
+}
+
+func TestStoreLocation(t *testing.T) {
+	Convey("storeLocation(*sql.Tx)", t, func() {
+		Convey("nil Location", func() {
+			var tx *sql.Tx
+			var u User
+			err := u.storeLocation(tx)
+			So(err, ShouldNotBeNil)
+			So(err.Error(), ShouldEqual, "location cannot be null")
+		})
+
+		Convey("invalid name", func() {
+			var tx *sql.Tx
+			u := User{
+				Location: &Location{},
+			}
+			err := u.storeLocation(tx)
+			So(err, ShouldNotBeNil)
+			So(err.Error(), ShouldEqual, "invalid name")
+		})
+
+		Convey("invalid email", func() {
+			var tx *sql.Tx
+			u := User{
+				Location: &Location{
+					Name: "Test Location",
+				},
+			}
+			err := u.storeLocation(tx)
+			So(err, ShouldNotBeNil)
+			So(err.Error(), ShouldEqual, "invalid email")
+		})
+
+		Convey("invalid phone", func() {
+			var tx *sql.Tx
+			u := User{
+				Location: &Location{
+					Name:  "Test Location",
+					Email: "test@example.com",
+				},
+			}
+			err := u.storeLocation(tx)
+			So(err, ShouldNotBeNil)
+			So(err.Error(), ShouldEqual, "invalid phone")
+		})
+
+		Convey("invalid city-state/postal", func() {
+			var tx *sql.Tx
+			u := User{
+				Location: &Location{
+					Name:  "Test Location",
+					Email: "test@example.com",
+					Phone: "515-555-4444",
+				},
+			}
+			err := u.storeLocation(tx)
+			So(err, ShouldNotBeNil)
+			So(err.Error(), ShouldEqual, "invalid address")
+		})
+
+		Convey("invalid address", func() {
+			var tx *sql.Tx
+			u := User{
+				Location: &Location{
+					Name:  "Test Location",
+					Email: "test@example.com",
+					Phone: "515-555-4444",
+					Address: Address{
+						City: "Eau Claire",
+						State: geography.State{
+							State:        "Wisconsin",
+							Abbreviation: "WI",
+						},
+					},
+				},
+			}
+			err := u.storeLocation(tx)
+			So(err, ShouldNotBeNil)
+			So(err.Error(), ShouldEqual, "invalid address")
+		})
+
+		Convey("invalid address data", func() {
+			var tx *sql.Tx
+			u := User{
+				Location: &Location{
+					Name:  "Test Location",
+					Email: "test@example.com",
+					Phone: "515-555-4444",
+					Address: Address{
+						StreetAddress: "123 Test Street",
+						City:          "Example",
+						State: geography.State{
+							State:        "Example State",
+							Abbreviation: "ES",
+						},
+					},
+				},
+			}
+			err := u.storeLocation(tx)
+			So(err, ShouldNotBeNil)
+			So(err.Error(), ShouldContainSubstring, "failed to get geospatial data")
+		})
+
+		Convey("invalid customer number", func() {
+
+			tx, err := db.Begin()
+			So(err, ShouldBeNil)
+
+			u := User{
+				Location: &Location{
+					Name:  "Test Location",
+					Email: "test@example.com",
+					Phone: "515-555-4444",
+					Address: Address{
+						StreetAddress: "6208 Industrial Drive",
+						City:          "Eau Claire",
+						State: geography.State{
+							State:        "Wisconsin",
+							Abbreviation: "WI",
+						},
+					},
+				},
+			}
+
+			err = u.storeLocation(tx)
+			So(err, ShouldNotBeNil)
+			So(err.Error(), ShouldContainSubstring, "'cust_id' cannot be null")
+		})
+
+		Convey("valid", func() {
+
+			tx, err := db.Begin()
+			So(err, ShouldBeNil)
+
+			u := User{
+				CustomerNumber: 1,
+				Location: &Location{
+					Name:  "Test Location",
+					Email: "test@example.com",
+					Phone: "515-555-4444",
+					Address: Address{
+						StreetAddress: "6208 Industrial Drive",
+						City:          "Eau Claire",
+						State: geography.State{
+							State:        "Wisconsin",
+							Abbreviation: "WI",
+						},
+					},
+				},
+			}
+
+			err = u.storeLocation(tx)
+			So(err, ShouldBeNil)
+		})
+	})
+}
+
+func TestResetAuth(t *testing.T) {
+	Convey("resetAuth()", t, func() {
+		Convey("should return nil", func() {
+			var u User
+			err := u.resetAuth()
+			So(err, ShouldBeNil)
+		})
 	})
 }

@@ -53,7 +53,7 @@ func (l *Location) insert(tx *sql.Tx, customerID int) error {
 
 	res, err := stmt.Exec(
 		l.Name,
-		l.Address,
+		fmt.Sprintf("%s %s", l.Address.StreetAddress, l.Address.StreetAddress2),
 		l.Address.City,
 		l.Address.State.Id,
 		l.Email,

@@ -33,6 +33,11 @@ type Route struct {
 	Handler middleware.APIHandler
 }
 
+var noAuth = []middleware.Middleware{
+	middleware.WrapMiddleware(middleware.DB{}),
+	middleware.WrapMiddleware(middleware.Logger{}),
+}
+
 var common = []middleware.Middleware{
 	middleware.WrapMiddleware(middleware.DB{}),
 	middleware.WrapMiddleware(middleware.Keyed{}),
@@ -94,6 +99,8 @@ var routes = []Route{
 	// Customer Management
 	Route{"Get Customer", "GET", "/customer", middleware.APIHandler{H: customerCtlr.GetCustomer, Middleware: commonPrivate}},
 	Route{"Get User", "GET", "/customer/user/:key", middleware.APIHandler{H: customerCtlr.GetUser, Middleware: commonSudo}},
+	Route{"Authenticate User", "POST", "/customer/user/auth", middleware.APIHandler{H: customerCtlr.Authenticate, Middleware: noAuth}},
+	Route{"Get User By Key", "GET", "/customer/user", middleware.APIHandler{H: customerCtlr.GetUserByKey, Middleware: commonPrivate}},
 
 	// Cache Management
 	Route{"Get Cache Keys", "GET", "/cache/keys", middleware.APIHandler{H: cache.GetKeys, Middleware: common}},
