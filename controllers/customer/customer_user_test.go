@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/curt-labs/API/helpers/database"
 	"github.com/curt-labs/API/middleware"
@@ -49,7 +50,7 @@ var (
 
 func TestMain(m *testing.M) {
 	var err error
-	mongo, err := dockertest.ConnectToMongoDB(3, 30, func(url string) bool {
+	mongo, err := dockertest.ConnectToMongoDB(3, time.Second*30, func(url string) bool {
 		session, err = mgo.Dial(url)
 		if err != nil {
 			return false
