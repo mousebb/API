@@ -90,7 +90,7 @@ func TestGetAllBrands(t *testing.T) {
 
 			resp, err := GetAllBrands(ctx, rec, req)
 			So(err, ShouldBeNil)
-			So(resp, ShouldHaveSameTypeAs, brand.Brands{})
+			So(resp, ShouldHaveSameTypeAs, []brand.Brand{})
 		})
 
 	})
@@ -138,7 +138,7 @@ func TestGetBrand(t *testing.T) {
 			resp, err := GetAllBrands(ctx, recA, reqA)
 			So(err, ShouldBeNil)
 
-			id := resp.(brand.Brands)[0].ID
+			id := resp.([]brand.Brand)[0].ID
 			rec := httptest.NewRecorder()
 			req, err := http.NewRequest("GET", fmt.Sprintf("http://localhost:8080/brands/%d", id), nil)
 			So(err, ShouldBeNil)
