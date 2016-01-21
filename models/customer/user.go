@@ -261,6 +261,55 @@ func GetUsers(sess *mgo.Session, requestorKey string) ([]User, error) {
 	return res.Users, nil
 }
 
+// GetUser Returns a speicified user object by using either the users's private APIKey
+// or by the requestor's private APIKey and the ID of the user to be retrieved.
+// If requested by using the requestorKey and userID, requestor must be a super user.
+func GetUser(sess *mgo.Session, privateKey string, userID string, requestorKey string) (*User, error) {
+
+	if sess == nil {
+		return nil, fmt.Errorf("invalid mongo session")
+	}
+
+	if privateKey == "" && userID == "" {
+		return nil, fmt.Errorf("you must provide either the user's private APIKey or supply a valid user identifier")
+	} else if userID != "" && requestorKey == "" {
+		return nil, fmt.Errorf("you must provide a valid APIkey")
+	}
+
+	if privateKey != "" {
+		return GetUserByKey(sess, privateKey, "Private")
+	}
+
+	// fetch requestor
+	requestor, err := GetUserByKey(sess, requestorKey, "Private")
+	if err != nil || requestor.CustomerNumber == 0 {
+		return nil, fmt.Errorf("failed to retrieve the requesting users information %v", err)
+	}
+	if !requestor.SuperUser {
+		return nil, fmt.Errorf("this information is only available for super users")
+	}
+
+	var res userResult
+	c := sess.DB(database.ProductMongoDatabase).C(database.CustomerCollectionName)
+	qry := bson.M{
+		"users": bson.M{
+			"$elemMatch": bson.M{
+				"id": userID,
+			},
+		},
+	}
+
+	err = c.Find(qry).Select(bson.M{"_id": 0, "users.$": 1}).One(&res)
+	if err != nil {
+		if err == mgo.ErrNotFound {
+			err = fmt.Errorf("failed to locate user using %s", userID)
+		}
+		return nil, err
+	}
+
+	return &res.Users[0], nil
+}
+
 func (user User) validate(db *sql.DB) []string {
 	var errs []string
 	if user.Name == "" {

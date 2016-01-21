@@ -5,14 +5,12 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strings"
 	"testing"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/curt-labs/API/helpers/database"
-	"github.com/curt-labs/API/models/geography"
 	"github.com/ory-am/dockertest"
 	. "github.com/smartystreets/goconvey/convey"
 	"github.com/twinj/uuid"
@@ -24,6 +22,7 @@ var (
 	session *mgo.Session
 	db      *sql.DB
 
+	TestUserID                  = uuid.NewV4()
 	TestUserAPIKey              = uuid.NewV4()
 	TestUserPrivateAPIKey       = uuid.NewV4()
 	TestSingleUserAPIKey        = uuid.NewV4()
@@ -122,7 +121,7 @@ func TestMain(m *testing.M) {
 			CustomerNumber: 1,
 			Users: []User{
 				User{
-					ID:             uuid.NewV4().String(),
+					ID:             TestUserID.String(),
 					Name:           "Test User",
 					Email:          TestEmail,
 					Password:       string(encryptedPass),
@@ -238,521 +237,580 @@ func TestMain(m *testing.M) {
 	m.Run()
 }
 
-func TestGetUserByKey(t *testing.T) {
-	Convey("Test GetUserByKey", t, func() {
-		Convey("invalid mongo session", func() {
-			tmp := database.CustomerCollectionName
-			database.CustomerCollectionName = "example"
+// func TestGetUserByKey(t *testing.T) {
+// 	Convey("Test GetUserByKey", t, func() {
+// 		Convey("invalid mongo session", func() {
+// 			tmp := database.CustomerCollectionName
+// 			database.CustomerCollectionName = "example"
+//
+// 			user, err := GetUserByKey(session, TestUserAPIKey.String(), "Public")
+// 			So(err, ShouldNotBeNil)
+// 			So(user, ShouldBeNil)
+//
+// 			database.CustomerCollectionName = tmp
+// 		})
+// 		Convey("valid key and type", func() {
+// 			user, err := GetUserByKey(session, TestUserAPIKey.String(), "Public")
+// 			So(err, ShouldBeNil)
+// 			So(user, ShouldNotBeNil)
+// 		})
+//
+// 		Convey("valid key and no type", func() {
+// 			user, err := GetUserByKey(session, TestUserAPIKey.String(), "")
+// 			So(err, ShouldBeNil)
+// 			So(user, ShouldNotBeNil)
+// 		})
+// 	})
+// }
+//
+// func TestAuthenticateUser(t *testing.T) {
+// 	Convey("Test AuthenticateUser", t, func() {
+//
+// 		Convey("invalid mongo session", func() {
+// 			tmp := database.CustomerCollectionName
+// 			database.CustomerCollectionName = "example"
+//
+// 			user, err := AuthenticateUser(session, TestEmail, TestPassword)
+// 			So(err, ShouldNotBeNil)
+// 			So(user, ShouldBeNil)
+//
+// 			database.CustomerCollectionName = tmp
+// 		})
+//
+// 		Convey("valid email and invalid password", func() {
+// 			user, err := AuthenticateUser(session, TestEmail, "bad_password")
+// 			So(err, ShouldNotBeNil)
+// 			So(user, ShouldBeNil)
+// 		})
+//
+// 		Convey("valid email and password", func() {
+// 			user, err := AuthenticateUser(session, TestEmail, TestPassword)
+// 			So(err, ShouldBeNil)
+// 			So(user, ShouldNotBeNil)
+// 		})
+// 	})
+// }
+//
+// func TestAddUser(t *testing.T) {
+// 	Convey("Test AddUser", t, func() {
+//
+// 		validLocation := Location{
+// 			Address: Address{
+// 				StreetAddress: "6208 Industrial Drive",
+// 				City:          "Eau Claire",
+// 				PostalCode:    "54701",
+// 				State: geography.State{
+// 					Abbreviation: "WI",
+// 					State:        "Wisconsin",
+// 					Country: &geography.Country{
+// 						Abbreviation: "USA",
+// 						Country:      "United States of Ameria",
+// 					},
+// 				},
+// 			},
+// 			ContactPerson: "Test User",
+// 			Phone:         "7155555555",
+// 			Fax:           "7154444444",
+// 			Name:          "Test Location",
+// 			Email:         "test@example.com",
+// 		}
+//
+// 		Convey("with nil User", func() {
+// 			err := AddUser(session, db, nil, TestUserAPIKey.String())
+// 			So(err, ShouldNotBeNil)
+// 			So(err.Error(), ShouldEqual, "user object was null")
+// 		})
+//
+// 		Convey("with no name and no email", func() {
+// 			u := &User{}
+// 			err := AddUser(session, db, u, TestUserAPIKey.String())
+// 			So(err, ShouldNotBeNil)
+// 			So(err.Error(), ShouldResemble, "name is required,e-mail is required")
+// 		})
+//
+// 		Convey("with invalid requestor key", func() {
+// 			u := &User{
+// 				Name:  "Test User",
+// 				Email: TestEmail,
+// 			}
+// 			err := AddUser(session, db, u, "")
+// 			So(err, ShouldNotBeNil)
+// 			So(err.Error(), ShouldContainSubstring, "failed to retrieve the requesting users information")
+// 		})
+//
+// 		Convey("with valid requestor key and empty password", func() {
+// 			set := PasswordCharset
+// 			PasswordCharset = " "
+// 			u := &User{
+// 				Name:     "Test User",
+// 				Email:    TestEmail,
+// 				Password: "",
+// 			}
+// 			err := AddUser(session, db, u, TestUserPrivateAPIKey.String())
+// 			So(err, ShouldNotBeNil)
+//
+// 			PasswordCharset = set
+// 		})
+//
+// 		Convey("with bad database connection", func() {
+//
+// 			badDb, err := sql.Open("mysql", "localhost:3306")
+// 			So(err, ShouldBeNil)
+//
+// 			u := &User{
+// 				Name:     "Test User",
+// 				Email:    TestEmail,
+// 				Password: "",
+// 			}
+// 			err = AddUser(session, badDb, u, TestUserPrivateAPIKey.String())
+// 			So(err, ShouldNotBeNil)
+// 		})
+//
+// 		Convey("with invalid location", func() {
+//
+// 			u := &User{
+// 				Name:     "Test User",
+// 				Email:    TestEmail,
+// 				Password: "",
+// 				Location: &Location{},
+// 			}
+// 			err := AddUser(session, db, u, TestUserPrivateAPIKey.String())
+// 			So(err, ShouldNotBeNil)
+// 		})
+//
+// 		Convey("with invalid insertUser query", func() {
+// 			tmp := insertUser
+// 			insertUser = "bad query"
+//
+// 			u := &User{
+// 				Name:     "Test User",
+// 				Email:    TestEmail,
+// 				Password: "",
+// 				Location: &validLocation,
+// 			}
+// 			err := AddUser(session, db, u, TestUserPrivateAPIKey.String())
+// 			So(err, ShouldNotBeNil)
+//
+// 			insertUser = tmp
+// 		})
+//
+// 		Convey("with invalid insert params", func() {
+//
+// 			tmp := insertUser
+// 			insertUser = strings.Replace(insertUser, ", passwordConverted", "", 1)
+// 			insertUser = strings.Replace(insertUser, ", 1)", ")", 1)
+//
+// 			u := &User{
+// 				Name:     "Test User",
+// 				Email:    TestEmail,
+// 				Password: "",
+// 				Location: &validLocation,
+// 			}
+// 			err := AddUser(session, db, u, TestUserPrivateAPIKey.String())
+// 			So(err, ShouldNotBeNil)
+//
+// 			insertUser = tmp
+// 		})
+//
+// 		Convey("with invalid getNewUserID query", func() {
+//
+// 			tmp := getNewUserID
+// 			getNewUserID = "bad query"
+//
+// 			u := &User{
+// 				Name:           "Test User",
+// 				Email:          TestEmail,
+// 				Password:       "",
+// 				CustomerNumber: 1,
+// 				Location:       &validLocation,
+// 			}
+// 			err := AddUser(session, db, u, TestUserPrivateAPIKey.String())
+// 			So(err, ShouldNotBeNil)
+//
+// 			getNewUserID = tmp
+// 		})
+//
+// 		Convey("with invalid where params in getNewUserID", func() {
+//
+// 			tmp := getNewUserID
+// 			getNewUserID = strings.Replace(getNewUserID, "email = ? && ", "", 1)
+//
+// 			u := &User{
+// 				Name:           "Test User",
+// 				Email:          TestEmail,
+// 				Password:       "",
+// 				CustomerNumber: 1,
+// 				Location:       &validLocation,
+// 			}
+// 			err := AddUser(session, db, u, TestUserPrivateAPIKey.String())
+// 			So(err, ShouldNotBeNil)
+//
+// 			getNewUserID = tmp
+// 		})
+//
+// 		Convey("invalid NSQ host", func() {
+//
+// 			tmp := NsqHost
+// 			NsqHost = "1.2.3.4:4150"
+//
+// 			u := &User{
+// 				Name:           "Test User",
+// 				Email:          TestEmail,
+// 				Password:       "",
+// 				CustomerNumber: 1,
+// 				Location:       &validLocation,
+// 			}
+// 			err := AddUser(session, db, u, TestUserPrivateAPIKey.String())
+// 			So(err, ShouldNotBeNil)
+//
+// 			NsqHost = tmp
+//
+// 		})
+//
+// 		Convey("valid", func() {
+//
+// 			u := &User{
+// 				Name:           "Test User",
+// 				Email:          "valid" + TestEmail,
+// 				Password:       "",
+// 				CustomerNumber: 1,
+// 				Location:       &validLocation,
+// 			}
+// 			err := AddUser(session, db, u, TestUserPrivateAPIKey.String())
+// 			So(err, ShouldBeNil)
+//
+// 		})
+//
+// 		Convey("duplicate e-mail", func() {
+//
+// 			u := &User{
+// 				Name:           "Test User",
+// 				Email:          "valid" + TestEmail,
+// 				Password:       "",
+// 				CustomerNumber: 1,
+// 				Location:       &validLocation,
+// 			}
+// 			err := AddUser(session, db, u, TestUserPrivateAPIKey.String())
+// 			So(err, ShouldNotBeNil)
+// 			So(err.Error(), ShouldContainSubstring, "there is a user registered with this e-mail")
+//
+// 		})
+//
+// 	})
+// }
+//
+// func TestGetUsers(t *testing.T) {
+// 	Convey("GetUsers(*mgo.Session, string)", t, func() {
+// 		Convey("with invalid requestor key", func() {
+// 			users, err := GetUsers(session, "")
+// 			So(users, ShouldBeNil)
+// 			So(err, ShouldNotBeNil)
+// 			So(err.Error(), ShouldContainSubstring, "failed to retrieve the requesting users information")
+// 		})
+//
+// 		Convey("with valid requestor key that isn't super user", func() {
+// 			users, err := GetUsers(session, TestUserPrivateAPIKey.String())
+// 			So(users, ShouldBeNil)
+// 			So(err, ShouldNotBeNil)
+// 			So(err.Error(), ShouldEqual, "this information is only available for super users")
+// 		})
+//
+// 		Convey("customer with one user requesting all users", func() {
+// 			users, err := GetUsers(session, TestSingleUserPrivateAPIKey.String())
+// 			So(err, ShouldBeNil)
+// 			So(len(users), ShouldEqual, 0)
+// 		})
+//
+// 		Convey("valid", func() {
+// 			users, err := GetUsers(session, TestSuperUserPrivateAPIKey.String())
+// 			So(err, ShouldBeNil)
+// 			So(len(users), ShouldBeGreaterThan, 0)
+// 		})
+// 	})
+// }
 
-			user, err := GetUserByKey(session, TestUserAPIKey.String(), "Public")
+func TestGetUser(t *testing.T) {
+	Convey("testing GetUser(*mgo.Session, string, string, string)", t, func() {
+
+		Convey("with nil mgo.Session", func() {
+			user, err := GetUser(nil, "", "", "")
 			So(err, ShouldNotBeNil)
 			So(user, ShouldBeNil)
-
-			database.CustomerCollectionName = tmp
 		})
-		Convey("valid key and type", func() {
-			user, err := GetUserByKey(session, TestUserAPIKey.String(), "Public")
+
+		Convey("with empty privateKey and userID", func() {
+			user, err := GetUser(session, "", "", "")
+			So(err, ShouldNotBeNil)
+			So(user, ShouldBeNil)
+		})
+
+		Convey("with empty requestorKey", func() {
+			user, err := GetUser(session, "", "asd;lfjas;fd", "")
+			So(err, ShouldNotBeNil)
+			So(user, ShouldBeNil)
+		})
+
+		Convey("with invalid privateKey", func() {
+			user, err := GetUser(session, uuid.NewV4().String(), "", "")
+			So(err, ShouldNotBeNil)
+			So(user, ShouldBeNil)
+		})
+
+		Convey("with valid privateKey", func() {
+			user, err := GetUser(session, TestUserPrivateAPIKey.String(), "", "")
 			So(err, ShouldBeNil)
 			So(user, ShouldNotBeNil)
 		})
 
-		Convey("valid key and no type", func() {
-			user, err := GetUserByKey(session, TestUserAPIKey.String(), "")
+		Convey("with invalid requestorKey", func() {
+			user, err := GetUser(session, "", uuid.NewV4().String(), uuid.NewV4().String())
+			So(err, ShouldNotBeNil)
+			So(user, ShouldBeNil)
+		})
+
+		Convey("with requestorKey for non-super user", func() {
+			user, err := GetUser(session, "", uuid.NewV4().String(), TestUserPrivateAPIKey.String())
+			So(err, ShouldNotBeNil)
+			So(user, ShouldBeNil)
+		})
+
+		Convey("with invalid userID", func() {
+			user, err := GetUser(session, "", uuid.NewV4().String(), TestSuperUserPrivateAPIKey.String())
+			So(err, ShouldNotBeNil)
+			So(user, ShouldBeNil)
+		})
+
+		Convey("valid", func() {
+			user, err := GetUser(session, "", TestUserID.String(), TestSuperUserPrivateAPIKey.String())
 			So(err, ShouldBeNil)
 			So(user, ShouldNotBeNil)
 		})
 	})
 }
 
-func TestAuthenticateUser(t *testing.T) {
-	Convey("Test AuthenticateUser", t, func() {
-
-		Convey("invalid mongo session", func() {
-			tmp := database.CustomerCollectionName
-			database.CustomerCollectionName = "example"
-
-			user, err := AuthenticateUser(session, TestEmail, TestPassword)
-			So(err, ShouldNotBeNil)
-			So(user, ShouldBeNil)
-
-			database.CustomerCollectionName = tmp
-		})
-
-		Convey("valid email and invalid password", func() {
-			user, err := AuthenticateUser(session, TestEmail, "bad_password")
-			So(err, ShouldNotBeNil)
-			So(user, ShouldBeNil)
-		})
-
-		Convey("valid email and password", func() {
-			user, err := AuthenticateUser(session, TestEmail, TestPassword)
-			So(err, ShouldBeNil)
-			So(user, ShouldNotBeNil)
-		})
-	})
-}
-
-func TestAddUser(t *testing.T) {
-	Convey("Test AddUser", t, func() {
-
-		validLocation := Location{
-			Address: Address{
-				StreetAddress: "6208 Industrial Drive",
-				City:          "Eau Claire",
-				PostalCode:    "54701",
-				State: geography.State{
-					Abbreviation: "WI",
-					State:        "Wisconsin",
-					Country: &geography.Country{
-						Abbreviation: "USA",
-						Country:      "United States of Ameria",
-					},
-				},
-			},
-			ContactPerson: "Test User",
-			Phone:         "7155555555",
-			Fax:           "7154444444",
-			Name:          "Test Location",
-			Email:         "test@example.com",
-		}
-
-		Convey("with nil User", func() {
-			err := AddUser(session, db, nil, TestUserAPIKey.String())
-			So(err, ShouldNotBeNil)
-			So(err.Error(), ShouldEqual, "user object was null")
-		})
-
-		Convey("with no name and no email", func() {
-			u := &User{}
-			err := AddUser(session, db, u, TestUserAPIKey.String())
-			So(err, ShouldNotBeNil)
-			So(err.Error(), ShouldResemble, "name is required,e-mail is required")
-		})
-
-		Convey("with invalid requestor key", func() {
-			u := &User{
-				Name:  "Test User",
-				Email: TestEmail,
-			}
-			err := AddUser(session, db, u, "")
-			So(err, ShouldNotBeNil)
-			So(err.Error(), ShouldContainSubstring, "failed to retrieve the requesting users information")
-		})
-
-		Convey("with valid requestor key and empty password", func() {
-			set := PasswordCharset
-			PasswordCharset = " "
-			u := &User{
-				Name:     "Test User",
-				Email:    TestEmail,
-				Password: "",
-			}
-			err := AddUser(session, db, u, TestUserPrivateAPIKey.String())
-			So(err, ShouldNotBeNil)
-
-			PasswordCharset = set
-		})
-
-		Convey("with bad database connection", func() {
-
-			badDb, err := sql.Open("mysql", "localhost:3306")
-			So(err, ShouldBeNil)
-
-			u := &User{
-				Name:     "Test User",
-				Email:    TestEmail,
-				Password: "",
-			}
-			err = AddUser(session, badDb, u, TestUserPrivateAPIKey.String())
-			So(err, ShouldNotBeNil)
-		})
-
-		Convey("with invalid location", func() {
-
-			u := &User{
-				Name:     "Test User",
-				Email:    TestEmail,
-				Password: "",
-				Location: &Location{},
-			}
-			err := AddUser(session, db, u, TestUserPrivateAPIKey.String())
-			So(err, ShouldNotBeNil)
-		})
-
-		Convey("with invalid insertUser query", func() {
-			tmp := insertUser
-			insertUser = "bad query"
-
-			u := &User{
-				Name:     "Test User",
-				Email:    TestEmail,
-				Password: "",
-				Location: &validLocation,
-			}
-			err := AddUser(session, db, u, TestUserPrivateAPIKey.String())
-			So(err, ShouldNotBeNil)
-
-			insertUser = tmp
-		})
-
-		Convey("with invalid insert params", func() {
-
-			tmp := insertUser
-			insertUser = strings.Replace(insertUser, ", passwordConverted", "", 1)
-			insertUser = strings.Replace(insertUser, ", 1)", ")", 1)
-
-			u := &User{
-				Name:     "Test User",
-				Email:    TestEmail,
-				Password: "",
-				Location: &validLocation,
-			}
-			err := AddUser(session, db, u, TestUserPrivateAPIKey.String())
-			So(err, ShouldNotBeNil)
-
-			insertUser = tmp
-		})
-
-		Convey("with invalid getNewUserID query", func() {
-
-			tmp := getNewUserID
-			getNewUserID = "bad query"
-
-			u := &User{
-				Name:           "Test User",
-				Email:          TestEmail,
-				Password:       "",
-				CustomerNumber: 1,
-				Location:       &validLocation,
-			}
-			err := AddUser(session, db, u, TestUserPrivateAPIKey.String())
-			So(err, ShouldNotBeNil)
-
-			getNewUserID = tmp
-		})
-
-		Convey("with invalid where params in getNewUserID", func() {
-
-			tmp := getNewUserID
-			getNewUserID = strings.Replace(getNewUserID, "email = ? && ", "", 1)
-
-			u := &User{
-				Name:           "Test User",
-				Email:          TestEmail,
-				Password:       "",
-				CustomerNumber: 1,
-				Location:       &validLocation,
-			}
-			err := AddUser(session, db, u, TestUserPrivateAPIKey.String())
-			So(err, ShouldNotBeNil)
-
-			getNewUserID = tmp
-		})
-
-		Convey("invalid NSQ host", func() {
-
-			tmp := NsqHost
-			NsqHost = "1.2.3.4:4150"
-
-			u := &User{
-				Name:           "Test User",
-				Email:          TestEmail,
-				Password:       "",
-				CustomerNumber: 1,
-				Location:       &validLocation,
-			}
-			err := AddUser(session, db, u, TestUserPrivateAPIKey.String())
-			So(err, ShouldNotBeNil)
-
-			NsqHost = tmp
-
-		})
-
-		Convey("valid", func() {
-
-			u := &User{
-				Name:           "Test User",
-				Email:          "valid" + TestEmail,
-				Password:       "",
-				CustomerNumber: 1,
-				Location:       &validLocation,
-			}
-			err := AddUser(session, db, u, TestUserPrivateAPIKey.String())
-			So(err, ShouldBeNil)
-
-		})
-
-		Convey("duplicate e-mail", func() {
-
-			u := &User{
-				Name:           "Test User",
-				Email:          "valid" + TestEmail,
-				Password:       "",
-				CustomerNumber: 1,
-				Location:       &validLocation,
-			}
-			err := AddUser(session, db, u, TestUserPrivateAPIKey.String())
-			So(err, ShouldNotBeNil)
-			So(err.Error(), ShouldContainSubstring, "there is a user registered with this e-mail")
-
-		})
-
-	})
-}
-
-func TestGetUsers(t *testing.T) {
-	Convey("GetUsers(*mgo.Session, string)", t, func() {
-		Convey("with invalid requestor key", func() {
-			users, err := GetUsers(session, "")
-			So(users, ShouldBeNil)
-			So(err, ShouldNotBeNil)
-			So(err.Error(), ShouldContainSubstring, "failed to retrieve the requesting users information")
-		})
-
-		Convey("with valid requestor key that isn't super user", func() {
-			users, err := GetUsers(session, TestUserPrivateAPIKey.String())
-			So(users, ShouldBeNil)
-			So(err, ShouldNotBeNil)
-			So(err.Error(), ShouldEqual, "this information is only available for super users")
-		})
-
-		Convey("customer with one user requesting all users", func() {
-			users, err := GetUsers(session, TestSingleUserPrivateAPIKey.String())
-			So(err, ShouldBeNil)
-			So(len(users), ShouldEqual, 0)
-		})
-
-		Convey("valid", func() {
-			users, err := GetUsers(session, TestSuperUserPrivateAPIKey.String())
-			So(err, ShouldBeNil)
-			So(len(users), ShouldBeGreaterThan, 0)
-		})
-	})
-}
-
-func TestValidate(t *testing.T) {
-	Convey("validate()", t, func() {
-		Convey("should fail and return two errors when empty", func() {
-			var u User
-			errs := u.validate(db)
-			So(len(errs), ShouldEqual, 2)
-			So(errs[0], ShouldEqual, "name is required")
-			So(errs[1], ShouldEqual, "e-mail is required")
-		})
-
-		Convey("should fail on name with valid e-mail", func() {
-			u := User{
-				Email: "test@example.com",
-			}
-			errs := u.validate(db)
-			So(len(errs), ShouldEqual, 1)
-			So(errs[0], ShouldEqual, "name is required")
-		})
-
-		Convey("should fail on email with valid name", func() {
-			u := User{
-				Name: "Test User",
-			}
-			errs := u.validate(db)
-			So(len(errs), ShouldEqual, 1)
-			So(errs[0], ShouldEqual, "e-mail is required")
-		})
-
-		Convey("with invalid database connection", func() {
-			u := User{
-				Name:  "Test User",
-				Email: "test@example.com",
-			}
-			errs := u.validate(nil)
-			So(len(errs), ShouldEqual, 1)
-		})
-
-		Convey("with invalid checkForEmail query", func() {
-			tmp := checkForEmail
-			checkForEmail = strings.Replace(checkForEmail, " where email = ?", "", 1)
-			u := User{
-				Name:  "Test User",
-				Email: "test@example.com",
-			}
-			errs := u.validate(db)
-			So(len(errs), ShouldEqual, 1)
-
-			checkForEmail = tmp
-		})
-
-		Convey("should pass", func() {
-			u := User{
-				Name:  "Test User",
-				Email: "test@example.com",
-			}
-			errs := u.validate(db)
-			So(len(errs), ShouldEqual, 0)
-		})
-	})
-}
-
-func TestStoreLocation(t *testing.T) {
-	Convey("storeLocation(*sql.Tx)", t, func() {
-		Convey("nil Location", func() {
-			var tx *sql.Tx
-			var u User
-			err := u.storeLocation(tx)
-			So(err, ShouldNotBeNil)
-			So(err.Error(), ShouldEqual, "location cannot be null")
-		})
-
-		Convey("invalid name", func() {
-			var tx *sql.Tx
-			u := User{
-				Location: &Location{},
-			}
-			err := u.storeLocation(tx)
-			So(err, ShouldNotBeNil)
-			So(err.Error(), ShouldEqual, "invalid name")
-		})
-
-		Convey("invalid email", func() {
-			var tx *sql.Tx
-			u := User{
-				Location: &Location{
-					Name: "Test Location",
-				},
-			}
-			err := u.storeLocation(tx)
-			So(err, ShouldNotBeNil)
-			So(err.Error(), ShouldEqual, "invalid email")
-		})
-
-		Convey("invalid phone", func() {
-			var tx *sql.Tx
-			u := User{
-				Location: &Location{
-					Name:  "Test Location",
-					Email: "test@example.com",
-				},
-			}
-			err := u.storeLocation(tx)
-			So(err, ShouldNotBeNil)
-			So(err.Error(), ShouldEqual, "invalid phone")
-		})
-
-		Convey("invalid city-state/postal", func() {
-			var tx *sql.Tx
-			u := User{
-				Location: &Location{
-					Name:  "Test Location",
-					Email: "test@example.com",
-					Phone: "515-555-4444",
-				},
-			}
-			err := u.storeLocation(tx)
-			So(err, ShouldNotBeNil)
-			So(err.Error(), ShouldEqual, "invalid address")
-		})
-
-		Convey("invalid address", func() {
-			var tx *sql.Tx
-			u := User{
-				Location: &Location{
-					Name:  "Test Location",
-					Email: "test@example.com",
-					Phone: "515-555-4444",
-					Address: Address{
-						City: "Eau Claire",
-						State: geography.State{
-							State:        "Wisconsin",
-							Abbreviation: "WI",
-						},
-					},
-				},
-			}
-			err := u.storeLocation(tx)
-			So(err, ShouldNotBeNil)
-			So(err.Error(), ShouldEqual, "invalid address")
-		})
-
-		Convey("invalid address data", func() {
-			var tx *sql.Tx
-			u := User{
-				Location: &Location{
-					Name:  "Test Location",
-					Email: "test@example.com",
-					Phone: "515-555-4444",
-					Address: Address{
-						StreetAddress: "123 Test Street",
-						City:          "Example",
-						State: geography.State{
-							State:        "Example State",
-							Abbreviation: "ES",
-						},
-					},
-				},
-			}
-			err := u.storeLocation(tx)
-			So(err, ShouldNotBeNil)
-			So(err.Error(), ShouldContainSubstring, "failed to get geospatial data")
-		})
-
-		Convey("invalid customer number", func() {
-
-			tx, err := db.Begin()
-			So(err, ShouldBeNil)
-
-			u := User{
-				Location: &Location{
-					Name:  "Test Location",
-					Email: "test@example.com",
-					Phone: "515-555-4444",
-					Address: Address{
-						StreetAddress: "6208 Industrial Drive",
-						City:          "Eau Claire",
-						State: geography.State{
-							State:        "Wisconsin",
-							Abbreviation: "WI",
-						},
-					},
-				},
-			}
-
-			err = u.storeLocation(tx)
-			So(err, ShouldNotBeNil)
-			So(err.Error(), ShouldContainSubstring, "'cust_id' cannot be null")
-		})
-
-		Convey("valid", func() {
-
-			tx, err := db.Begin()
-			So(err, ShouldBeNil)
-
-			u := User{
-				CustomerNumber: 1,
-				Location: &Location{
-					Name:  "Test Location",
-					Email: "test@example.com",
-					Phone: "515-555-4444",
-					Address: Address{
-						StreetAddress: "6208 Industrial Drive",
-						City:          "Eau Claire",
-						State: geography.State{
-							State:        "Wisconsin",
-							Abbreviation: "WI",
-						},
-					},
-				},
-			}
-
-			err = u.storeLocation(tx)
-			So(err, ShouldBeNil)
-		})
-	})
-}
-
-func TestResetAuth(t *testing.T) {
-	Convey("resetAuth()", t, func() {
-		Convey("should return nil", func() {
-			var u User
-			err := u.resetAuth()
-			So(err, ShouldBeNil)
-		})
-	})
-}
+// func TestValidate(t *testing.T) {
+// 	Convey("validate()", t, func() {
+// 		Convey("should fail and return two errors when empty", func() {
+// 			var u User
+// 			errs := u.validate(db)
+// 			So(len(errs), ShouldEqual, 2)
+// 			So(errs[0], ShouldEqual, "name is required")
+// 			So(errs[1], ShouldEqual, "e-mail is required")
+// 		})
+//
+// 		Convey("should fail on name with valid e-mail", func() {
+// 			u := User{
+// 				Email: "test@example.com",
+// 			}
+// 			errs := u.validate(db)
+// 			So(len(errs), ShouldEqual, 1)
+// 			So(errs[0], ShouldEqual, "name is required")
+// 		})
+//
+// 		Convey("should fail on email with valid name", func() {
+// 			u := User{
+// 				Name: "Test User",
+// 			}
+// 			errs := u.validate(db)
+// 			So(len(errs), ShouldEqual, 1)
+// 			So(errs[0], ShouldEqual, "e-mail is required")
+// 		})
+//
+// 		Convey("with invalid database connection", func() {
+// 			u := User{
+// 				Name:  "Test User",
+// 				Email: "test@example.com",
+// 			}
+// 			errs := u.validate(nil)
+// 			So(len(errs), ShouldEqual, 1)
+// 		})
+//
+// 		Convey("with invalid checkForEmail query", func() {
+// 			tmp := checkForEmail
+// 			checkForEmail = strings.Replace(checkForEmail, " where email = ?", "", 1)
+// 			u := User{
+// 				Name:  "Test User",
+// 				Email: "test@example.com",
+// 			}
+// 			errs := u.validate(db)
+// 			So(len(errs), ShouldEqual, 1)
+//
+// 			checkForEmail = tmp
+// 		})
+//
+// 		Convey("should pass", func() {
+// 			u := User{
+// 				Name:  "Test User",
+// 				Email: "test@example.com",
+// 			}
+// 			errs := u.validate(db)
+// 			So(len(errs), ShouldEqual, 0)
+// 		})
+// 	})
+// }
+//
+// func TestStoreLocation(t *testing.T) {
+// 	Convey("storeLocation(*sql.Tx)", t, func() {
+// 		Convey("nil Location", func() {
+// 			var tx *sql.Tx
+// 			var u User
+// 			err := u.storeLocation(tx)
+// 			So(err, ShouldNotBeNil)
+// 			So(err.Error(), ShouldEqual, "location cannot be null")
+// 		})
+//
+// 		Convey("invalid name", func() {
+// 			var tx *sql.Tx
+// 			u := User{
+// 				Location: &Location{},
+// 			}
+// 			err := u.storeLocation(tx)
+// 			So(err, ShouldNotBeNil)
+// 			So(err.Error(), ShouldEqual, "invalid name")
+// 		})
+//
+// 		Convey("invalid email", func() {
+// 			var tx *sql.Tx
+// 			u := User{
+// 				Location: &Location{
+// 					Name: "Test Location",
+// 				},
+// 			}
+// 			err := u.storeLocation(tx)
+// 			So(err, ShouldNotBeNil)
+// 			So(err.Error(), ShouldEqual, "invalid email")
+// 		})
+//
+// 		Convey("invalid phone", func() {
+// 			var tx *sql.Tx
+// 			u := User{
+// 				Location: &Location{
+// 					Name:  "Test Location",
+// 					Email: "test@example.com",
+// 				},
+// 			}
+// 			err := u.storeLocation(tx)
+// 			So(err, ShouldNotBeNil)
+// 			So(err.Error(), ShouldEqual, "invalid phone")
+// 		})
+//
+// 		Convey("invalid city-state/postal", func() {
+// 			var tx *sql.Tx
+// 			u := User{
+// 				Location: &Location{
+// 					Name:  "Test Location",
+// 					Email: "test@example.com",
+// 					Phone: "515-555-4444",
+// 				},
+// 			}
+// 			err := u.storeLocation(tx)
+// 			So(err, ShouldNotBeNil)
+// 			So(err.Error(), ShouldEqual, "invalid address")
+// 		})
+//
+// 		Convey("invalid address", func() {
+// 			var tx *sql.Tx
+// 			u := User{
+// 				Location: &Location{
+// 					Name:  "Test Location",
+// 					Email: "test@example.com",
+// 					Phone: "515-555-4444",
+// 					Address: Address{
+// 						City: "Eau Claire",
+// 						State: geography.State{
+// 							State:        "Wisconsin",
+// 							Abbreviation: "WI",
+// 						},
+// 					},
+// 				},
+// 			}
+// 			err := u.storeLocation(tx)
+// 			So(err, ShouldNotBeNil)
+// 			So(err.Error(), ShouldEqual, "invalid address")
+// 		})
+//
+// 		Convey("invalid address data", func() {
+// 			var tx *sql.Tx
+// 			u := User{
+// 				Location: &Location{
+// 					Name:  "Test Location",
+// 					Email: "test@example.com",
+// 					Phone: "515-555-4444",
+// 					Address: Address{
+// 						StreetAddress: "123 Test Street",
+// 						City:          "Example",
+// 						State: geography.State{
+// 							State:        "Example State",
+// 							Abbreviation: "ES",
+// 						},
+// 					},
+// 				},
+// 			}
+// 			err := u.storeLocation(tx)
+// 			So(err, ShouldNotBeNil)
+// 			So(err.Error(), ShouldContainSubstring, "failed to get geospatial data")
+// 		})
+//
+// 		Convey("invalid customer number", func() {
+//
+// 			tx, err := db.Begin()
+// 			So(err, ShouldBeNil)
+//
+// 			u := User{
+// 				Location: &Location{
+// 					Name:  "Test Location",
+// 					Email: "test@example.com",
+// 					Phone: "515-555-4444",
+// 					Address: Address{
+// 						StreetAddress: "6208 Industrial Drive",
+// 						City:          "Eau Claire",
+// 						State: geography.State{
+// 							State:        "Wisconsin",
+// 							Abbreviation: "WI",
+// 						},
+// 					},
+// 				},
+// 			}
+//
+// 			err = u.storeLocation(tx)
+// 			So(err, ShouldNotBeNil)
+// 			So(err.Error(), ShouldContainSubstring, "'cust_id' cannot be null")
+// 		})
+//
+// 		Convey("valid", func() {
+//
+// 			tx, err := db.Begin()
+// 			So(err, ShouldBeNil)
+//
+// 			u := User{
+// 				CustomerNumber: 1,
+// 				Location: &Location{
+// 					Name:  "Test Location",
+// 					Email: "test@example.com",
+// 					Phone: "515-555-4444",
+// 					Address: Address{
+// 						StreetAddress: "6208 Industrial Drive",
+// 						City:          "Eau Claire",
+// 						State: geography.State{
+// 							State:        "Wisconsin",
+// 							Abbreviation: "WI",
+// 						},
+// 					},
+// 				},
+// 			}
+//
+// 			err = u.storeLocation(tx)
+// 			So(err, ShouldBeNil)
+// 		})
+// 	})
+// }
+//
+// func TestResetAuth(t *testing.T) {
+// 	Convey("resetAuth()", t, func() {
+// 		Convey("should return nil", func() {
+// 			var u User
+// 			err := u.resetAuth()
+// 			So(err, ShouldBeNil)
+// 		})
+// 	})
+// }
