@@ -261,23 +261,18 @@ func GetUsers(sess *mgo.Session, requestorKey string) ([]User, error) {
 	return res.Users, nil
 }
 
-// GetUser Returns a speicified user object by using either the users's private APIKey
-// or by the requestor's private APIKey and the ID of the user to be retrieved.
-// If requested by using the requestorKey and userID, requestor must be a super user.
-func GetUser(sess *mgo.Session, privateKey string, userID string, requestorKey string) (*User, error) {
+// GetUser Returns a speicified user object by using the requestor's private APIKey
+// and the ID of the user to be retrieved. The requestor must be a super user.
+func GetUser(sess *mgo.Session, userID string, requestorKey string) (*User, error) {
 
 	if sess == nil {
 		return nil, fmt.Errorf("invalid mongo session")
 	}
 
-	if privateKey == "" && userID == "" {
-		return nil, fmt.Errorf("you must provide either the user's private APIKey or supply a valid user identifier")
-	} else if userID != "" && requestorKey == "" {
+	if userID == "" {
+		return nil, fmt.Errorf("you must supply a valid user identifier")
+	} else if requestorKey == "" {
 		return nil, fmt.Errorf("you must provide a valid APIkey")
-	}
-
-	if privateKey != "" {
-		return GetUserByKey(sess, privateKey, "Private")
 	}
 
 	// fetch requestor

@@ -98,7 +98,8 @@ var routes = []Route{
 
 	// Customer Management
 	Route{"Get Customer", "GET", "/customer", middleware.APIHandler{H: customerCtlr.GetCustomer, Middleware: commonPrivate}},
-	Route{"Get User", "GET", "/customer/user/:key", middleware.APIHandler{H: customerCtlr.GetUser, Middleware: commonSudo}},
+	Route{"Get User", "GET", "/customer/user/key/:key", middleware.APIHandler{H: customerCtlr.GetUser, Middleware: commonSudo}},
+	Route{"Get User By Identifier", "GET", "/customer/user/id/:id", middleware.APIHandler{H: customerCtlr.GetUserByIdentifier, Middleware: commonSudo}},
 	Route{"Authenticate User", "POST", "/customer/user/auth", middleware.APIHandler{H: customerCtlr.Authenticate, Middleware: noAuth}},
 	Route{"Get User By Key", "GET", "/customer/user", middleware.APIHandler{H: customerCtlr.GetUserByKey, Middleware: commonPrivate}},
 

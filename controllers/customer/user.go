@@ -15,6 +15,12 @@ func GetUser(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request
 	return customer.GetUserByKey(ctx.Session, ctx.Params.ByName("key"), "Private")
 }
 
+// GetUserByIdentifier Returns a User by retrieving based off the provided ``:id`
+// parameter. This can only be called by a User with super privileges.
+func GetUserByIdentifier(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
+	return customer.GetUser(ctx.Session, ctx.Params.ByName("id"), ctx.DataContext.APIKey)
+}
+
 // GetUserByKey This can only be called by supplying the `Private` APIKey
 // in the request query string (?key=).
 func GetUserByKey(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
