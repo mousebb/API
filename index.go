@@ -32,23 +32,16 @@ func main() {
 	r := router.New()
 
 	// m.Group("/customer", func(r martini.Router) {
-	// 	r.Get("", customer_ctlr.GetCustomer)
-	// 	r.Post("", customer_ctlr.GetCustomer)
-	//
-	// 	r.Post("/auth", customer_ctlr.AuthenticateUser)
-	// 	r.Get("/auth", customer_ctlr.KeyedUserAuthentication)
 	// 	r.Post("/user/changePassword", customer_ctlr.ChangePassword)
-	// 	r.Post("/user", customer_ctlr.GetUser)
+
 	// 	r.Post("/user/register", customer_ctlr.RegisterUser)
 	// 	r.Post("/user/resetPassword", customer_ctlr.ResetPassword)
 	// 	r.Delete("/deleteKey", customer_ctlr.DeleteUserApiKey)
 	// 	r.Post("/generateKey/user/:id/key/:type", customer_ctlr.GenerateApiKey)
 	// 	r.Post("/user/:id", customer_ctlr.UpdateCustomerUser)
 	// 	r.Delete("/user/:id", customer_ctlr.DeleteCustomerUser)
-	// 	r.Any("/users", customer_ctlr.GetUsers)
 	//
 	// 	r.Delete("/allUsersByCustomerID/:id", customer_ctlr.DeleteCustomerUsersByCustomerID) //Takes CustomerID (UUID)---danger!
-	//
 	// 	r.Put("/location/json", customer_ctlr.SaveLocationJson)
 	// 	r.Put("/location/json/:id", customer_ctlr.SaveLocationJson)
 	// 	r.Post("/location", customer_ctlr.SaveLocation)

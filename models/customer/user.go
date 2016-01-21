@@ -106,40 +106,6 @@ func AuthenticateUser(sess *mgo.Session, email, pass string) (*User, error) {
 	return &u, nil
 }
 
-// AuthenticateUserByKey Allows a user to authenticate using the `Private` APIKey.
-// If a user tries to authenticate against this with their `Public` APIKey,
-// they should fail, since the `Public` APIKey is something you would embed
-// in public eyes.
-// func AuthenticateUserByKey(sess *mgo.Session, key string) (*User, error) {
-// 	var err error
-//
-// 	c := sess.DB(database.ProductMongoDatabase).C(database.CustomerCollectionName)
-//
-// 	qry := bson.M{
-// 		"users.keys.key":       key,
-// 		"users.keys.type.type": "Private",
-// 	}
-//
-// 	var res userResult
-// 	err = c.Find(qry).Select(bson.M{"_id": 0, "users.$": 1}).One(&res)
-// 	if err != nil {
-// 		if err == mgo.ErrNotFound {
-// 			err = fmt.Errorf("authentication failed for %s", key)
-// 		}
-// 		return nil, err
-// 	}
-//
-// 	u := res.Users[0]
-//
-// 	// checkout the TODO on resetAuth() func definition
-// 	// err = u.resetAuth()
-// 	// if err != nil {
-// 	// 	return nil, err
-// 	// }
-//
-// 	return &u, nil
-// }
-
 // AddUser Will commit a new user to the same Customer object as
 // the requestor's Customer reference. It will not update the following
 // fields from the submitted User object: `ID`, `CustomerNumber`, `DateAdded`, `Keys`, or `ComnetAccounts`.
@@ -257,6 +223,9 @@ func AddUser(sess *mgo.Session, db *sql.DB, user *User, requestorKey string) err
 	return PushCustomer(db, user.CustomerNumber, "update", bson.NewObjectId())
 }
 
+// GetUsers Returns all users (except the requestor) from the same Customer object
+// as the requestor's customer reference. The requestor must have `sudo`
+// priveleges to make this request.
 func GetUsers(sess *mgo.Session, requestorKey string) ([]User, error) {
 
 	// fetch requestor
