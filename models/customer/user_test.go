@@ -299,6 +299,83 @@ func TestAuthenticateUser(t *testing.T) {
 	})
 }
 
+func TestGetUsers(t *testing.T) {
+	Convey("GetUsers(*mgo.Session, string)", t, func() {
+		Convey("with invalid requestor key", func() {
+			users, err := GetUsers(session, "")
+			So(users, ShouldBeNil)
+			So(err, ShouldNotBeNil)
+			So(err.Error(), ShouldContainSubstring, "failed to retrieve the requesting users information")
+		})
+
+		Convey("with valid requestor key that isn't super user", func() {
+			users, err := GetUsers(session, TestUserPrivateAPIKey.String())
+			So(users, ShouldBeNil)
+			So(err, ShouldNotBeNil)
+			So(err.Error(), ShouldEqual, "this information is only available for super users")
+		})
+
+		Convey("customer with one user requesting all users", func() {
+			users, err := GetUsers(session, TestSingleUserPrivateAPIKey.String())
+			So(err, ShouldBeNil)
+			So(len(users), ShouldEqual, 0)
+		})
+
+		Convey("valid", func() {
+			users, err := GetUsers(session, TestSuperUserPrivateAPIKey.String())
+			So(err, ShouldBeNil)
+			So(len(users), ShouldBeGreaterThan, 0)
+		})
+	})
+}
+
+func TestGetUser(t *testing.T) {
+	Convey("testing GetUser(*mgo.Session, string, string, string)", t, func() {
+
+		Convey("with nil mgo.Session", func() {
+			user, err := GetUser(nil, "", "")
+			So(err, ShouldNotBeNil)
+			So(user, ShouldBeNil)
+		})
+
+		Convey("with empty userID", func() {
+			user, err := GetUser(session, "", "")
+			So(err, ShouldNotBeNil)
+			So(user, ShouldBeNil)
+		})
+
+		Convey("with empty requestorKey", func() {
+			user, err := GetUser(session, "asd;lfjas;fd", "")
+			So(err, ShouldNotBeNil)
+			So(user, ShouldBeNil)
+		})
+
+		Convey("with invalid requestorKey", func() {
+			user, err := GetUser(session, uuid.NewV4().String(), uuid.NewV4().String())
+			So(err, ShouldNotBeNil)
+			So(user, ShouldBeNil)
+		})
+
+		Convey("with requestorKey for non-super user", func() {
+			user, err := GetUser(session, uuid.NewV4().String(), TestUserPrivateAPIKey.String())
+			So(err, ShouldNotBeNil)
+			So(user, ShouldBeNil)
+		})
+
+		Convey("with invalid userID", func() {
+			user, err := GetUser(session, uuid.NewV4().String(), TestSuperUserPrivateAPIKey.String())
+			So(err, ShouldNotBeNil)
+			So(user, ShouldBeNil)
+		})
+
+		Convey("valid", func() {
+			user, err := GetUser(session, TestUserID.String(), TestSuperUserPrivateAPIKey.String())
+			So(err, ShouldBeNil)
+			So(user, ShouldNotBeNil)
+		})
+	})
+}
+
 func TestAddUser(t *testing.T) {
 	Convey("Test AddUser", t, func() {
 
@@ -524,79 +601,87 @@ func TestAddUser(t *testing.T) {
 	})
 }
 
-func TestGetUsers(t *testing.T) {
-	Convey("GetUsers(*mgo.Session, string)", t, func() {
-		Convey("with invalid requestor key", func() {
-			users, err := GetUsers(session, "")
-			So(users, ShouldBeNil)
+func TestUpdateUser(t *testing.T) {
+	Convey("Test UpdateUser(*sql.DB, *User)", t, func() {
+		u := &User{
+			Name:           "Test User",
+			Email:          time.Now().String() + "update_valid" + TestEmail,
+			Password:       "",
+			CustomerNumber: 1,
+			Location: &Location{
+				Address: Address{
+					StreetAddress: "1401 Meyer Rd",
+					City:          "Eau Claire",
+					PostalCode:    "54701",
+					State: geography.State{
+						Abbreviation: "WI",
+						State:        "Wisconsin",
+						Country: &geography.Country{
+							Abbreviation: "USA",
+							Country:      "United States of Ameria",
+						},
+					},
+				},
+				ContactPerson: "Test User",
+				Phone:         "7155555555",
+				Fax:           "7154444444",
+				Name:          "Test Location",
+				Email:         "test_meyer@example.com",
+			},
+		}
+		e := AddUser(session, db, u, TestUserPrivateAPIKey.String())
+		So(e, ShouldBeNil)
+
+		Convey("with nil user", func() {
+			err := UpdateUser(db, nil)
 			So(err, ShouldNotBeNil)
-			So(err.Error(), ShouldContainSubstring, "failed to retrieve the requesting users information")
 		})
 
-		Convey("with valid requestor key that isn't super user", func() {
-			users, err := GetUsers(session, TestUserPrivateAPIKey.String())
-			So(users, ShouldBeNil)
+		Convey("invalid db connection", func() {
+			err := UpdateUser(&sql.DB{}, nil)
 			So(err, ShouldNotBeNil)
-			So(err.Error(), ShouldEqual, "this information is only available for super users")
 		})
 
-		Convey("customer with one user requesting all users", func() {
-			users, err := GetUsers(session, TestSingleUserPrivateAPIKey.String())
-			So(err, ShouldBeNil)
-			So(len(users), ShouldEqual, 0)
+		Convey("invalid location", func() {
+			u.Location.ID = 0
+			u.Location.Address = Address{}
+			u.Location.Name = ""
+			err := UpdateUser(db, u)
+			So(err, ShouldNotBeNil)
+		})
+
+		Convey("invalid properties", func() {
+			u.Name = ""
+			err := UpdateUser(db, u)
+			So(err, ShouldNotBeNil)
+
+			u.Name = "Test User"
+		})
+
+		Convey("invalid updateUser query", func() {
+			tmp := updateUser
+			updateUser = "bad query"
+
+			err := UpdateUser(db, u)
+			So(err, ShouldNotBeNil)
+
+			updateUser = tmp
+		})
+
+		Convey("invalid parameter count in updateUser query", func() {
+			tmp := updateUser
+			updateUser = strings.Replace(updateUser, "name = ?, ", "", 1)
+
+			err := UpdateUser(db, u)
+			So(err, ShouldNotBeNil)
+
+			updateUser = tmp
 		})
 
 		Convey("valid", func() {
-			users, err := GetUsers(session, TestSuperUserPrivateAPIKey.String())
+
+			err := UpdateUser(db, u)
 			So(err, ShouldBeNil)
-			So(len(users), ShouldBeGreaterThan, 0)
-		})
-	})
-}
-
-func TestGetUser(t *testing.T) {
-	Convey("testing GetUser(*mgo.Session, string, string, string)", t, func() {
-
-		Convey("with nil mgo.Session", func() {
-			user, err := GetUser(nil, "", "")
-			So(err, ShouldNotBeNil)
-			So(user, ShouldBeNil)
-		})
-
-		Convey("with empty userID", func() {
-			user, err := GetUser(session, "", "")
-			So(err, ShouldNotBeNil)
-			So(user, ShouldBeNil)
-		})
-
-		Convey("with empty requestorKey", func() {
-			user, err := GetUser(session, "asd;lfjas;fd", "")
-			So(err, ShouldNotBeNil)
-			So(user, ShouldBeNil)
-		})
-
-		Convey("with invalid requestorKey", func() {
-			user, err := GetUser(session, uuid.NewV4().String(), uuid.NewV4().String())
-			So(err, ShouldNotBeNil)
-			So(user, ShouldBeNil)
-		})
-
-		Convey("with requestorKey for non-super user", func() {
-			user, err := GetUser(session, uuid.NewV4().String(), TestUserPrivateAPIKey.String())
-			So(err, ShouldNotBeNil)
-			So(user, ShouldBeNil)
-		})
-
-		Convey("with invalid userID", func() {
-			user, err := GetUser(session, uuid.NewV4().String(), TestSuperUserPrivateAPIKey.String())
-			So(err, ShouldNotBeNil)
-			So(user, ShouldBeNil)
-		})
-
-		Convey("valid", func() {
-			user, err := GetUser(session, TestUserID.String(), TestSuperUserPrivateAPIKey.String())
-			So(err, ShouldBeNil)
-			So(user, ShouldNotBeNil)
 		})
 	})
 }

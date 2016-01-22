@@ -100,6 +100,9 @@ var routes = []Route{
 	Route{"Get Customer", "GET", "/customer", middleware.APIHandler{H: customerCtlr.GetCustomer, Middleware: commonPrivate}},
 	Route{"Get User", "GET", "/customer/user/key/:key", middleware.APIHandler{H: customerCtlr.GetUser, Middleware: commonSudo}},
 	Route{"Get User By Identifier", "GET", "/customer/user/id/:id", middleware.APIHandler{H: customerCtlr.GetUserByIdentifier, Middleware: commonSudo}},
+	Route{"Update User", "POST", "/customer/user", middleware.APIHandler{H: customerCtlr.AddUser, Middleware: commonSudo}},
+	Route{"Update User", "PUT", "/customer/user", middleware.APIHandler{H: customerCtlr.UpdateUser, Middleware: commonPrivate}},
+	Route{"Update User By Identifier", "PUT", "/customer/user/:id", middleware.APIHandler{H: customerCtlr.UpdateUser, Middleware: commonPrivate}},
 	Route{"Authenticate User", "POST", "/customer/user/auth", middleware.APIHandler{H: customerCtlr.Authenticate, Middleware: noAuth}},
 	Route{"Get User By Key", "GET", "/customer/user", middleware.APIHandler{H: customerCtlr.GetUserByKey, Middleware: commonPrivate}},
 

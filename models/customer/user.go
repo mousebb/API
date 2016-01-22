@@ -23,6 +23,7 @@ var (
 					values(UUID(),?, ?, ?, ?, ?, 1, ?, ?, (
 						select cust_id from Customer where customerID = ? limit 1
 					), 1, 1)`
+	updateUser    = `update CustomerUser set name = ?, email = ?, locationID = ?, isSudo = ? where id = ?`
 	getNewUserID  = `select id from CustomerUser where email = ? && password = ? limit 1`
 	checkForEmail = `select id from CustomerUser where email = ? limit 1`
 	insertAPIKey  = `insert into ApiKey (api_key, type_id, user_id, date_added)
@@ -114,6 +115,88 @@ func AuthenticateUser(sess *mgo.Session, email, pass string) (*User, error) {
 	// }
 
 	return &u, nil
+}
+
+// GetUsers Returns all users (except the requestor) from the same Customer object
+// as the requestor's customer reference. The requestor must have `sudo`
+// priveleges to make this request.
+func GetUsers(sess *mgo.Session, requestorKey string) ([]User, error) {
+
+	// fetch requestor
+	requestor, err := GetUserByKey(sess, requestorKey, PrivateKeyType)
+	if err != nil || requestor.CustomerNumber == 0 {
+		return nil, fmt.Errorf("failed to retrieve the requesting users information %v", err)
+	}
+	if !requestor.SuperUser {
+		return nil, fmt.Errorf("this information is only available for super users")
+	}
+
+	c := sess.DB(database.ProductMongoDatabase).C(database.CustomerCollectionName)
+
+	qry := bson.M{
+		"customerNumber": requestor.CustomerNumber,
+	}
+
+	var res userResult
+	err = c.Find(qry).Select(bson.M{"_id": 0, "users": 1}).One(&res)
+	if err != nil {
+		if err == mgo.ErrNotFound {
+			err = nil
+		}
+		return nil, err
+	}
+
+	for i, u := range res.Users {
+		if u.ID == requestor.ID {
+			res.Users = append(res.Users[:i], res.Users[i+1:]...)
+		}
+	}
+
+	return res.Users, nil
+}
+
+// GetUser Returns a speicified user object by using the requestor's private APIKey
+// and the ID of the user to be retrieved. The requestor must be a super user.
+func GetUser(sess *mgo.Session, userID string, requestorKey string) (*User, error) {
+
+	if sess == nil {
+		return nil, fmt.Errorf("invalid mongo session")
+	}
+
+	if userID == "" {
+		return nil, fmt.Errorf("you must supply a valid user identifier")
+	} else if requestorKey == "" {
+		return nil, fmt.Errorf("you must provide a valid APIkey")
+	}
+
+	// fetch requestor
+	requestor, err := GetUserByKey(sess, requestorKey, PrivateKeyType)
+	if err != nil || requestor.CustomerNumber == 0 {
+		return nil, fmt.Errorf("failed to retrieve the requesting users information %v", err)
+	}
+	if !requestor.SuperUser {
+		return nil, fmt.Errorf("this information is only available for super users")
+	}
+
+	var res userResult
+	c := sess.DB(database.ProductMongoDatabase).C(database.CustomerCollectionName)
+	qry := bson.M{
+		"users": bson.M{
+			"$elemMatch": bson.M{
+				"id": userID,
+			},
+		},
+	}
+
+	err = c.Find(qry).Select(bson.M{"_id": 0, "users.$": 1}).One(&res)
+	if err != nil {
+		if err == mgo.ErrNotFound {
+			err = fmt.Errorf("failed to locate user using %s", userID)
+		}
+		return nil, err
+	}
+
+	return &res.Users[0], nil
 }
 
 // AddUser Will commit a new user to the same Customer object as
@@ -241,86 +324,60 @@ func AddUser(sess *mgo.Session, db *sql.DB, user *User, requestorKey string) err
 	return PushCustomer(db, user.CustomerNumber, "update", bson.NewObjectId())
 }
 
-// GetUsers Returns all users (except the requestor) from the same Customer object
-// as the requestor's customer reference. The requestor must have `sudo`
-// priveleges to make this request.
-func GetUsers(sess *mgo.Session, requestorKey string) ([]User, error) {
-
-	// fetch requestor
-	requestor, err := GetUserByKey(sess, requestorKey, PrivateKeyType)
-	if err != nil || requestor.CustomerNumber == 0 {
-		return nil, fmt.Errorf("failed to retrieve the requesting users information %v", err)
-	}
-	if !requestor.SuperUser {
-		return nil, fmt.Errorf("this information is only available for super users")
+// UpdateUser Can modify the Name, Email, SuperUser, and Location for the
+// provided User.
+func UpdateUser(db *sql.DB, user *User) error {
+	if user == nil {
+		return fmt.Errorf("user object was null")
 	}
 
-	c := sess.DB(database.ProductMongoDatabase).C(database.CustomerCollectionName)
-
-	qry := bson.M{
-		"customerNumber": requestor.CustomerNumber,
+	// validate
+	errors := user.validate(db)
+	if len(errors) > 0 {
+		return fmt.Errorf(strings.Join(errors, ","))
 	}
 
-	var res userResult
-	err = c.Find(qry).Select(bson.M{"_id": 0, "users": 1}).One(&res)
+	tx, err := db.Begin()
 	if err != nil {
-		if err == mgo.ErrNotFound {
-			err = nil
+		return err
+	}
+
+	if user.Location != nil {
+		exists, err := user.Location.Exists(db, user.CustomerNumber)
+		if !exists && err == nil {
+			err = user.storeLocation(tx)
+			if err != nil {
+				tx.Rollback()
+				return err
+			}
 		}
-		return nil, err
 	}
 
-	for i, u := range res.Users {
-		if u.ID == requestor.ID {
-			res.Users = append(res.Users[:i], res.Users[i+1:]...)
-		}
-	}
-
-	return res.Users, nil
-}
-
-// GetUser Returns a speicified user object by using the requestor's private APIKey
-// and the ID of the user to be retrieved. The requestor must be a super user.
-func GetUser(sess *mgo.Session, userID string, requestorKey string) (*User, error) {
-
-	if sess == nil {
-		return nil, fmt.Errorf("invalid mongo session")
-	}
-
-	if userID == "" {
-		return nil, fmt.Errorf("you must supply a valid user identifier")
-	} else if requestorKey == "" {
-		return nil, fmt.Errorf("you must provide a valid APIkey")
-	}
-
-	// fetch requestor
-	requestor, err := GetUserByKey(sess, requestorKey, PrivateKeyType)
-	if err != nil || requestor.CustomerNumber == 0 {
-		return nil, fmt.Errorf("failed to retrieve the requesting users information %v", err)
-	}
-	if !requestor.SuperUser {
-		return nil, fmt.Errorf("this information is only available for super users")
-	}
-
-	var res userResult
-	c := sess.DB(database.ProductMongoDatabase).C(database.CustomerCollectionName)
-	qry := bson.M{
-		"users": bson.M{
-			"$elemMatch": bson.M{
-				"id": userID,
-			},
-		},
-	}
-
-	err = c.Find(qry).Select(bson.M{"_id": 0, "users.$": 1}).One(&res)
+	stmt, err := tx.Prepare(updateUser)
 	if err != nil {
-		if err == mgo.ErrNotFound {
-			err = fmt.Errorf("failed to locate user using %s", userID)
-		}
-		return nil, err
+		tx.Rollback()
+		return err
+	}
+	defer stmt.Close()
+
+	_, err = stmt.Exec(
+		user.Name,
+		user.Email,
+		user.Location.ID,
+		user.SuperUser,
+		user.ID,
+	)
+	if err != nil {
+		tx.Rollback()
+		return err
 	}
 
-	return &res.Users[0], nil
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+
+	return PushCustomer(db, user.CustomerNumber, "update", bson.NewObjectId())
 }
 
 func (user User) validate(db *sql.DB) []string {
@@ -334,11 +391,16 @@ func (user User) validate(db *sql.DB) []string {
 		return errs
 	}
 
+	if user.ID != "" {
+		return errs
+	}
+
+	// for new users we need to make sure there
+	// are no other user records using this email
 	if db == nil {
 		return append(errs, "database connection not valid")
 	}
 
-	// make sure there are no other user records using this email
 	stmt, err := db.Prepare(checkForEmail)
 	if err != nil {
 		return append(errs, err.Error())
