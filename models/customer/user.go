@@ -18,13 +18,6 @@ import (
 	"gopkg.in/mgo.v2/bson"
 )
 
-const (
-	// PrivateKeyType The string reference to a private APIKey type.
-	PrivateKeyType = "Private"
-	// PublicKeyType The string reference to a public APIKey type.
-	PublicKeyType = "Public"
-)
-
 var (
 	insertUser = `insert into CustomerUser(id, name, email, password, customerID, date_added, active, locationID, isSudo, cust_ID, NotCustomer, passwordConverted)
 					values(UUID(),?, ?, ?, ?, ?, 1, ?, ?, (
@@ -33,13 +26,18 @@ var (
 	getNewUserID  = `select id from CustomerUser where email = ? && password = ? limit 1`
 	checkForEmail = `select id from CustomerUser where email = ? limit 1`
 	insertAPIKey  = `insert into ApiKey (api_key, type_id, user_id, date_added)
-					VALUES(?, ?, ?, ?, ?)`
+					VALUES(?, ?, ?, ?)`
 
 	// GeocodingAPIKey API Key for Google Maps Geocoding API.
 	GeocodingAPIKey = `AIzaSyAKINnVskCaZkQhhh6I2D6DOpeylY1G1-Q`
 	// PasswordCharset The character set that we want to use for
 	// generating random passwords.
 	PasswordCharset = `ABCDEFGHJKMNPQRTUVWXYZabcdefghijkmnpqrtuvwxyz12346789`
+
+	// PrivateKeyType The string reference to a private APIKey type.
+	PrivateKeyType = "Private"
+	// PublicKeyType The string reference to a public APIKey type.
+	PublicKeyType = "Public"
 )
 
 type userResult struct {
@@ -432,10 +430,12 @@ func (user *User) generateKeys(tx *sql.Tx, brands []brand.Brand) error {
 	}
 
 	types, err := apiKeyType.GetAllKeyTypes(tx)
-	if err != nil {
+	if err != nil || len(types) == 0 {
+		if err == nil {
+			err = fmt.Errorf("failed to lookup appropriate KeyType")
+		}
+
 		return err
-	} else if len(types) == 0 {
-		return fmt.Errorf("failed to lookup appropriate KeyType")
 	}
 
 	for _, t := range types {
@@ -460,15 +460,18 @@ func (user *User) generateKeys(tx *sql.Tx, brands []brand.Brand) error {
 	defer stmt.Close()
 
 	// insert private key
-	_, err = stmt.Exec(privateKey.Key, privateKey.Type.ID, user.ID, privateKey.DateAdded)
-	if err != nil {
-		return err
-	}
-
+	_, privErr := stmt.Exec(privateKey.Key, privateKey.Type.ID, user.ID, privateKey.DateAdded)
 	// insert public key
-	_, err = stmt.Exec(publicKey.Key, publicKey.Type.ID, user.ID, publicKey.DateAdded)
-	if err != nil {
-		return err
+	_, pubErr := stmt.Exec(publicKey.Key, publicKey.Type.ID, user.ID, publicKey.DateAdded)
+
+	if privErr != nil || pubErr != nil {
+		if privErr != nil {
+			err = fmt.Errorf("%s", privErr.Error())
+		}
+		if pubErr != nil {
+			err = fmt.Errorf("%s %s", err.Error(), pubErr.Error())
+		}
+		return fmt.Errorf("failed insert new keys %s", err.Error())
 	}
 
 	user.Keys = []APIKey{

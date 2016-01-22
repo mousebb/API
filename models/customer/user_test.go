@@ -13,6 +13,7 @@ import (
 
 	"github.com/curt-labs/API/helpers/database"
 	"github.com/curt-labs/API/models/apiKeyType"
+	"github.com/curt-labs/API/models/brand"
 	"github.com/curt-labs/API/models/geography"
 	"github.com/ory-am/dockertest"
 	. "github.com/smartystreets/goconvey/convey"
@@ -40,7 +41,7 @@ var (
 	TestSingleUserPassword      = "single_password"
 
 	schemas = map[string]string{
-		`apiKeySchema`:           `CREATE TABLE ApiKey (id int(11) NOT NULL AUTO_INCREMENT,TestUserAPIKey varchar(64) NOT NULL,type_id varchar(64) NOT NULL,user_id varchar(64) NOT NULL,date_added timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,UNIQUE KEY id (id)) ENGINE=InnoDB AUTO_INCREMENT=14489 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
+		`apiKeySchema`:           `CREATE TABLE ApiKey (id int(11) NOT NULL AUTO_INCREMENT,api_key varchar(64) NOT NULL,type_id varchar(64) NOT NULL,user_id varchar(64) NOT NULL,date_added timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,UNIQUE KEY id (id)) ENGINE=InnoDB AUTO_INCREMENT=14489 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
 		`apiKeyBrandSchema`:      `CREATE TABLE ApiKeyToBrand (ID int(11) NOT NULL AUTO_INCREMENT,keyID int(11) NOT NULL,brandID int(11) NOT NULL,PRIMARY KEY (ID)) ENGINE=InnoDB AUTO_INCREMENT=38361 DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT`,
 		`apiKeyTypeSchema`:       `CREATE TABLE ApiKeyType (id varchar(64) NOT NULL,type varchar(500) DEFAULT NULL,date_added timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY (id)) ENGINE=InnoDB DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
 		`brandSchema`:            `CREATE TABLE Brand (ID int(11) NOT NULL AUTO_INCREMENT,name varchar(255) NOT NULL,code varchar(255) NOT NULL,logo varchar(255) DEFAULT NULL,logoAlt varchar(255) DEFAULT NULL,formalName varchar(255) DEFAULT NULL,longName varchar(255) DEFAULT NULL,primaryColor varchar(10) DEFAULT NULL,autocareID varchar(4) DEFAULT NULL,PRIMARY KEY (ID)) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
@@ -56,14 +57,18 @@ var (
 		`insertSingleUserCustomer`:        `insert into Customer (cust_id, name, dealer_type, customerID) values (2, 'test single user', 1, 2)`,
 		`insertCustomerToBrand`:           `insert into CustomerToBrand (ID, cust_id, brandID) values (1,1,1)`,
 		`insertSingleUserCustomerToBrand`: `insert into CustomerToBrand (ID, cust_id, brandID) values (2,2,3)`,
-		`insertKeyType`:                   `INSERT INTO ApiKeyType (id, type, date_added) VALUES ('a46ceab9-df0c-44a2-b21d-a859fc2c839c','random type', NOW())`,
+		`insertKeyType`:                   `insert into ApiKeyType (id, type, date_added) VALUES ('a46ceab9-df0c-44a2-b21d-a859fc2c839c','random type', NOW())`,
+		`insertPrivateKeyType`:            `insert into ApiKeyType (id, type, date_added) VALUES (UUID(),'Private', NOW())`,
+		`insertPublicKeyType`:             `insert into ApiKeyType (id, type, date_added) VALUES (UUID(),'Public', NOW())`,
 	}
 )
 
 func TestMain(m *testing.M) {
 
 	mysql, err := dockertest.ConnectToMySQL(15, time.Second*5, func(url string) bool {
+		url = fmt.Sprintf("%s?parseTime=true&loc=%s", url, "America%2FChicago")
 		var err error
+
 		db, err = sql.Open("mysql", url)
 		if err != nil {
 			log.Fatalf("MySQL connection failed, with address '%s'.", url)
@@ -451,6 +456,23 @@ func TestAddUser(t *testing.T) {
 			getNewUserID = tmp
 		})
 
+		Convey("invalid insertAPIKey query", func() {
+			tmp := insertAPIKey
+			insertAPIKey = "bad query"
+
+			u := &User{
+				Name:           "Test User",
+				Email:          "valid" + TestEmail,
+				Password:       "",
+				CustomerNumber: 1,
+				Location:       &validLocation,
+			}
+			err := AddUser(session, db, u, TestUserPrivateAPIKey.String())
+			So(err, ShouldNotBeNil)
+
+			insertAPIKey = tmp
+		})
+
 		Convey("invalid NSQ host", func() {
 
 			tmp := NsqHost
@@ -803,5 +825,119 @@ func TestResetAuth(t *testing.T) {
 			err := u.resetAuth()
 			So(err, ShouldBeNil)
 		})
+	})
+}
+
+func TestGenerateKeys(t *testing.T) {
+	Convey("Test generateKeys(*sql.Tx, []brand.Brand)", t, func() {
+		Convey("with bad transaction", func() {
+
+			tmp := apiKeyType.GetAllTypes
+			apiKeyType.GetAllTypes = "bad query"
+
+			tx, err := db.Begin()
+			So(err, ShouldBeNil)
+			So(tx, ShouldNotBeNil)
+
+			u := User{}
+			err = u.generateKeys(tx, []brand.Brand{})
+			So(err, ShouldNotBeNil)
+
+			apiKeyType.GetAllTypes = tmp
+		})
+
+		Convey("with limit 0 on key type query", func() {
+
+			tmp := apiKeyType.GetAllTypes
+			apiKeyType.GetAllTypes = fmt.Sprintf("%s limit 0", apiKeyType.GetAllTypes)
+
+			tx, err := db.Begin()
+			So(err, ShouldBeNil)
+			So(tx, ShouldNotBeNil)
+
+			u := User{}
+			err = u.generateKeys(tx, []brand.Brand{})
+			So(err, ShouldNotBeNil)
+
+			apiKeyType.GetAllTypes = tmp
+		})
+
+		Convey("with blank PrivateKeyType", func() {
+
+			tmp := PrivateKeyType
+			PrivateKeyType = ""
+
+			tx, err := db.Begin()
+			So(err, ShouldBeNil)
+			So(tx, ShouldNotBeNil)
+
+			u := User{}
+			err = u.generateKeys(tx, []brand.Brand{})
+			So(err, ShouldNotBeNil)
+
+			PrivateKeyType = tmp
+		})
+
+		Convey("with blank PublicKeyType", func() {
+
+			tmp := PublicKeyType
+			PublicKeyType = ""
+
+			tx, err := db.Begin()
+			So(err, ShouldBeNil)
+			So(tx, ShouldNotBeNil)
+
+			u := User{}
+			err = u.generateKeys(tx, []brand.Brand{})
+			So(err, ShouldNotBeNil)
+
+			PublicKeyType = tmp
+		})
+
+		Convey("with bad insertAPIKey", func() {
+
+			tmp := insertAPIKey
+			insertAPIKey = "bad query"
+
+			tx, err := db.Begin()
+			So(err, ShouldBeNil)
+			So(tx, ShouldNotBeNil)
+
+			u := User{}
+			err = u.generateKeys(tx, []brand.Brand{})
+			So(err, ShouldNotBeNil)
+
+			insertAPIKey = tmp
+		})
+
+		Convey("with invalid insert parameters", func() {
+
+			tmp := insertAPIKey
+			insertAPIKey = strings.Replace(insertAPIKey, "api_key, ", "", 1)
+			insertAPIKey = strings.Replace(insertAPIKey, "(?, ", "(", 1)
+
+			tx, err := db.Begin()
+			So(err, ShouldBeNil)
+			So(tx, ShouldNotBeNil)
+
+			u := User{}
+			err = u.generateKeys(tx, []brand.Brand{})
+			So(err, ShouldNotBeNil)
+
+			insertAPIKey = tmp
+		})
+
+		Convey("valid", func() {
+
+			tx, err := db.Begin()
+			So(err, ShouldBeNil)
+			So(tx, ShouldNotBeNil)
+
+			u := User{}
+			err = u.generateKeys(tx, []brand.Brand{})
+			So(err, ShouldBeNil)
+			So(len(u.Keys), ShouldEqual, 2)
+		})
+
 	})
 }

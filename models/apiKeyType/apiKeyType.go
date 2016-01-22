@@ -8,7 +8,8 @@ import (
 )
 
 var (
-	getAllKeyTypes = "SELECT id, type, date_added FROM ApiKeyType order by type"
+	// GetAllTypes Database query to retrieve all APIKeyType
+	GetAllTypes = "SELECT id, type, date_added FROM ApiKeyType order by type"
 )
 
 // KeyType Declares the type reference for an API key (Public, Private, Authentication).
@@ -25,7 +26,7 @@ const (
 // GetAllKeyTypes Returns a list of all the API key types in the database.
 func GetAllKeyTypes(tx *sql.Tx) (as []KeyType, err error) {
 
-	stmt, err := tx.Prepare(getAllKeyTypes)
+	stmt, err := tx.Prepare(GetAllTypes)
 	if err != nil {
 		return
 	}
