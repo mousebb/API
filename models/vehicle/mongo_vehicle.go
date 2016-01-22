@@ -112,10 +112,6 @@ func GetModels(ctx *middleware.APIContext, year, make string) ([]string, error) 
 		bson.M{
 			"$match": bson.M{
 				"vehicle_applications.year": year,
-			},
-		},
-		bson.M{
-			"$match": bson.M{
 				"vehicle_applications.make": make,
 			},
 		},
