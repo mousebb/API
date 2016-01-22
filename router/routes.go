@@ -68,7 +68,7 @@ var routes = []Route{
 	Route{"Status Checker", "GET", "/status", middleware.APIHandler{S: controllers.Status}},
 
 	// API Key Management
-	Route{"Get API Key Types", "GET", "/api/keys/types", middleware.APIHandler{H: apiKeyType.GetApiKeyTypes, Middleware: common}},
+	Route{"Get API Key Types", "GET", "/api/keys/types", middleware.APIHandler{H: apiKeyType.GetAPIKeyTypes, Middleware: common}},
 
 	// Application Guides
 	Route{"Get Application Guides by WebSite", "GET", "/applicationGuide/:id/website", middleware.APIHandler{H: applicationGuide.GetApplicationGuidesByWebsite, Middleware: common}},

@@ -1,10 +1,10 @@
 package apiKeyType
 
 import (
+	"database/sql"
 	"time"
 
 	"github.com/curt-labs/API/helpers/database"
-	"github.com/curt-labs/API/middleware"
 )
 
 var (
@@ -13,9 +13,9 @@ var (
 
 // KeyType Declares the type reference for an API key (Public, Private, Authentication).
 type KeyType struct {
-	ID        string    `json:"_id" xml:"id"`
-	Type      string    `json:"type" xml:"type"`
-	DateAdded time.Time `json:"dateAdded" xml:"dateAdded"`
+	ID        string    `bson:"-" json:"-" xml:"-"`
+	Type      string    `bson:"type" json:"type" xml:"type"`
+	DateAdded time.Time `bson:"dateAdded" json:"dateAdded" xml:"dateAdded"`
 }
 
 const (
@@ -23,13 +23,14 @@ const (
 )
 
 // GetAllKeyTypes Returns a list of all the API key types in the database.
-func GetAllKeyTypes(ctx *middleware.APIContext) (as []KeyType, err error) {
+func GetAllKeyTypes(tx *sql.Tx) (as []KeyType, err error) {
 
-	stmt, err := ctx.DB.Prepare(getAllKeyTypes)
+	stmt, err := tx.Prepare(getAllKeyTypes)
 	if err != nil {
 		return
 	}
 	defer stmt.Close()
+
 	res, err := stmt.Query() //returns *sql.Rows
 	if err != nil {
 		return
@@ -43,6 +44,7 @@ func GetAllKeyTypes(ctx *middleware.APIContext) (as []KeyType, err error) {
 		as = append(as, *a)
 	}
 	defer res.Close()
+
 	return as, err
 }
 

@@ -9,10 +9,20 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/curt-labs/API/helpers/database"
+	"github.com/curt-labs/API/models/apiKeyType"
+	"github.com/curt-labs/API/models/brand"
 	"github.com/jmcvetta/randutil"
 	"github.com/kellydunn/golang-geo"
+	"github.com/twinj/uuid"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
+)
+
+const (
+	// PrivateKeyType The string reference to a private APIKey type.
+	PrivateKeyType = "Private"
+	// PublicKeyType The string reference to a public APIKey type.
+	PublicKeyType = "Public"
 )
 
 var (
@@ -22,6 +32,8 @@ var (
 					), 1, 1)`
 	getNewUserID  = `select id from CustomerUser where email = ? && password = ? limit 1`
 	checkForEmail = `select id from CustomerUser where email = ? limit 1`
+	insertAPIKey  = `insert into ApiKey (api_key, type_id, user_id, date_added)
+					VALUES(?, ?, ?, ?, ?)`
 
 	// GeocodingAPIKey API Key for Google Maps Geocoding API.
 	GeocodingAPIKey = `AIzaSyAKINnVskCaZkQhhh6I2D6DOpeylY1G1-Q`
@@ -135,9 +147,11 @@ func AddUser(sess *mgo.Session, db *sql.DB, user *User, requestorKey string) err
 	}
 
 	// fetch requestor
-	requestor, err := GetUserByKey(sess, requestorKey, "Private")
+	requestor, err := GetUserByKey(sess, requestorKey, PrivateKeyType)
 	if err != nil || requestor.CustomerNumber == 0 {
 		return fmt.Errorf("failed to retrieve the requesting users information %v", err)
+	} else if len(requestor.Keys) == 0 {
+		return fmt.Errorf("failed to retrieve API keys for the requestor")
 	}
 
 	// set customer number from requestor
@@ -215,6 +229,12 @@ func AddUser(sess *mgo.Session, db *sql.DB, user *User, requestorKey string) err
 
 	user.ID = *userID
 
+	err = user.generateKeys(tx, requestor.Keys[0].Brands)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	err = tx.Commit()
 	if err != nil {
 		return err
@@ -229,7 +249,7 @@ func AddUser(sess *mgo.Session, db *sql.DB, user *User, requestorKey string) err
 func GetUsers(sess *mgo.Session, requestorKey string) ([]User, error) {
 
 	// fetch requestor
-	requestor, err := GetUserByKey(sess, requestorKey, "Private")
+	requestor, err := GetUserByKey(sess, requestorKey, PrivateKeyType)
 	if err != nil || requestor.CustomerNumber == 0 {
 		return nil, fmt.Errorf("failed to retrieve the requesting users information %v", err)
 	}
@@ -276,7 +296,7 @@ func GetUser(sess *mgo.Session, userID string, requestorKey string) (*User, erro
 	}
 
 	// fetch requestor
-	requestor, err := GetUserByKey(sess, requestorKey, "Private")
+	requestor, err := GetUserByKey(sess, requestorKey, PrivateKeyType)
 	if err != nil || requestor.CustomerNumber == 0 {
 		return nil, fmt.Errorf("failed to retrieve the requesting users information %v", err)
 	}
@@ -394,6 +414,67 @@ func (user User) storeLocation(tx *sql.Tx) error {
 // 2. Update Authentication Key in MySQL
 // 3. Fan that customer by making call to fanner.
 func (user *User) resetAuth() error {
+
+	return nil
+}
+
+func (user *User) generateKeys(tx *sql.Tx, brands []brand.Brand) error {
+
+	privateKey := APIKey{
+		Key:       uuid.NewV4().String(),
+		DateAdded: time.Now(),
+		Brands:    brands,
+	}
+	publicKey := APIKey{
+		Key:       uuid.NewV4().String(),
+		DateAdded: time.Now(),
+		Brands:    brands,
+	}
+
+	types, err := apiKeyType.GetAllKeyTypes(tx)
+	if err != nil {
+		return err
+	} else if len(types) == 0 {
+		return fmt.Errorf("failed to lookup appropriate KeyType")
+	}
+
+	for _, t := range types {
+		if t.Type == PrivateKeyType {
+			privateKey.Type = t
+		} else if t.Type == PublicKeyType {
+			publicKey.Type = t
+		}
+	}
+
+	if privateKey.Type.ID == "" {
+		return fmt.Errorf("failed to find a type for %s", PrivateKeyType)
+	}
+	if publicKey.Type.ID == "" {
+		return fmt.Errorf("failed to find a type for %s", PublicKeyType)
+	}
+
+	stmt, err := tx.Prepare(insertAPIKey)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	// insert private key
+	_, err = stmt.Exec(privateKey.Key, privateKey.Type.ID, user.ID, privateKey.DateAdded)
+	if err != nil {
+		return err
+	}
+
+	// insert public key
+	_, err = stmt.Exec(publicKey.Key, publicKey.Type.ID, user.ID, publicKey.DateAdded)
+	if err != nil {
+		return err
+	}
+
+	user.Keys = []APIKey{
+		privateKey,
+		publicKey,
+	}
 
 	return nil
 }

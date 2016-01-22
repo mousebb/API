@@ -12,6 +12,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/curt-labs/API/helpers/database"
+	"github.com/curt-labs/API/models/apiKeyType"
 	"github.com/curt-labs/API/models/geography"
 	"github.com/ory-am/dockertest"
 	. "github.com/smartystreets/goconvey/convey"
@@ -131,14 +132,14 @@ func TestMain(m *testing.M) {
 					Keys: []APIKey{
 						APIKey{
 							Key: TestUserAPIKey.String(),
-							Type: APIKeyType{
-								Type: "Public",
+							Type: apiKeyType.KeyType{
+								Type: PublicKeyType,
 							},
 						},
 						APIKey{
 							Key: TestUserPrivateAPIKey.String(),
-							Type: APIKeyType{
-								Type: "Private",
+							Type: apiKeyType.KeyType{
+								Type: PrivateKeyType,
 							},
 						},
 					},
@@ -153,14 +154,14 @@ func TestMain(m *testing.M) {
 					Keys: []APIKey{
 						APIKey{
 							Key: TestSuperUserAPIKey.String(),
-							Type: APIKeyType{
-								Type: "Public",
+							Type: apiKeyType.KeyType{
+								Type: PublicKeyType,
 							},
 						},
 						APIKey{
 							Key: TestSuperUserPrivateAPIKey.String(),
-							Type: APIKeyType{
-								Type: "Private",
+							Type: apiKeyType.KeyType{
+								Type: PrivateKeyType,
 							},
 						},
 					},
@@ -187,14 +188,14 @@ func TestMain(m *testing.M) {
 					Keys: []APIKey{
 						APIKey{
 							Key: TestSingleUserAPIKey.String(),
-							Type: APIKeyType{
-								Type: "Public",
+							Type: apiKeyType.KeyType{
+								Type: PublicKeyType,
 							},
 						},
 						APIKey{
 							Key: TestSingleUserPrivateAPIKey.String(),
-							Type: APIKeyType{
-								Type: "Private",
+							Type: apiKeyType.KeyType{
+								Type: PrivateKeyType,
 							},
 						},
 					},
@@ -245,14 +246,14 @@ func TestGetUserByKey(t *testing.T) {
 			tmp := database.CustomerCollectionName
 			database.CustomerCollectionName = "example"
 
-			user, err := GetUserByKey(session, TestUserAPIKey.String(), "Public")
+			user, err := GetUserByKey(session, TestUserAPIKey.String(), PublicKeyType)
 			So(err, ShouldNotBeNil)
 			So(user, ShouldBeNil)
 
 			database.CustomerCollectionName = tmp
 		})
 		Convey("valid key and type", func() {
-			user, err := GetUserByKey(session, TestUserAPIKey.String(), "Public")
+			user, err := GetUserByKey(session, TestUserAPIKey.String(), PublicKeyType)
 			So(err, ShouldBeNil)
 			So(user, ShouldNotBeNil)
 		})

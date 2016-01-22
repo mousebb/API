@@ -4,6 +4,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/curt-labs/API/models/apiKeyType"
 	"github.com/curt-labs/API/models/brand"
 	"github.com/curt-labs/API/models/geography"
 	"gopkg.in/mgo.v2/bson"
@@ -113,16 +114,10 @@ type ComnetCredential struct {
 
 // APIKey Used to authenticate with CURT Web Services.
 type APIKey struct {
-	Key       string        `bson:"key" json:"key" xml:"key,attr"`
-	Type      APIKeyType    `bson:"type" json:"type" xml:"type,attr"`
-	DateAdded time.Time     `bson:"dateAdded" json:"dateAdded" xml:"dateAdded,attr"`
-	Brands    []brand.Brand `bson:"brands" json:"brands" xml:"brands"`
-}
-
-// APIKeyType Describes the type of API key. (Public, Private, etc)
-type APIKeyType struct {
-	Type      string    `bson:"type" json:"type" xml:"type"`
-	DateAdded time.Time `bson:"dateAdded" json:"dateAdded" xml:"dateAdded"`
+	Key       string             `bson:"key" json:"key" xml:"key,attr"`
+	Type      apiKeyType.KeyType `bson:"type" json:"type" xml:"type,attr"`
+	DateAdded time.Time          `bson:"dateAdded" json:"dateAdded" xml:"dateAdded,attr"`
+	Brands    []brand.Brand      `bson:"brands" json:"brands" xml:"brands"`
 }
 
 // Location Physical location for a Customer
