@@ -128,3 +128,47 @@ func TestGetStyles(t *testing.T) {
 		})
 	})
 }
+
+func BenchmarkGetStylesFromCollections(b *testing.B) {
+	err := database.Init()
+	if err != nil {
+		b.Fatal(err.Error())
+	}
+
+	ctx := middleware.APIContext{
+		Session: database.ProductMongoSession,
+	}
+
+	var res []string
+	for i := 0; i < b.N; i++ {
+		res, err = GetStylesFromCollections(&ctx, "2010", "Ford", "F-150")
+		if err != nil {
+			b.Error(err.Error())
+		} else if len(res) == 0 {
+			b.Error("result was empty")
+		}
+	}
+	b.Log(res)
+}
+
+func BenchmarkGetStyles(b *testing.B) {
+	err := database.Init()
+	if err != nil {
+		b.Fatal(err.Error())
+	}
+
+	ctx := middleware.APIContext{
+		Session: database.ProductMongoSession,
+	}
+
+	var res []string
+	for i := 0; i < b.N; i++ {
+		res, err = GetStyles(&ctx, "2010", "ford", "f-150")
+		if err != nil {
+			b.Error(err.Error())
+		} else if len(res) == 0 {
+			b.Error("result was empty")
+		}
+	}
+	b.Log(res)
+}

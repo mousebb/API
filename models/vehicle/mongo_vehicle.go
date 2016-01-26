@@ -2,7 +2,6 @@ package vehicle
 
 import (
 	"fmt"
-	"log"
 	"sort"
 
 	"github.com/curt-labs/API/helpers/database"
@@ -55,7 +54,7 @@ func GetYears(ctx *middleware.APIContext) ([]string, error) {
 		"vehicle_applications.year": 1,
 		"_id": -1,
 	}).Distinct("vehicle_applications.year", &res)
-	log.Println(err, database.ProductCollectionName)
+
 	if err != nil {
 		return nil, err
 	}
@@ -189,24 +188,31 @@ func GetStyles(ctx *middleware.APIContext, year, vehicleMake, model string) ([]s
 			},
 		},
 		bson.M{
-			"$unwind": "$vehicle_applications",
-		},
-		bson.M{
-			"$match": bson.M{
-				"vehicle_applications.year":  year,
-				"vehicle_applications.make":  vehicleMake,
-				"vehicle_applications.model": model,
+			"$project": bson.M{
+				"styles": bson.M{
+					"$filter": bson.M{
+						"input": "$vehicle_applications",
+						"as":    "apps",
+						"cond": bson.M{
+							"$and": []bson.M{
+								bson.M{"$eq": []string{"$$apps.year", year}},
+								bson.M{"$eq": []string{"$$apps.make", vehicleMake}},
+								bson.M{"$eq": []string{"$$apps.model", model}},
+							},
+						},
+					},
+				},
 			},
 		},
 		bson.M{
 			"$group": bson.M{
-				"_id": "$vehicle_applications.style",
+				"_id": "$styles.style",
 			},
 		},
 	}
 
 	type Result struct {
-		Style string `bson:"_id"`
+		Styles []string `bson:"_id"`
 	}
 
 	var res []Result
@@ -219,9 +225,11 @@ func GetStyles(ctx *middleware.APIContext, year, vehicleMake, model string) ([]s
 	var styles []string
 	existing := make(map[string]string, 0)
 	for _, r := range res {
-		if _, ok := existing[r.Style]; !ok {
-			styles = append(styles, r.Style)
-			existing[r.Style] = r.Style
+		for _, s := range r.Styles {
+			if _, ok := existing[s]; !ok {
+				styles = append(styles, s)
+				existing[s] = s
+			}
 		}
 	}
 
