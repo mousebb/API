@@ -1,146 +1,231 @@
 package vehicle
 
 import (
+	"fmt"
 	"log"
+	"sort"
 
 	"github.com/curt-labs/API/helpers/database"
 	"github.com/curt-labs/API/middleware"
 	"gopkg.in/mgo.v2/bson"
 )
 
-type MgoVehicle struct {
-	Identifier bson.ObjectId `bson:"_id" json:"-" xml:"-"`
-	Year       string        `bson:"year" json:"year,omitempty" xml:"year,omitempty"`
-	Make       string        `bson:"make" json:"make,omitempty" xml:"make,omitempty"`
-	Model      string        `bson:"model" json:"model,omitempty" xml:"model,omitempty"`
-	Style      string        `bson:"style" json:"style,omitempty" xml:"style,omitempty"`
+type VehicleApplication struct {
+	Year        string `bson:"year" json:"year" xml:"year"`
+	Make        string `bson:"make" json:"make" xml:"make"`
+	Model       string `bson:"model" json:"model" xml:"model"`
+	Style       string `bson:"style" json:"style" xml:"style"`
+	Exposed     string `bson:"exposed" json:"exposed" xml:"exposed"`
+	Drilling    string `bson:"drilling" json:"drilling" xml:"drilling"`
+	InstallTime string `bson:"install_time" json:"install_time" xml:"install_time"`
 }
 
-func ReverseMongoLookup(partId int, ctx *middleware.APIContext) (vehicles []MgoVehicle, err error) {
+func ReverseMongoLookup(ctx *middleware.APIContext, part string) ([]VehicleApplication, error) {
+	if ctx.Session == nil {
+		return nil, fmt.Errorf("invalid mongodb connection")
+	}
 
-	collections, err := ctx.AriesSession.DB(database.AriesMongoDatabase).CollectionNames()
-	if err != nil {
-		return
+	c := ctx.Session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName)
+
+	qry := bson.M{
+		"part_number": part,
 	}
-	for _, collection := range collections {
-		var temps []MgoVehicle
-		query := bson.M{
-			"parts": partId,
-		}
-		err = ctx.AriesSession.DB(database.AriesMongoDatabase).C(collection).Find(query).All(&temps)
-		if err != nil {
-			return
-		}
-		vehicles = append(vehicles, temps...)
-	}
-	return
+
+	var apps []VehicleApplication
+	err := c.Find(qry).Select(bson.M{"vehicle_applications": 1, "_id": 0}).All(&apps)
+
+	return apps, err
 }
 
 func GetYears(ctx *middleware.APIContext) ([]string, error) {
+	if ctx.Session == nil {
+		return nil, fmt.Errorf("invalid mongodb connection")
+	}
+
 	c := ctx.Session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName)
 
-	aggr := []bson.M{
-		bson.M{
-			"$unwind": "$vehicle_applications",
-		},
-		bson.M{
-			"$group": bson.M{"_id": "$vehicle_applications.year"},
-		},
-		bson.M{
-			"$sort": bson.M{"_id": -1},
+	qry := bson.M{
+		"status": bson.M{
+			"$in": []int{800, 900},
 		},
 	}
 
-	type YearResult struct {
-		Year string `bson:"_id"`
-	}
-
-	var res []YearResult
-	err := c.Pipe(aggr).All(&res)
+	var res []string
+	err := c.Find(qry).Select(bson.M{
+		"vehicle_applications.year": 1,
+		"_id": -1,
+	}).Distinct("vehicle_applications.year", &res)
+	log.Println(err, database.ProductCollectionName)
 	if err != nil {
 		return nil, err
 	}
 
-	var yrs []string
-	for _, y := range res {
-		yrs = append(yrs, y.Year)
-	}
+	sort.Sort(sort.Reverse(sort.StringSlice(res)))
 
-	return yrs, err
+	return res, err
 }
 
 func GetMakes(ctx *middleware.APIContext, year string) ([]string, error) {
-	c := ctx.Session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName)
-
-	aggr := []bson.M{
-		bson.M{
-			"$match": bson.M{"vehicle_applications.year": year},
-		},
-		bson.M{
-			"$unwind": "$vehicle_applications",
-		},
-		bson.M{
-			"$group": bson.M{"_id": "$vehicle_applications.make"},
-		},
-		bson.M{
-			"$sort": bson.M{"_id": 1},
-		},
+	if ctx.Session == nil {
+		return nil, fmt.Errorf("invalid mongodb connection")
 	}
 
-	type MakeResult struct {
-		Make string `bson:"_id"`
-	}
-
-	var res []MakeResult
-	err := c.Pipe(aggr).All(&res)
-	if err != nil {
-		return nil, err
-	}
-
-	var yrs []string
-	for _, y := range res {
-		yrs = append(yrs, y.Make)
-	}
-
-	return yrs, err
-}
-
-func GetModels(ctx *middleware.APIContext, year, make string) ([]string, error) {
 	c := ctx.Session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName)
 
 	aggr := []bson.M{
 		bson.M{
 			"$match": bson.M{
 				"vehicle_applications.year": year,
-				"vehicle_applications.make": make,
 			},
 		},
 		bson.M{
 			"$unwind": "$vehicle_applications",
 		},
 		bson.M{
-			"$group": bson.M{"_id": "$vehicle_applications.model"},
+			"$match": bson.M{
+				"vehicle_applications.year": year,
+			},
 		},
 		bson.M{
-			"$sort": bson.M{"_id": 1},
+			"$group": bson.M{
+				"_id": "$vehicle_applications.make",
+			},
 		},
 	}
-	log.Println(aggr)
 
-	type ModelResult struct {
-		Model string `bson:"_id"`
+	type Result struct {
+		Make string `bson:"_id"`
 	}
 
-	var res []ModelResult
+	var res []Result
 	err := c.Pipe(aggr).All(&res)
+
 	if err != nil {
 		return nil, err
 	}
 
-	var yrs []string
-	for _, y := range res {
-		yrs = append(yrs, y.Model)
+	var makes []string
+	existing := make(map[string]string, 0)
+	for _, r := range res {
+		if _, ok := existing[r.Make]; !ok {
+			makes = append(makes, r.Make)
+			existing[r.Make] = r.Make
+		}
 	}
 
-	return yrs, err
+	sort.Strings(makes)
+
+	return makes, err
+}
+
+func GetModels(ctx *middleware.APIContext, year, vehicleMake string) ([]string, error) {
+	if ctx.Session == nil {
+		return nil, fmt.Errorf("invalid mongodb connection")
+	}
+
+	c := ctx.Session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName)
+
+	aggr := []bson.M{
+		bson.M{
+			"$match": bson.M{
+				"vehicle_applications.year": year,
+				"vehicle_applications.make": vehicleMake,
+			},
+		},
+		bson.M{
+			"$unwind": "$vehicle_applications",
+		},
+		bson.M{
+			"$match": bson.M{
+				"vehicle_applications.year": year,
+				"vehicle_applications.make": vehicleMake,
+			},
+		},
+		bson.M{
+			"$group": bson.M{
+				"_id": "$vehicle_applications.model",
+			},
+		},
+	}
+
+	type Result struct {
+		Model string `bson:"_id"`
+	}
+
+	var res []Result
+	err := c.Pipe(aggr).All(&res)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var models []string
+	existing := make(map[string]string, 0)
+	for _, r := range res {
+		if _, ok := existing[r.Model]; !ok {
+			models = append(models, r.Model)
+			existing[r.Model] = r.Model
+		}
+	}
+
+	sort.Strings(models)
+
+	return models, err
+}
+
+func GetStyles(ctx *middleware.APIContext, year, vehicleMake, model string) ([]string, error) {
+	if ctx.Session == nil {
+		return nil, fmt.Errorf("invalid mongodb connection")
+	}
+
+	c := ctx.Session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName)
+
+	aggr := []bson.M{
+		bson.M{
+			"$match": bson.M{
+				"vehicle_applications.year":  year,
+				"vehicle_applications.make":  vehicleMake,
+				"vehicle_applications.model": model,
+			},
+		},
+		bson.M{
+			"$unwind": "$vehicle_applications",
+		},
+		bson.M{
+			"$match": bson.M{
+				"vehicle_applications.year":  year,
+				"vehicle_applications.make":  vehicleMake,
+				"vehicle_applications.model": model,
+			},
+		},
+		bson.M{
+			"$group": bson.M{
+				"_id": "$vehicle_applications.style",
+			},
+		},
+	}
+
+	type Result struct {
+		Style string `bson:"_id"`
+	}
+
+	var res []Result
+	err := c.Pipe(aggr).All(&res)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var styles []string
+	existing := make(map[string]string, 0)
+	for _, r := range res {
+		if _, ok := existing[r.Style]; !ok {
+			styles = append(styles, r.Style)
+			existing[r.Style] = r.Style
+		}
+	}
+
+	sort.Strings(styles)
+
+	return styles, err
 }
