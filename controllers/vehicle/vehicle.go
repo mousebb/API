@@ -19,10 +19,24 @@ var (
 	ignoredFormParams = []string{"key"}
 )
 
+func Query(ctx *middleware.APIContext, w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	va := products.VehicleApplication{
+		Year:  r.FormValue("year"),
+		Make:  r.FormValue("make"),
+		Model: r.FormValue("model"),
+	}
+	err := va.Query(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return va, nil
+}
+
 // Finds further configuration options and parts that match
 // the given configuration. Doesn't start looking for parts
 // until the model is provided.
-func Query(ctx *middleware.APIContext, w http.ResponseWriter, r *http.Request) (interface{}, error) {
+func QueryAces(ctx *middleware.APIContext, w http.ResponseWriter, r *http.Request) (interface{}, error) {
 	var l products.Lookup
 	var page int
 	var count int

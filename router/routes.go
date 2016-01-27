@@ -11,6 +11,7 @@ import (
 	"github.com/curt-labs/API/controllers/customer"
 	"github.com/curt-labs/API/controllers/part"
 	"github.com/curt-labs/API/controllers/search"
+	"github.com/curt-labs/API/controllers/vehicle"
 	"github.com/curt-labs/API/middleware"
 )
 
@@ -131,6 +132,9 @@ var routes = []Route{
 	Route{"Get Part with Vehicle Config", "GET", "/part/:part/vehicle/:year/:make/:model/:submodel/:config", middleware.APIHandler{H: partCtlr.GetWithVehicle, Middleware: common}},
 
 	Route{"Get All Parts", "GET", "/parts", middleware.APIHandler{H: partCtlr.All, Middleware: common}},
+
+	// Vehicle Lookup
+	Route{"Query App Data", "POST", "/vehicle", middleware.APIHandler{H: vehicle.Query, Middleware: common}},
 
 	// Search
 	Route{"Search", "GET", "/search/:term", middleware.APIHandler{H: searchCtlr.Search, Middleware: common}},

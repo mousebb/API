@@ -122,7 +122,7 @@ func Get(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (i
 
 	//TODO - remove when curt & aries vehicle application data are in sync
 	if p.Brand.ID == 3 {
-		mgoVehicles, err := vehicle.ReverseMongoLookup(ctx, p.PartNumber)
+		mgoVehicles, err := products.ReverseMongoLookup(ctx, p.PartNumber)
 		if err != nil {
 			return nil, err
 		}

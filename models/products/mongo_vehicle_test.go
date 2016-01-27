@@ -1,4 +1,4 @@
-package vehicle
+package products
 
 import (
 	"testing"
@@ -19,6 +19,9 @@ func TestReverseLookup(t *testing.T) {
 
 		ctx := middleware.APIContext{
 			Session: database.ProductMongoSession,
+			DataContext: &middleware.DataContext{
+				BrandArray: []int{1, 3},
+			},
 		}
 
 		Convey("invalid mongo Connection", func() {
@@ -42,6 +45,9 @@ func TestGetYears(t *testing.T) {
 
 		ctx := middleware.APIContext{
 			Session: database.ProductMongoSession,
+			DataContext: &middleware.DataContext{
+				BrandArray: []int{1, 3},
+			},
 		}
 
 		Convey("invalid mongo Connection", func() {
@@ -65,6 +71,9 @@ func TestGetMakes(t *testing.T) {
 
 		ctx := middleware.APIContext{
 			Session: database.ProductMongoSession,
+			DataContext: &middleware.DataContext{
+				BrandArray: []int{1, 3},
+			},
 		}
 
 		Convey("invalid mongo Connection", func() {
@@ -88,6 +97,9 @@ func TestGetModels(t *testing.T) {
 
 		ctx := middleware.APIContext{
 			Session: database.ProductMongoSession,
+			DataContext: &middleware.DataContext{
+				BrandArray: []int{1, 3},
+			},
 		}
 
 		Convey("invalid mongo Connection", func() {
@@ -112,6 +124,9 @@ func TestGetStyles(t *testing.T) {
 
 		ctx := middleware.APIContext{
 			Session: database.ProductMongoSession,
+			DataContext: &middleware.DataContext{
+				BrandArray: []int{1, 3},
+			},
 		}
 
 		Convey("invalid mongo Connection", func() {
@@ -129,28 +144,6 @@ func TestGetStyles(t *testing.T) {
 	})
 }
 
-func BenchmarkGetStylesFromCollections(b *testing.B) {
-	err := database.Init()
-	if err != nil {
-		b.Fatal(err.Error())
-	}
-
-	ctx := middleware.APIContext{
-		Session: database.ProductMongoSession,
-	}
-
-	var res []string
-	for i := 0; i < b.N; i++ {
-		res, err = GetStylesFromCollections(&ctx, "2010", "Ford", "F-150")
-		if err != nil {
-			b.Error(err.Error())
-		} else if len(res) == 0 {
-			b.Error("result was empty")
-		}
-	}
-	b.Log(res)
-}
-
 func BenchmarkGetStyles(b *testing.B) {
 	err := database.Init()
 	if err != nil {
@@ -159,6 +152,9 @@ func BenchmarkGetStyles(b *testing.B) {
 
 	ctx := middleware.APIContext{
 		Session: database.ProductMongoSession,
+		DataContext: &middleware.DataContext{
+			BrandArray: []int{1, 3},
+		},
 	}
 
 	var res []string
@@ -170,5 +166,4 @@ func BenchmarkGetStyles(b *testing.B) {
 			b.Error("result was empty")
 		}
 	}
-	b.Log(res)
 }

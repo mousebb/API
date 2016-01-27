@@ -74,17 +74,6 @@ type Class struct {
 	Image string `json:"image,omitempty" xml:"image,omitempty" bson:"image"`
 }
 
-// VehicleApplication ...
-type VehicleApplication struct {
-	Year        string `bson:"year" json:"year" xml:"year,attr"`
-	Make        string `bson:"make" json:"make" xml:"make,attr"`
-	Model       string `bson:"model" json:"model" xml:"model,attr"`
-	Style       string `bson:"style" json:"style" xml:"style,attr"`
-	Exposed     string `bson:"exposed" json:"exposed" xml:"exposed"`
-	Drilling    string `bson:"drilling" json:"drilling" xml:"drilling"`
-	InstallTime string `bson:"install_time" json:"install_time" xml:"install_time"`
-}
-
 // Identifiers ...
 func Identifiers(ctx *middleware.APIContext, brandID int) ([]string, error) {
 	var parts []string
