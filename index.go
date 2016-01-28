@@ -6,6 +6,7 @@ import (
 
 	"github.com/curt-labs/API/helpers/database"
 	"github.com/curt-labs/API/router"
+	"github.com/rs/cors"
 
 	"log"
 	"time"
@@ -29,7 +30,7 @@ func main() {
 
 	defer database.Close()
 
-	r := router.New()
+	r := cors.Default().Handler(router.New())
 
 	// m.Group("/customer", func(r martini.Router) {
 
