@@ -22,19 +22,18 @@ type Customer struct {
 	Fax            string        `bson:"fax" json:"fax" xml:"contact>fax"`
 	ContactPerson  string        `bson:"contactPerson" json:"contactPerson" xml:"contact>contactPerson"`
 
-	Parent         *Customer `bson:"parentAccount" json:"parentAccount" xml:"parentAccount"`
-	Website        *url.URL  `bson:"website" json:"website" xml:"online>website"`
-	Elocal         *url.URL  `bson:"elocal" json:"elocal" xml:"online>elocal"`
-	SearchEndpoint *url.URL  `bson:"searchURL" json:"searchURL" xml:"online>searchURL"`
-	Logo           *url.URL  `bson:"logo" json:"logo" xml:"online>logo"`
+	Parent   *Customer         `bson:"parentAccount" json:"parentAccount" xml:"parentAccount"`
+	Websites []CustomerWebsite `bson:"websites" json:"websites" xml:"online>websites"`
+	Elocal   *url.URL          `bson:"elocal" json:"elocal" xml:"online>elocal"`
+	Logo     *url.URL          `bson:"logo" json:"logo" xml:"online>logo"`
 
-	Types    []Type    `bson:"types" json:"type" xml:"type"`
-	Tiers    []Tier    `bson:"tiers" json:"tier" xml:"tier"`
+	Types    []Type    `bson:"types" json:"types" xml:"types"`
+	Tiers    []Tier    `bson:"tiers" json:"tiers" xml:"tiers"`
 	MapIcons []MapIcon `bson:"mapIcons" json:"mapIcons" xml:"mapIcons"`
 
-	Brands   []brand.Brand       `bson:"brands" json:"brands" xml:"brands"`
-	Mapics   MapicsCode          `bson:"mapics" json:"mapics" xml:"mapics"`
-	SalesRep SalesRepresentative `bson:"salesRep" json:"salesRep" xml:"salesRep"`
+	Brands   []brand.Brand         `bson:"brands" json:"brands" xml:"brands"`
+	Mapics   MapicsCode            `bson:"mapics" json:"mapics" xml:"mapics"`
+	SalesRep []SalesRepresentative `bson:"salesReps" json:"salesReps" xml:"salesReps"`
 
 	Users     []User     `bson:"users" json:"users" xml:"users"`
 	Locations []Location `bson:"locations" json:"locations" xml:"locations"`
@@ -191,4 +190,11 @@ type StateRegion struct {
 type MapPolygon struct {
 	Id          int           `json:"id,omitempty" xml:"id,omitempty"`
 	Coordinates []Coordinates `json:"coordinates,omitempty" xml:"coordinates,omitempty"`
+}
+
+type CustomerWebsite struct {
+	Url       url.URL `bson:"url" json:"url" xml:"url,attr"`
+	SearchUrl url.URL `bson:"searchUrl" json:"searchUrl" xml:"searchUrl,attr"`
+	Show      bool    `bson:"show" json:"show" xml:"show,attr"`
+	Brand     brand.Brand
 }
