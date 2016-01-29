@@ -9,8 +9,11 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/curt-labs/API/helpers/database"
+	"github.com/curt-labs/API/models/apiKeyType"
+	"github.com/curt-labs/API/models/brand"
 	"github.com/jmcvetta/randutil"
 	"github.com/kellydunn/golang-geo"
+	"github.com/twinj/uuid"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
@@ -20,14 +23,22 @@ var (
 					values(UUID(),?, ?, ?, ?, ?, 1, ?, ?, (
 						select cust_id from Customer where customerID = ? limit 1
 					), 1, 1)`
+	updateUser    = `update CustomerUser set name = ?, email = ?, locationID = ?, isSudo = ? where id = ?`
 	getNewUserID  = `select id from CustomerUser where email = ? && password = ? limit 1`
 	checkForEmail = `select id from CustomerUser where email = ? limit 1`
+	insertAPIKey  = `insert into ApiKey (api_key, type_id, user_id, date_added)
+					VALUES(?, ?, ?, ?)`
 
 	// GeocodingAPIKey API Key for Google Maps Geocoding API.
 	GeocodingAPIKey = `AIzaSyAKINnVskCaZkQhhh6I2D6DOpeylY1G1-Q`
 	// PasswordCharset The character set that we want to use for
 	// generating random passwords.
 	PasswordCharset = `ABCDEFGHJKMNPQRTUVWXYZabcdefghijkmnpqrtuvwxyz12346789`
+
+	// PrivateKeyType The string reference to a private APIKey type.
+	PrivateKeyType = "Private"
+	// PublicKeyType The string reference to a public APIKey type.
+	PublicKeyType = "Public"
 )
 
 type userResult struct {
@@ -106,39 +117,87 @@ func AuthenticateUser(sess *mgo.Session, email, pass string) (*User, error) {
 	return &u, nil
 }
 
-// AuthenticateUserByKey Allows a user to authenticate using the `Private` APIKey.
-// If a user tries to authenticate against this with their `Public` APIKey,
-// they should fail, since the `Public` APIKey is something you would embed
-// in public eyes.
-// func AuthenticateUserByKey(sess *mgo.Session, key string) (*User, error) {
-// 	var err error
-//
-// 	c := sess.DB(database.ProductMongoDatabase).C(database.CustomerCollectionName)
-//
-// 	qry := bson.M{
-// 		"users.keys.key":       key,
-// 		"users.keys.type.type": "Private",
-// 	}
-//
-// 	var res userResult
-// 	err = c.Find(qry).Select(bson.M{"_id": 0, "users.$": 1}).One(&res)
-// 	if err != nil {
-// 		if err == mgo.ErrNotFound {
-// 			err = fmt.Errorf("authentication failed for %s", key)
-// 		}
-// 		return nil, err
-// 	}
-//
-// 	u := res.Users[0]
-//
-// 	// checkout the TODO on resetAuth() func definition
-// 	// err = u.resetAuth()
-// 	// if err != nil {
-// 	// 	return nil, err
-// 	// }
-//
-// 	return &u, nil
-// }
+// GetUsers Returns all users (except the requestor) from the same Customer object
+// as the requestor's customer reference. The requestor must have `sudo`
+// priveleges to make this request.
+func GetUsers(sess *mgo.Session, requestorKey string) ([]User, error) {
+
+	// fetch requestor
+	requestor, err := GetUserByKey(sess, requestorKey, PrivateKeyType)
+	if err != nil || requestor.CustomerNumber == 0 {
+		return nil, fmt.Errorf("failed to retrieve the requesting users information %v", err)
+	}
+	if !requestor.SuperUser {
+		return nil, fmt.Errorf("this information is only available for super users")
+	}
+
+	c := sess.DB(database.ProductMongoDatabase).C(database.CustomerCollectionName)
+
+	qry := bson.M{
+		"customerNumber": requestor.CustomerNumber,
+	}
+
+	var res userResult
+	err = c.Find(qry).Select(bson.M{"_id": 0, "users": 1}).One(&res)
+	if err != nil {
+		if err == mgo.ErrNotFound {
+			err = nil
+		}
+		return nil, err
+	}
+
+	for i, u := range res.Users {
+		if u.ID == requestor.ID {
+			res.Users = append(res.Users[:i], res.Users[i+1:]...)
+		}
+	}
+
+	return res.Users, nil
+}
+
+// GetUser Returns a speicified user object by using the requestor's private APIKey
+// and the ID of the user to be retrieved. The requestor must be a super user.
+func GetUser(sess *mgo.Session, userID string, requestorKey string) (*User, error) {
+
+	if sess == nil {
+		return nil, fmt.Errorf("invalid mongo session")
+	}
+
+	if userID == "" {
+		return nil, fmt.Errorf("you must supply a valid user identifier")
+	} else if requestorKey == "" {
+		return nil, fmt.Errorf("you must provide a valid APIkey")
+	}
+
+	// fetch requestor
+	requestor, err := GetUserByKey(sess, requestorKey, PrivateKeyType)
+	if err != nil || requestor.CustomerNumber == 0 {
+		return nil, fmt.Errorf("failed to retrieve the requesting users information %v", err)
+	}
+	if !requestor.SuperUser {
+		return nil, fmt.Errorf("this information is only available for super users")
+	}
+
+	var res userResult
+	c := sess.DB(database.ProductMongoDatabase).C(database.CustomerCollectionName)
+	qry := bson.M{
+		"users": bson.M{
+			"$elemMatch": bson.M{
+				"id": userID,
+			},
+		},
+	}
+
+	err = c.Find(qry).Select(bson.M{"_id": 0, "users.$": 1}).One(&res)
+	if err != nil {
+		if err == mgo.ErrNotFound {
+			err = fmt.Errorf("failed to locate user using %s", userID)
+		}
+		return nil, err
+	}
+
+	return &res.Users[0], nil
+}
 
 // AddUser Will commit a new user to the same Customer object as
 // the requestor's Customer reference. It will not update the following
@@ -169,9 +228,11 @@ func AddUser(sess *mgo.Session, db *sql.DB, user *User, requestorKey string) err
 	}
 
 	// fetch requestor
-	requestor, err := GetUserByKey(sess, requestorKey, "Private")
+	requestor, err := GetUserByKey(sess, requestorKey, PrivateKeyType)
 	if err != nil || requestor.CustomerNumber == 0 {
 		return fmt.Errorf("failed to retrieve the requesting users information %v", err)
+	} else if len(requestor.Keys) == 0 {
+		return fmt.Errorf("failed to retrieve API keys for the requestor")
 	}
 
 	// set customer number from requestor
@@ -249,6 +310,12 @@ func AddUser(sess *mgo.Session, db *sql.DB, user *User, requestorKey string) err
 
 	user.ID = *userID
 
+	err = user.generateKeys(tx, requestor.Keys[0].Brands)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	err = tx.Commit()
 	if err != nil {
 		return err
@@ -257,39 +324,60 @@ func AddUser(sess *mgo.Session, db *sql.DB, user *User, requestorKey string) err
 	return PushCustomer(db, user.CustomerNumber, "update", bson.NewObjectId())
 }
 
-func GetUsers(sess *mgo.Session, requestorKey string) ([]User, error) {
-
-	// fetch requestor
-	requestor, err := GetUserByKey(sess, requestorKey, "Private")
-	if err != nil || requestor.CustomerNumber == 0 {
-		return nil, fmt.Errorf("failed to retrieve the requesting users information %v", err)
-	}
-	if !requestor.SuperUser {
-		return nil, fmt.Errorf("this information is only available for super users")
+// UpdateUser Can modify the Name, Email, SuperUser, and Location for the
+// provided User.
+func UpdateUser(db *sql.DB, user *User) error {
+	if user == nil {
+		return fmt.Errorf("user object was null")
 	}
 
-	c := sess.DB(database.ProductMongoDatabase).C(database.CustomerCollectionName)
-
-	qry := bson.M{
-		"customerNumber": requestor.CustomerNumber,
+	// validate
+	errors := user.validate(db)
+	if len(errors) > 0 {
+		return fmt.Errorf(strings.Join(errors, ","))
 	}
 
-	var res userResult
-	err = c.Find(qry).Select(bson.M{"_id": 0, "users": 1}).One(&res)
+	tx, err := db.Begin()
 	if err != nil {
-		if err == mgo.ErrNotFound {
-			err = nil
-		}
-		return nil, err
+		return err
 	}
 
-	for i, u := range res.Users {
-		if u.ID == requestor.ID {
-			res.Users = append(res.Users[:i], res.Users[i+1:]...)
+	if user.Location != nil {
+		exists, err := user.Location.Exists(db, user.CustomerNumber)
+		if !exists && err == nil {
+			err = user.storeLocation(tx)
+			if err != nil {
+				tx.Rollback()
+				return err
+			}
 		}
 	}
 
-	return res.Users, nil
+	stmt, err := tx.Prepare(updateUser)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	defer stmt.Close()
+
+	_, err = stmt.Exec(
+		user.Name,
+		user.Email,
+		user.Location.ID,
+		user.SuperUser,
+		user.ID,
+	)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+
+	return PushCustomer(db, user.CustomerNumber, "update", bson.NewObjectId())
 }
 
 func (user User) validate(db *sql.DB) []string {
@@ -303,11 +391,16 @@ func (user User) validate(db *sql.DB) []string {
 		return errs
 	}
 
+	if user.ID != "" {
+		return errs
+	}
+
+	// for new users we need to make sure there
+	// are no other user records using this email
 	if db == nil {
 		return append(errs, "database connection not valid")
 	}
 
-	// make sure there are no other user records using this email
 	stmt, err := db.Prepare(checkForEmail)
 	if err != nil {
 		return append(errs, err.Error())
@@ -381,6 +474,72 @@ func (user User) storeLocation(tx *sql.Tx) error {
 // 2. Update Authentication Key in MySQL
 // 3. Fan that customer by making call to fanner.
 func (user *User) resetAuth() error {
+
+	return nil
+}
+
+func (user *User) generateKeys(tx *sql.Tx, brands []brand.Brand) error {
+
+	privateKey := APIKey{
+		Key:       uuid.NewV4().String(),
+		DateAdded: time.Now(),
+		Brands:    brands,
+	}
+	publicKey := APIKey{
+		Key:       uuid.NewV4().String(),
+		DateAdded: time.Now(),
+		Brands:    brands,
+	}
+
+	types, err := apiKeyType.GetAllKeyTypes(tx)
+	if err != nil || len(types) == 0 {
+		if err == nil {
+			err = fmt.Errorf("failed to lookup appropriate KeyType")
+		}
+
+		return err
+	}
+
+	for _, t := range types {
+		if t.Type == PrivateKeyType {
+			privateKey.Type = t
+		} else if t.Type == PublicKeyType {
+			publicKey.Type = t
+		}
+	}
+
+	if privateKey.Type.ID == "" {
+		return fmt.Errorf("failed to find a type for %s", PrivateKeyType)
+	}
+	if publicKey.Type.ID == "" {
+		return fmt.Errorf("failed to find a type for %s", PublicKeyType)
+	}
+
+	stmt, err := tx.Prepare(insertAPIKey)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	// insert private key
+	_, privErr := stmt.Exec(privateKey.Key, privateKey.Type.ID, user.ID, privateKey.DateAdded)
+	// insert public key
+	_, pubErr := stmt.Exec(publicKey.Key, publicKey.Type.ID, user.ID, publicKey.DateAdded)
+
+	if privErr != nil || pubErr != nil {
+		if privErr != nil {
+			err = fmt.Errorf("%s", privErr.Error())
+		}
+		if pubErr != nil {
+			err = fmt.Errorf("%s %s", err.Error(), pubErr.Error())
+		}
+		return fmt.Errorf("failed insert new keys %s", err.Error())
+	}
+
+	user.Keys = []APIKey{
+		privateKey,
+		publicKey,
+	}
 
 	return nil
 }

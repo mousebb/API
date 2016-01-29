@@ -12,6 +12,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/curt-labs/API/helpers/database"
+	"github.com/curt-labs/API/models/apiKeyType"
+	"github.com/curt-labs/API/models/brand"
 	"github.com/curt-labs/API/models/geography"
 	"github.com/ory-am/dockertest"
 	. "github.com/smartystreets/goconvey/convey"
@@ -24,6 +26,7 @@ var (
 	session *mgo.Session
 	db      *sql.DB
 
+	TestUserID                  = uuid.NewV4()
 	TestUserAPIKey              = uuid.NewV4()
 	TestUserPrivateAPIKey       = uuid.NewV4()
 	TestSingleUserAPIKey        = uuid.NewV4()
@@ -38,7 +41,7 @@ var (
 	TestSingleUserPassword      = "single_password"
 
 	schemas = map[string]string{
-		`apiKeySchema`:           `CREATE TABLE ApiKey (id int(11) NOT NULL AUTO_INCREMENT,TestUserAPIKey varchar(64) NOT NULL,type_id varchar(64) NOT NULL,user_id varchar(64) NOT NULL,date_added timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,UNIQUE KEY id (id)) ENGINE=InnoDB AUTO_INCREMENT=14489 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
+		`apiKeySchema`:           `CREATE TABLE ApiKey (id int(11) NOT NULL AUTO_INCREMENT,api_key varchar(64) NOT NULL,type_id varchar(64) NOT NULL,user_id varchar(64) NOT NULL,date_added timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,UNIQUE KEY id (id)) ENGINE=InnoDB AUTO_INCREMENT=14489 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
 		`apiKeyBrandSchema`:      `CREATE TABLE ApiKeyToBrand (ID int(11) NOT NULL AUTO_INCREMENT,keyID int(11) NOT NULL,brandID int(11) NOT NULL,PRIMARY KEY (ID)) ENGINE=InnoDB AUTO_INCREMENT=38361 DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT`,
 		`apiKeyTypeSchema`:       `CREATE TABLE ApiKeyType (id varchar(64) NOT NULL,type varchar(500) DEFAULT NULL,date_added timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY (id)) ENGINE=InnoDB DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
 		`brandSchema`:            `CREATE TABLE Brand (ID int(11) NOT NULL AUTO_INCREMENT,name varchar(255) NOT NULL,code varchar(255) NOT NULL,logo varchar(255) DEFAULT NULL,logoAlt varchar(255) DEFAULT NULL,formalName varchar(255) DEFAULT NULL,longName varchar(255) DEFAULT NULL,primaryColor varchar(10) DEFAULT NULL,autocareID varchar(4) DEFAULT NULL,PRIMARY KEY (ID)) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
@@ -54,14 +57,18 @@ var (
 		`insertSingleUserCustomer`:        `insert into Customer (cust_id, name, dealer_type, customerID) values (2, 'test single user', 1, 2)`,
 		`insertCustomerToBrand`:           `insert into CustomerToBrand (ID, cust_id, brandID) values (1,1,1)`,
 		`insertSingleUserCustomerToBrand`: `insert into CustomerToBrand (ID, cust_id, brandID) values (2,2,3)`,
-		`insertKeyType`:                   `INSERT INTO ApiKeyType (id, type, date_added) VALUES ('a46ceab9-df0c-44a2-b21d-a859fc2c839c','random type', NOW())`,
+		`insertKeyType`:                   `insert into ApiKeyType (id, type, date_added) VALUES ('a46ceab9-df0c-44a2-b21d-a859fc2c839c','random type', NOW())`,
+		`insertPrivateKeyType`:            `insert into ApiKeyType (id, type, date_added) VALUES (UUID(),'Private', NOW())`,
+		`insertPublicKeyType`:             `insert into ApiKeyType (id, type, date_added) VALUES (UUID(),'Public', NOW())`,
 	}
 )
 
 func TestMain(m *testing.M) {
 
 	mysql, err := dockertest.ConnectToMySQL(15, time.Second*5, func(url string) bool {
+		url = fmt.Sprintf("%s?parseTime=true&loc=%s", url, "America%2FChicago")
 		var err error
+
 		db, err = sql.Open("mysql", url)
 		if err != nil {
 			log.Fatalf("MySQL connection failed, with address '%s'.", url)
@@ -122,7 +129,7 @@ func TestMain(m *testing.M) {
 			CustomerNumber: 1,
 			Users: []User{
 				User{
-					ID:             uuid.NewV4().String(),
+					ID:             TestUserID.String(),
 					Name:           "Test User",
 					Email:          TestEmail,
 					Password:       string(encryptedPass),
@@ -130,14 +137,14 @@ func TestMain(m *testing.M) {
 					Keys: []APIKey{
 						APIKey{
 							Key: TestUserAPIKey.String(),
-							Type: APIKeyType{
-								Type: "Public",
+							Type: apiKeyType.KeyType{
+								Type: PublicKeyType,
 							},
 						},
 						APIKey{
 							Key: TestUserPrivateAPIKey.String(),
-							Type: APIKeyType{
-								Type: "Private",
+							Type: apiKeyType.KeyType{
+								Type: PrivateKeyType,
 							},
 						},
 					},
@@ -152,14 +159,14 @@ func TestMain(m *testing.M) {
 					Keys: []APIKey{
 						APIKey{
 							Key: TestSuperUserAPIKey.String(),
-							Type: APIKeyType{
-								Type: "Public",
+							Type: apiKeyType.KeyType{
+								Type: PublicKeyType,
 							},
 						},
 						APIKey{
 							Key: TestSuperUserPrivateAPIKey.String(),
-							Type: APIKeyType{
-								Type: "Private",
+							Type: apiKeyType.KeyType{
+								Type: PrivateKeyType,
 							},
 						},
 					},
@@ -186,14 +193,14 @@ func TestMain(m *testing.M) {
 					Keys: []APIKey{
 						APIKey{
 							Key: TestSingleUserAPIKey.String(),
-							Type: APIKeyType{
-								Type: "Public",
+							Type: apiKeyType.KeyType{
+								Type: PublicKeyType,
 							},
 						},
 						APIKey{
 							Key: TestSingleUserPrivateAPIKey.String(),
-							Type: APIKeyType{
-								Type: "Private",
+							Type: apiKeyType.KeyType{
+								Type: PrivateKeyType,
 							},
 						},
 					},
@@ -244,14 +251,14 @@ func TestGetUserByKey(t *testing.T) {
 			tmp := database.CustomerCollectionName
 			database.CustomerCollectionName = "example"
 
-			user, err := GetUserByKey(session, TestUserAPIKey.String(), "Public")
+			user, err := GetUserByKey(session, TestUserAPIKey.String(), PublicKeyType)
 			So(err, ShouldNotBeNil)
 			So(user, ShouldBeNil)
 
 			database.CustomerCollectionName = tmp
 		})
 		Convey("valid key and type", func() {
-			user, err := GetUserByKey(session, TestUserAPIKey.String(), "Public")
+			user, err := GetUserByKey(session, TestUserAPIKey.String(), PublicKeyType)
 			So(err, ShouldBeNil)
 			So(user, ShouldNotBeNil)
 		})
@@ -286,6 +293,83 @@ func TestAuthenticateUser(t *testing.T) {
 
 		Convey("valid email and password", func() {
 			user, err := AuthenticateUser(session, TestEmail, TestPassword)
+			So(err, ShouldBeNil)
+			So(user, ShouldNotBeNil)
+		})
+	})
+}
+
+func TestGetUsers(t *testing.T) {
+	Convey("GetUsers(*mgo.Session, string)", t, func() {
+		Convey("with invalid requestor key", func() {
+			users, err := GetUsers(session, "")
+			So(users, ShouldBeNil)
+			So(err, ShouldNotBeNil)
+			So(err.Error(), ShouldContainSubstring, "failed to retrieve the requesting users information")
+		})
+
+		Convey("with valid requestor key that isn't super user", func() {
+			users, err := GetUsers(session, TestUserPrivateAPIKey.String())
+			So(users, ShouldBeNil)
+			So(err, ShouldNotBeNil)
+			So(err.Error(), ShouldEqual, "this information is only available for super users")
+		})
+
+		Convey("customer with one user requesting all users", func() {
+			users, err := GetUsers(session, TestSingleUserPrivateAPIKey.String())
+			So(err, ShouldBeNil)
+			So(len(users), ShouldEqual, 0)
+		})
+
+		Convey("valid", func() {
+			users, err := GetUsers(session, TestSuperUserPrivateAPIKey.String())
+			So(err, ShouldBeNil)
+			So(len(users), ShouldBeGreaterThan, 0)
+		})
+	})
+}
+
+func TestGetUser(t *testing.T) {
+	Convey("testing GetUser(*mgo.Session, string, string, string)", t, func() {
+
+		Convey("with nil mgo.Session", func() {
+			user, err := GetUser(nil, "", "")
+			So(err, ShouldNotBeNil)
+			So(user, ShouldBeNil)
+		})
+
+		Convey("with empty userID", func() {
+			user, err := GetUser(session, "", "")
+			So(err, ShouldNotBeNil)
+			So(user, ShouldBeNil)
+		})
+
+		Convey("with empty requestorKey", func() {
+			user, err := GetUser(session, "asd;lfjas;fd", "")
+			So(err, ShouldNotBeNil)
+			So(user, ShouldBeNil)
+		})
+
+		Convey("with invalid requestorKey", func() {
+			user, err := GetUser(session, uuid.NewV4().String(), uuid.NewV4().String())
+			So(err, ShouldNotBeNil)
+			So(user, ShouldBeNil)
+		})
+
+		Convey("with requestorKey for non-super user", func() {
+			user, err := GetUser(session, uuid.NewV4().String(), TestUserPrivateAPIKey.String())
+			So(err, ShouldNotBeNil)
+			So(user, ShouldBeNil)
+		})
+
+		Convey("with invalid userID", func() {
+			user, err := GetUser(session, uuid.NewV4().String(), TestSuperUserPrivateAPIKey.String())
+			So(err, ShouldNotBeNil)
+			So(user, ShouldBeNil)
+		})
+
+		Convey("valid", func() {
+			user, err := GetUser(session, TestUserID.String(), TestSuperUserPrivateAPIKey.String())
 			So(err, ShouldBeNil)
 			So(user, ShouldNotBeNil)
 		})
@@ -449,6 +533,23 @@ func TestAddUser(t *testing.T) {
 			getNewUserID = tmp
 		})
 
+		Convey("invalid insertAPIKey query", func() {
+			tmp := insertAPIKey
+			insertAPIKey = "bad query"
+
+			u := &User{
+				Name:           "Test User",
+				Email:          "valid" + TestEmail,
+				Password:       "",
+				CustomerNumber: 1,
+				Location:       &validLocation,
+			}
+			err := AddUser(session, db, u, TestUserPrivateAPIKey.String())
+			So(err, ShouldNotBeNil)
+
+			insertAPIKey = tmp
+		})
+
 		Convey("invalid NSQ host", func() {
 
 			tmp := NsqHost
@@ -500,32 +601,87 @@ func TestAddUser(t *testing.T) {
 	})
 }
 
-func TestGetUsers(t *testing.T) {
-	Convey("GetUsers(*mgo.Session, string)", t, func() {
-		Convey("with invalid requestor key", func() {
-			users, err := GetUsers(session, "")
-			So(users, ShouldBeNil)
+func TestUpdateUser(t *testing.T) {
+	Convey("Test UpdateUser(*sql.DB, *User)", t, func() {
+		u := &User{
+			Name:           "Test User",
+			Email:          time.Now().String() + "update_valid" + TestEmail,
+			Password:       "",
+			CustomerNumber: 1,
+			Location: &Location{
+				Address: Address{
+					StreetAddress: "1401 Meyer Rd",
+					City:          "Eau Claire",
+					PostalCode:    "54701",
+					State: geography.State{
+						Abbreviation: "WI",
+						State:        "Wisconsin",
+						Country: &geography.Country{
+							Abbreviation: "USA",
+							Country:      "United States of Ameria",
+						},
+					},
+				},
+				ContactPerson: "Test User",
+				Phone:         "7155555555",
+				Fax:           "7154444444",
+				Name:          "Test Location",
+				Email:         "test_meyer@example.com",
+			},
+		}
+		e := AddUser(session, db, u, TestUserPrivateAPIKey.String())
+		So(e, ShouldBeNil)
+
+		Convey("with nil user", func() {
+			err := UpdateUser(db, nil)
 			So(err, ShouldNotBeNil)
-			So(err.Error(), ShouldContainSubstring, "failed to retrieve the requesting users information")
 		})
 
-		Convey("with valid requestor key that isn't super user", func() {
-			users, err := GetUsers(session, TestUserPrivateAPIKey.String())
-			So(users, ShouldBeNil)
+		Convey("invalid db connection", func() {
+			err := UpdateUser(&sql.DB{}, nil)
 			So(err, ShouldNotBeNil)
-			So(err.Error(), ShouldEqual, "this information is only available for super users")
 		})
 
-		Convey("customer with one user requesting all users", func() {
-			users, err := GetUsers(session, TestSingleUserPrivateAPIKey.String())
-			So(err, ShouldBeNil)
-			So(len(users), ShouldEqual, 0)
+		Convey("invalid location", func() {
+			u.Location.ID = 0
+			u.Location.Address = Address{}
+			u.Location.Name = ""
+			err := UpdateUser(db, u)
+			So(err, ShouldNotBeNil)
+		})
+
+		Convey("invalid properties", func() {
+			u.Name = ""
+			err := UpdateUser(db, u)
+			So(err, ShouldNotBeNil)
+
+			u.Name = "Test User"
+		})
+
+		Convey("invalid updateUser query", func() {
+			tmp := updateUser
+			updateUser = "bad query"
+
+			err := UpdateUser(db, u)
+			So(err, ShouldNotBeNil)
+
+			updateUser = tmp
+		})
+
+		Convey("invalid parameter count in updateUser query", func() {
+			tmp := updateUser
+			updateUser = strings.Replace(updateUser, "name = ?, ", "", 1)
+
+			err := UpdateUser(db, u)
+			So(err, ShouldNotBeNil)
+
+			updateUser = tmp
 		})
 
 		Convey("valid", func() {
-			users, err := GetUsers(session, TestSuperUserPrivateAPIKey.String())
+
+			err := UpdateUser(db, u)
 			So(err, ShouldBeNil)
-			So(len(users), ShouldBeGreaterThan, 0)
 		})
 	})
 }
@@ -754,5 +910,119 @@ func TestResetAuth(t *testing.T) {
 			err := u.resetAuth()
 			So(err, ShouldBeNil)
 		})
+	})
+}
+
+func TestGenerateKeys(t *testing.T) {
+	Convey("Test generateKeys(*sql.Tx, []brand.Brand)", t, func() {
+		Convey("with bad transaction", func() {
+
+			tmp := apiKeyType.GetAllTypes
+			apiKeyType.GetAllTypes = "bad query"
+
+			tx, err := db.Begin()
+			So(err, ShouldBeNil)
+			So(tx, ShouldNotBeNil)
+
+			u := User{}
+			err = u.generateKeys(tx, []brand.Brand{})
+			So(err, ShouldNotBeNil)
+
+			apiKeyType.GetAllTypes = tmp
+		})
+
+		Convey("with limit 0 on key type query", func() {
+
+			tmp := apiKeyType.GetAllTypes
+			apiKeyType.GetAllTypes = fmt.Sprintf("%s limit 0", apiKeyType.GetAllTypes)
+
+			tx, err := db.Begin()
+			So(err, ShouldBeNil)
+			So(tx, ShouldNotBeNil)
+
+			u := User{}
+			err = u.generateKeys(tx, []brand.Brand{})
+			So(err, ShouldNotBeNil)
+
+			apiKeyType.GetAllTypes = tmp
+		})
+
+		Convey("with blank PrivateKeyType", func() {
+
+			tmp := PrivateKeyType
+			PrivateKeyType = ""
+
+			tx, err := db.Begin()
+			So(err, ShouldBeNil)
+			So(tx, ShouldNotBeNil)
+
+			u := User{}
+			err = u.generateKeys(tx, []brand.Brand{})
+			So(err, ShouldNotBeNil)
+
+			PrivateKeyType = tmp
+		})
+
+		Convey("with blank PublicKeyType", func() {
+
+			tmp := PublicKeyType
+			PublicKeyType = ""
+
+			tx, err := db.Begin()
+			So(err, ShouldBeNil)
+			So(tx, ShouldNotBeNil)
+
+			u := User{}
+			err = u.generateKeys(tx, []brand.Brand{})
+			So(err, ShouldNotBeNil)
+
+			PublicKeyType = tmp
+		})
+
+		Convey("with bad insertAPIKey", func() {
+
+			tmp := insertAPIKey
+			insertAPIKey = "bad query"
+
+			tx, err := db.Begin()
+			So(err, ShouldBeNil)
+			So(tx, ShouldNotBeNil)
+
+			u := User{}
+			err = u.generateKeys(tx, []brand.Brand{})
+			So(err, ShouldNotBeNil)
+
+			insertAPIKey = tmp
+		})
+
+		Convey("with invalid insert parameters", func() {
+
+			tmp := insertAPIKey
+			insertAPIKey = strings.Replace(insertAPIKey, "api_key, ", "", 1)
+			insertAPIKey = strings.Replace(insertAPIKey, "(?, ", "(", 1)
+
+			tx, err := db.Begin()
+			So(err, ShouldBeNil)
+			So(tx, ShouldNotBeNil)
+
+			u := User{}
+			err = u.generateKeys(tx, []brand.Brand{})
+			So(err, ShouldNotBeNil)
+
+			insertAPIKey = tmp
+		})
+
+		Convey("valid", func() {
+
+			tx, err := db.Begin()
+			So(err, ShouldBeNil)
+			So(tx, ShouldNotBeNil)
+
+			u := User{}
+			err = u.generateKeys(tx, []brand.Brand{})
+			So(err, ShouldBeNil)
+			So(len(u.Keys), ShouldEqual, 2)
+		})
+
 	})
 }

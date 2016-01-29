@@ -11,6 +11,7 @@ import (
 	"github.com/curt-labs/API/controllers/customer"
 	"github.com/curt-labs/API/controllers/part"
 	"github.com/curt-labs/API/controllers/search"
+	"github.com/curt-labs/API/controllers/vehicle"
 	"github.com/curt-labs/API/middleware"
 )
 
@@ -68,7 +69,7 @@ var routes = []Route{
 	Route{"Status Checker", "GET", "/status", middleware.APIHandler{S: controllers.Status}},
 
 	// API Key Management
-	Route{"Get API Key Types", "GET", "/api/keys/types", middleware.APIHandler{H: apiKeyType.GetApiKeyTypes, Middleware: common}},
+	Route{"Get API Key Types", "GET", "/api/keys/types", middleware.APIHandler{H: apiKeyType.GetAPIKeyTypes, Middleware: common}},
 
 	// Application Guides
 	Route{"Get Application Guides by WebSite", "GET", "/applicationGuide/:id/website", middleware.APIHandler{H: applicationGuide.GetApplicationGuidesByWebsite, Middleware: common}},
@@ -98,7 +99,11 @@ var routes = []Route{
 
 	// Customer Management
 	Route{"Get Customer", "GET", "/customer", middleware.APIHandler{H: customerCtlr.GetCustomer, Middleware: commonPrivate}},
-	Route{"Get User", "GET", "/customer/user/:key", middleware.APIHandler{H: customerCtlr.GetUser, Middleware: commonSudo}},
+	Route{"Get User", "GET", "/customer/user/key/:key", middleware.APIHandler{H: customerCtlr.GetUser, Middleware: commonSudo}},
+	Route{"Get User By Identifier", "GET", "/customer/user/id/:id", middleware.APIHandler{H: customerCtlr.GetUserByIdentifier, Middleware: commonSudo}},
+	Route{"Update User", "POST", "/customer/user", middleware.APIHandler{H: customerCtlr.AddUser, Middleware: commonSudo}},
+	Route{"Update User", "PUT", "/customer/user", middleware.APIHandler{H: customerCtlr.UpdateUser, Middleware: commonPrivate}},
+	Route{"Update User By Identifier", "PUT", "/customer/user/:id", middleware.APIHandler{H: customerCtlr.UpdateUser, Middleware: commonPrivate}},
 	Route{"Authenticate User", "POST", "/customer/user/auth", middleware.APIHandler{H: customerCtlr.Authenticate, Middleware: noAuth}},
 	Route{"Get User By Key", "GET", "/customer/user", middleware.APIHandler{H: customerCtlr.GetUserByKey, Middleware: commonPrivate}},
 
@@ -127,6 +132,9 @@ var routes = []Route{
 	Route{"Get Part with Vehicle Config", "GET", "/part/:part/vehicle/:year/:make/:model/:submodel/:config", middleware.APIHandler{H: partCtlr.GetWithVehicle, Middleware: common}},
 
 	Route{"Get All Parts", "GET", "/parts", middleware.APIHandler{H: partCtlr.All, Middleware: common}},
+
+	// Vehicle Lookup
+	Route{"Query App Data", "POST", "/vehicle", middleware.APIHandler{H: vehicle.Query, Middleware: common}},
 
 	// Search
 	Route{"Search", "GET", "/search/:term", middleware.APIHandler{H: searchCtlr.Search, Middleware: common}},
