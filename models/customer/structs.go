@@ -196,5 +196,6 @@ type CustomerWebsite struct {
 	Url       url.URL `bson:"url" json:"url" xml:"url,attr"`
 	SearchUrl url.URL `bson:"searchUrl" json:"searchUrl" xml:"searchUrl,attr"`
 	Show      bool    `bson:"show" json:"show" xml:"show,attr"`
+	EnableWTB bool    `bson:"enableWTB" json:"enableWTB" xml:"enableWTB,attr"`
 	Brand     brand.Brand
 }
