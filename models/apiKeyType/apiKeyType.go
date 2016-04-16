@@ -37,8 +37,9 @@ func GetAllKeyTypes(tx *sql.Tx) (as []KeyType, err error) {
 		return
 	}
 
+	var a *KeyType
 	for res.Next() {
-		a, err := scan(res)
+		a, err = scan(res)
 		if err != nil {
 			return as, err
 		}

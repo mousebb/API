@@ -40,6 +40,10 @@ func new(ctx *APIContext, k string, t string, requireSudo bool) (*DataContext, e
 
 	c := ctx.Session.DB(database.ProductMongoDatabase).C(database.CustomerCollectionName)
 
+	// TODO: This needs to be change to allow non-active users to
+	// be aggregated out. However, they're currently not being
+	// fanned into MongoDB.
+	//
 	// we don't need the `active` operator, since only active users
 	// are being put into MongoDB.
 	qry := bson.M{"users.keys.key": k}
