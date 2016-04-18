@@ -5,13 +5,16 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"time"
 
 	"gopkg.in/mgo.v2"
 
 	"github.com/gorilla/context"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/curt-labs/API/helpers/beefwriter"
 	"github.com/curt-labs/API/helpers/error"
+	"github.com/curt-labs/API/models/customer"
 )
 
 const (
@@ -29,7 +32,8 @@ type APIContext struct {
 	AriesMongoDatabase string
 	Encoder            interface{}
 	Params             httprouter.Params
-	DataContext        *DataContext
+	DataContext        *customer.DataContext
+	RequestStart       time.Time
 }
 
 // Middleware Gives the ability to add Middleware capability to APIHandler
@@ -66,8 +70,11 @@ func (fn APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, ps httpro
 		return
 	}
 
+	rw := beefwriter.NewResponseWriter(w)
+
 	ctx := &APIContext{
-		Params: ps,
+		Params:       ps,
+		RequestStart: time.Now(),
 	}
 
 	context.Set(r, apiContext, ctx)
@@ -77,14 +84,14 @@ func (fn APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, ps httpro
 			continue
 		}
 		if m.Defer {
-			defer m.H.ServeHTTP(w, r)
+			defer m.H.ServeHTTP(rw, r)
 		} else {
 			rec := httptest.NewRecorder()
 			m.H.ServeHTTP(rec, r)
 			if rec.Code != 200 {
 				err := fmt.Errorf("%s", rec.Body.String())
-				w.WriteHeader(rec.Code)
-				w.Write([]byte(err.Error()))
+				rw.WriteHeader(rec.Code)
+				rw.Write([]byte(err.Error()))
 
 				return
 			}
@@ -95,23 +102,25 @@ func (fn APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, ps httpro
 	ctx = context.Get(r, apiContext).(*APIContext)
 
 	if fn.S != nil {
-		fn.S(ctx, w, r)
+		fn.S(ctx, rw, r)
 		return
 	}
 
-	obj, err := fn.H(ctx, w, r)
+	obj, err := fn.H(ctx, rw, r)
 	if err != nil {
-		apierror.GenerateError(err.Error(), err, w, r, http.StatusInternalServerError)
+		apierror.GenerateError(err.Error(), err, rw, r, http.StatusInternalServerError)
 		return
 	}
 
 	context.Clear(r)
 
-	err = Encode(r, w, obj)
+	err = Encode(r, rw, obj)
 	if err != nil {
-		apierror.GenerateError(err.Error(), err, w, r, http.StatusInternalServerError)
+		apierror.GenerateError(err.Error(), err, rw, r, http.StatusInternalServerError)
 		return
 	}
+
+	Log(rw, r, ctx)
 
 	return
 }

@@ -36,13 +36,11 @@ type Route struct {
 
 var noAuth = []middleware.Middleware{
 	middleware.WrapMiddleware(middleware.DB{}),
-	middleware.WrapMiddleware(middleware.Logger{}),
 }
 
 var common = []middleware.Middleware{
 	middleware.WrapMiddleware(middleware.DB{}),
 	middleware.WrapMiddleware(middleware.Keyed{}),
-	middleware.WrapMiddleware(middleware.Logger{}),
 }
 
 var commonPrivate = []middleware.Middleware{
@@ -50,7 +48,6 @@ var commonPrivate = []middleware.Middleware{
 	middleware.WrapMiddleware(middleware.Keyed{
 		Type: "PRIVATE",
 	}),
-	middleware.WrapMiddleware(middleware.Logger{}),
 }
 
 var commonSudo = []middleware.Middleware{
@@ -59,7 +56,6 @@ var commonSudo = []middleware.Middleware{
 		Type: "PRIVATE",
 		Sudo: true,
 	}),
-	middleware.WrapMiddleware(middleware.Logger{}),
 }
 
 var routes = []Route{

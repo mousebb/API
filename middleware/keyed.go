@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/curt-labs/API/helpers/error"
+	"github.com/curt-labs/API/models/customer"
 	"github.com/gorilla/context"
 )
 
@@ -27,7 +28,7 @@ func (kh Keyed) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ctx = &APIContext{}
 	}
 	if ctx.DataContext == nil {
-		ctx.DataContext = &DataContext{}
+		ctx.DataContext = &customer.DataContext{}
 	}
 
 	qs := r.URL.Query()
