@@ -4,6 +4,7 @@ import (
 	"flag"
 	"net/http"
 
+	"github.com/betacraft/yaag/yaag"
 	"github.com/curt-labs/API/helpers/database"
 	"github.com/curt-labs/API/router"
 	"github.com/rs/cors"
@@ -23,6 +24,8 @@ var (
  */
 func main() {
 	flag.Parse()
+
+	yaag.Init(&yaag.Config{On: true, DocTitle: "CURT API v3.1", DocPath: "apidoc.html", BaseUrls: map[string]string{"Production": "https://api.curtmfg.com/v3.1"}})
 
 	if err := database.Init(); err != nil {
 		log.Fatal(err)
