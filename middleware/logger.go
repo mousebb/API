@@ -123,5 +123,5 @@ func Log(w beefwriter.ResponseWriter, r *http.Request, ctx *APIContext) {
 	}
 
 	log.Println(topic, analyticsAccount)
-	pubsub.PushMessage(topic, &msg)
+	log.Printf("Pushing Entry: %v\n", pubsub.PushMessage(topic, &msg))
 }
