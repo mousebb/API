@@ -3,6 +3,7 @@ package middleware
 import (
 	"encoding/json"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"time"
@@ -121,5 +122,6 @@ func Log(w beefwriter.ResponseWriter, r *http.Request, ctx *APIContext) {
 		return
 	}
 
+	log.Println(topic, analyticsAccount)
 	pubsub.PushMessage(topic, &msg)
 }
