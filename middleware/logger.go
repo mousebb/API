@@ -39,7 +39,6 @@ type RequestMetrics struct {
 // ResponseMetrics Holds data surround the outgoing response.
 type ResponseMetrics struct {
 	ContentType string    `bson:"content_type" json:"content_type" xml:"content_type"`
-	Body        []byte    `bson:"body" json:"body" xml:"body"`
 	StatusCode  int       `bson:"status_code" json:"status_code" xml:"status_code"`
 	Headers     []Header  `bson:"headers" json:"headers" xml:"headers"`
 	Timestamp   time.Time `bson:"timestamp" json:"timestamp" xml:"timestamp"`
@@ -51,9 +50,10 @@ type Metrics struct {
 	Application    string          `json:"application" bson:"application"`
 	RequestingUser customer.User   `bson:"user" json:"user" xml:"user"`
 	Machine        string          `bson:"machine" json:"machine" xml:"machine"`
-	Request        RequestMetrics  `bson:"metrics" json:"metrics" xml:"metrics"`
+	Request        RequestMetrics  `bson:"request_metrics" json:"request_metrics" xml:"request_metrics"`
 	Response       ResponseMetrics `bson:"response_metrics" json:"response_metrics" xml:"response_metrics"`
 	Latency        int64           `bson:"latency" json:"latency" xml:"latency"`
+	Body           []byte          `bson:"body" json:"body" xml:"body"`
 }
 
 // Log Gathers all information about the request/response and pushes
@@ -93,7 +93,6 @@ func Log(w beefwriter.ResponseWriter, r *http.Request, ctx *APIContext) {
 
 	respMetrics := ResponseMetrics{
 		ContentType: w.Header().Get("Content-Type"),
-		Body:        w.Body(),
 		StatusCode:  w.Status(),
 		Headers:     respHeaders,
 		Timestamp:   time.Now(),
@@ -105,6 +104,7 @@ func Log(w beefwriter.ResponseWriter, r *http.Request, ctx *APIContext) {
 		Request:        reqMetrics,
 		Response:       respMetrics,
 		Latency:        time.Since(ctx.RequestStart).Nanoseconds(),
+		Body:           w.Body(),
 	}
 	data.Machine, _ = os.Hostname()
 
