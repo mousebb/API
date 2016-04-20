@@ -1,7 +1,6 @@
 package pubsub
 
 import (
-	"log"
 	"os"
 
 	"golang.org/x/net/context"
@@ -32,7 +31,6 @@ var (
 // Google Cloud Platform with the `scopes` provided.
 func NewContext(scopes []string) error {
 	if OAuthEmail == "" {
-		log.Println("going background")
 		return backgrounContext(scopes)
 	}
 
@@ -40,8 +38,6 @@ func NewContext(scopes []string) error {
 }
 
 func jwtContext(scopes []string) error {
-	log.Println(ClientKey)
-	log.Println(OAuthEmail)
 	conf := &jwt.Config{
 		Email:      OAuthEmail,
 		PrivateKey: []byte(ClientKey),
