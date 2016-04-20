@@ -13,7 +13,9 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-type HtmlReponse struct {
+// HTMLResponse Holds the necessary information to output an API
+// response into HTML format.
+type HTMLResponse struct {
 	Glob string
 	Body interface{}
 }
@@ -86,11 +88,11 @@ func toText(r *http.Request, w http.ResponseWriter, obj interface{}) error {
 
 func toHTML(r *http.Request, w http.ResponseWriter, obj interface{}) error {
 
-	if reflect.TypeOf(obj) != reflect.TypeOf(HtmlReponse{}) {
+	if reflect.TypeOf(obj) != reflect.TypeOf(HTMLResponse{}) {
 		return toJSON(r, w, obj)
 	}
 
-	hr := obj.(HtmlReponse)
+	hr := obj.(HTMLResponse)
 
 	t, err := template.ParseGlob(hr.Glob)
 	if err != nil {

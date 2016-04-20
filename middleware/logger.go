@@ -15,7 +15,8 @@ import (
 )
 
 var (
-	topic = os.Getenv("ANALYTICS_TOPIC")
+	topic            = os.Getenv("ANALYTICS_TOPIC")
+	analyticsAccount = os.Getenv("ANALYTICS_ACCOUNT")
 )
 
 // Header A key-value store for structuring header information. We need
@@ -47,13 +48,14 @@ type ResponseMetrics struct {
 // Metrics Holds relevant information that will help report out request
 // analytics.
 type Metrics struct {
-	Application    string          `json:"application" bson:"application"`
-	RequestingUser customer.User   `bson:"user" json:"user" xml:"user"`
-	Machine        string          `bson:"machine" json:"machine" xml:"machine"`
-	Request        RequestMetrics  `bson:"request_metrics" json:"request_metrics" xml:"request_metrics"`
-	Response       ResponseMetrics `bson:"response_metrics" json:"response_metrics" xml:"response_metrics"`
-	Latency        int64           `bson:"latency" json:"latency" xml:"latency"`
-	Body           []byte          `bson:"body" json:"body" xml:"body"`
+	Application      string          `json:"application" bson:"application"`
+	RequestingUser   customer.User   `bson:"user" json:"user" xml:"user"`
+	Machine          string          `bson:"machine" json:"machine" xml:"machine"`
+	Request          RequestMetrics  `bson:"request_metrics" json:"request_metrics" xml:"request_metrics"`
+	Response         ResponseMetrics `bson:"response_metrics" json:"response_metrics" xml:"response_metrics"`
+	Latency          int64           `bson:"latency" json:"latency" xml:"latency"`
+	Body             []byte          `bson:"body" json:"body" xml:"body"`
+	AnalyticsAccount string          `bson:"analytics_account" json:"analytics_account" xml:"analytics_account"`
 }
 
 // Log Gathers all information about the request/response and pushes
@@ -99,12 +101,16 @@ func Log(w beefwriter.ResponseWriter, r *http.Request, ctx *APIContext) {
 	}
 
 	data := Metrics{
-		Application:    "apiv3.1",
-		RequestingUser: ctx.DataContext.User,
-		Request:        reqMetrics,
-		Response:       respMetrics,
-		Latency:        time.Since(ctx.RequestStart).Nanoseconds(),
-		Body:           w.Body(),
+		AnalyticsAccount: analyticsAccount,
+		Application:      "apiv3.1",
+		Request:          reqMetrics,
+		Response:         respMetrics,
+		Latency:          time.Since(ctx.RequestStart).Nanoseconds(),
+		Body:             w.Body(),
+	}
+
+	if ctx != nil && ctx.DataContext != nil {
+		data.RequestingUser = ctx.DataContext.User
 	}
 	data.Machine, _ = os.Hostname()
 
