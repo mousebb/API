@@ -157,8 +157,8 @@ func (p *Price) Update(db *sql.DB) error {
 	}
 
 	go redis.Setex("price:"+strconv.Itoa(p.ID), p, 86400)
-	go redis.Delete(fmt.Sprintf("prices:part:%d", strconv.Itoa(p.PartID)))
-	go redis.Delete(fmt.Sprintf("customers:prices:%d", strconv.Itoa(p.CustID)))
+	go redis.Delete(fmt.Sprintf("prices:part:%d", p.PartID))
+	go redis.Delete(fmt.Sprintf("customers:prices:%d", p.CustID))
 	return nil
 }
 
@@ -186,8 +186,8 @@ func (p *Price) Delete(db *sql.DB) error {
 	}
 
 	go redis.Delete("price:" + strconv.Itoa(p.ID))
-	go redis.Delete(fmt.Sprintf("prices:part:%d", strconv.Itoa(p.PartID)))
-	go redis.Delete(fmt.Sprintf("customers:prices:%d", strconv.Itoa(p.CustID)))
+	go redis.Delete(fmt.Sprintf("prices:part:%d", p.PartID))
+	go redis.Delete(fmt.Sprintf("customers:prices:%d", p.CustID))
 
 	return nil
 }

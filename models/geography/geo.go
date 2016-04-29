@@ -2,7 +2,7 @@ package geography
 
 import (
 	"database/sql"
-	"strconv"
+	"fmt"
 
 	"github.com/curt-labs/API/helpers/redis"
 	"github.com/curt-labs/API/helpers/sortutil"
@@ -10,29 +10,29 @@ import (
 
 var (
 	getAllStatesStmt             = `select st.stateID, st.state, st.abbr, st.countryID, c.name, c.abbr from States st join Country c on c.countryID = st.countryID`
-	getAllCountriesStmt          = `select c.countryID, c.name, c.abbr from Country c`
-	getAllCountriesAndStatesStmt = `select C.*, S.stateID, S.state, S.abbr from Country C
-									inner join States S on S.countryID = C.countryID
-									order by C.countryID, S.state`
+	getAllCountriesStmt          = `select c.countryID, c.name, c.abbr from Country c order by c.countryID`
+	getAllCountriesAndStatesStmt = `select c.countryID, c.name, c.abbr,
+									s.stateID, s.state, s.abbr
+									from Country c
+									left join States s on c.countryID = s.countryID
+									order by c.countryID, s.state`
 )
 
-type States []State
 type State struct {
-	Id           int      `json:"-" xml:"-"`
+	ID           int      `json:"-" xml:"-"`
 	State        string   `json:"state"`
 	Abbreviation string   `json:"abbreviation"`
-	Country      *Country `json:"country,omitempty"`
+	Country      *Country `json:"country"`
 }
 
-type Countries []Country
 type Country struct {
-	Id           int     `json:"-" xml:"-"`
+	ID           int     `json:"-" xml:"-"`
 	Country      string  `json:"country"`
 	Abbreviation string  `json:"abbreviation"`
-	States       *States `json:"states,omitempty"`
+	States       []State `json:"states"`
 }
 
-func GetAllCountriesAndStates(db *sql.DB) (countries Countries, err error) {
+func GetAllCountriesAndStates(db *sql.DB) (countries []Country, err error) {
 
 	stmt, err := db.Prepare(getAllCountriesAndStatesStmt)
 	if err != nil {
@@ -41,7 +41,7 @@ func GetAllCountriesAndStates(db *sql.DB) (countries Countries, err error) {
 	defer stmt.Close()
 
 	rows, err := stmt.Query()
-	if err != nil {
+	if err != nil && err != sql.ErrNoRows {
 		return
 	}
 
@@ -50,27 +50,38 @@ func GetAllCountriesAndStates(db *sql.DB) (countries Countries, err error) {
 	for rows.Next() {
 		var c Country
 		var s State
+		var stateID *int
+		var state, abbr *string
 
 		err = rows.Scan(
-			&c.Id,
+			&c.ID,
 			&c.Country,
 			&c.Abbreviation,
-			&s.Id,
-			&s.State,
-			&s.Abbreviation,
+			&stateID,
+			&state,
+			&abbr,
 		)
 		if err != nil {
-			return
+			continue
 		}
 
-		country, exists := countryMap[c.Id]
-
-		if !exists {
-			c.States = &States{s}
-			countryMap[c.Id] = c
-		} else {
-			*country.States = append(*country.States, s)
+		if stateID != nil {
+			s.ID = *stateID
+			if state != nil {
+				s.State = *state
+			}
+			if abbr != nil {
+				s.Abbreviation = *abbr
+			}
 		}
+
+		if _, exists := countryMap[c.ID]; !exists {
+			countryMap[c.ID] = c
+		}
+
+		tmp := countryMap[c.ID]
+		tmp.States = append(tmp.States, s)
+		countryMap[c.ID] = tmp
 	}
 	defer rows.Close()
 
@@ -78,11 +89,11 @@ func GetAllCountriesAndStates(db *sql.DB) (countries Countries, err error) {
 		countries = append(countries, c)
 	}
 
-	sortutil.AscByField(countries, "Id")
-	return
+	sortutil.AscByField(countries, "ID")
+	return countries, nil
 }
 
-func GetAllCountries(db *sql.DB) (countries Countries, err error) {
+func GetAllCountries(db *sql.DB) (countries []Country, err error) {
 
 	stmt, err := db.Prepare(getAllCountriesStmt)
 	if err != nil {
@@ -91,30 +102,30 @@ func GetAllCountries(db *sql.DB) (countries Countries, err error) {
 	defer stmt.Close()
 
 	rows, err := stmt.Query()
-	if err != nil {
+	if err != nil && err != sql.ErrNoRows {
 		return
 	}
 
 	for rows.Next() {
 		var c Country
 		err = rows.Scan(
-			&c.Id,
+			&c.ID,
 			&c.Country,
 			&c.Abbreviation,
 		)
 		if err != nil {
-			return
+			continue
 		}
 		countries = append(countries, c)
 	}
 	defer rows.Close()
 
-	sortutil.AscByField(countries, "Id")
+	sortutil.AscByField(countries, "ID")
 
-	return
+	return countries, nil
 }
 
-func GetAllStates(db *sql.DB) (states States, err error) {
+func GetAllStates(db *sql.DB) (states []State, err error) {
 
 	stmt, err := db.Prepare(getAllStatesStmt)
 	if err != nil {
@@ -124,26 +135,29 @@ func GetAllStates(db *sql.DB) (states States, err error) {
 
 	rows, err := stmt.Query()
 	if err != nil {
+		if err == sql.ErrNoRows {
+			err = nil
+		}
 		return
 	}
+	defer rows.Close()
 
 	for rows.Next() {
 		var state State
 		state.Country = &Country{}
 		err = rows.Scan(
-			&state.Id,
+			&state.ID,
 			&state.State,
 			&state.Abbreviation,
-			&state.Country.Id,
+			&state.Country.ID,
 			&state.Country.Country,
 			&state.Country.Abbreviation,
 		)
 		if err != nil {
-			return
+			continue
 		}
 		states = append(states, state)
 	}
-	defer rows.Close()
 
 	return
 }
@@ -152,9 +166,9 @@ func GetStateMap(db *sql.DB) (map[int]State, error) {
 	stateMap := make(map[int]State)
 	states, err := GetAllStates(db)
 	for _, state := range states {
-		stateMap[state.Id] = state
-		redis_key := "state:" + strconv.Itoa(state.Id)
-		err = redis.Set(redis_key, state)
+		stateMap[state.ID] = state
+		redisKey := fmt.Sprintf("state:%d", state.ID)
+		err = redis.Set(redisKey, state)
 	}
 	return stateMap, err
 }
@@ -163,9 +177,9 @@ func GetCountryMap(db *sql.DB) (map[int]Country, error) {
 	countryMap := make(map[int]Country)
 	countries, err := GetAllCountries(db)
 	for _, country := range countries {
-		countryMap[country.Id] = country
-		redis_key := "country:" + strconv.Itoa(country.Id)
-		err = redis.Set(redis_key, country)
+		countryMap[country.ID] = country
+		redisKey := fmt.Sprintf("country:%d", country.ID)
+		err = redis.Set(redisKey, country)
 	}
 	return countryMap, err
 }

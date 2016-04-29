@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/curt-labs/API/helpers/api"
 	"github.com/curt-labs/API/helpers/redis"
 	"github.com/curt-labs/API/middleware"
+	"github.com/curt-labs/go-utensils/strings"
 	_ "github.com/go-sql-driver/mysql"
 )
 
@@ -207,7 +207,6 @@ var (
 	getConfigAttributes = `select ID from ConfigAttribute where value = trim(lower(?))`
 )
 
-
 type ConfigOption struct {
 	Type    string   `json:"type,omitempty" xml:"type,omitempty"`
 	Options []string `json:"options,omitempty" xml:"options,omitempty"`
@@ -244,7 +243,7 @@ func (v *Vehicle) GetNotes(ctx *middleware.APIContext, partId int) (notes []stri
 	if len(v.Configuration) > 0 {
 		qrystmt += "  ca.value in (`"
 		for i, c := range v.Configuration {
-			qrystmt = qrystmt + "'" + api_helpers.Escape(c.Value) + "'"
+			qrystmt = qrystmt + "'" + string_utils.EscapeQuotes(c.Value) + "'"
 			if i < len(v.Configuration)-1 {
 				qrystmt = qrystmt + ","
 			}

@@ -3,16 +3,6 @@ CURT API v3
 =========
 ---------
 
-> The new version of the CURT API used the [GoEngine Boilerplate](http://github.com/ninnemana/goengine-boilerplate)
-for being Content-Type agnostic to XML and JSON. Some of the best features are listed below:
-
-  - Concurrent MySQL access using [Goroutines](http://golang.org/doc/effective_go.html#concurrency)
-  - JSON rendering powered by [encoding/json](http://golang.org/pkg/encoding/json/)
-  - XML rendering powered by [encoding/xml](http://golang.org/pkg/encoding/xml/)
-  - MySQL Persistence using [mymysql](https://github.com/ziutek/mymysql)
-  - ACES Compliant vehicle lookup with product groups
-
-
 --------
 Endpoints
 ---------
@@ -118,4 +108,3 @@ License
 MIT
 
 *Free Software, Fuck Yeah!*
-

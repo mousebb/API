@@ -6,8 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/curt-labs/API/middleware"
-	"github.com/julienschmidt/httprouter"
 	"github.com/ory-am/dockertest"
 	. "github.com/smartystreets/goconvey/convey"
 )
@@ -68,43 +66,38 @@ func insertKeys() error {
 
 func TestGetAllKeyTypes(t *testing.T) {
 	Convey("Test GetAllKeyTypes", t, func() {
-		ctx := &middleware.APIContext{
-			DataContext: &middleware.DataContext{
-				BrandID: 3,
-			},
-			Params: httprouter.Params{},
-			DB:     db,
-		}
+		tx, err := db.Begin()
+		So(err, ShouldBeNil)
 
 		Convey("with invalid DB query", func() {
-			tmp := getAllKeyTypes
-			getAllKeyTypes = "invalid database query"
+			tmp := GetAllTypes
+			GetAllTypes = "invalid database query"
 
-			as, err := GetAllKeyTypes(ctx)
+			as, err := GetAllKeyTypes(tx)
 			So(err, ShouldNotBeNil)
 			So(as, ShouldBeNil)
 
-			getAllKeyTypes = tmp
+			GetAllTypes = tmp
 		})
 
 		Convey("with no data", func() {
-			as, err := GetAllKeyTypes(ctx)
+			as, err := GetAllKeyTypes(tx)
 			So(err, ShouldBeNil)
 			So(as, ShouldBeNil)
 		})
 
 		Convey("with missing select columns", func() {
-			tmp := getAllKeyTypes
-			getAllKeyTypes = "SELECT id, type FROM ApiKeyType order by type"
+			tmp := GetAllTypes
+			GetAllTypes = "SELECT id, type FROM ApiKeyType order by type"
 
 			err := insertKeys()
 			So(err, ShouldBeNil)
 
-			as, err := GetAllKeyTypes(ctx)
+			as, err := GetAllKeyTypes(tx)
 			So(err, ShouldNotBeNil)
 			So(as, ShouldBeNil)
 
-			getAllKeyTypes = tmp
+			GetAllTypes = tmp
 		})
 
 		Convey("with valid DB connection", func() {
@@ -112,7 +105,7 @@ func TestGetAllKeyTypes(t *testing.T) {
 			err := insertKeys()
 			So(err, ShouldBeNil)
 
-			as, err := GetAllKeyTypes(ctx)
+			as, err := GetAllKeyTypes(tx)
 			So(err, ShouldBeNil)
 			So(len(as), ShouldBeGreaterThan, 0)
 
@@ -122,15 +115,12 @@ func TestGetAllKeyTypes(t *testing.T) {
 }
 
 func BenchmarkGetAllKeyTypes(b *testing.B) {
-	ctx := &middleware.APIContext{
-		DataContext: &middleware.DataContext{
-			BrandID: 3,
-		},
-		Params: httprouter.Params{},
-		DB:     db,
+	tx, err := db.Begin()
+	if err != nil {
+		b.Fatal(err)
 	}
 
 	for i := 0; i < b.N; i++ {
-		GetAllKeyTypes(ctx)
+		GetAllKeyTypes(tx)
 	}
 }

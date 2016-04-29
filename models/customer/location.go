@@ -55,7 +55,7 @@ func (l *Location) insert(tx *sql.Tx, customerID int) error {
 		l.Name,
 		fmt.Sprintf("%s %s", l.Address.StreetAddress, l.Address.StreetAddress2),
 		l.Address.City,
-		l.Address.State.Id,
+		l.Address.State.ID,
 		l.Email,
 		l.Phone,
 		l.Fax,
