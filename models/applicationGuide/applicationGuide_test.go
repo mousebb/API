@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/curt-labs/API/middleware"
-	"github.com/curt-labs/API/models/site"
+	"github.com/curt-labs/API/models/customer"
 	"github.com/julienschmidt/httprouter"
 	"github.com/ory-am/dockertest"
 	. "github.com/smartystreets/goconvey/convey"
@@ -140,7 +140,7 @@ func TestGetBySite(t *testing.T) {
 	Convey("GetBySite", t, func() {
 
 		ctx := &middleware.APIContext{
-			DataContext: &middleware.DataContext{
+			DataContext: &customer.DataContext{
 				BrandID: 3,
 				APIKey:  apiKey,
 			},
@@ -149,7 +149,7 @@ func TestGetBySite(t *testing.T) {
 		}
 		Convey("Bad query", func() {
 			ag := ApplicationGuide{
-				Website: website.Website{
+				Website: Website{
 					ID: 1,
 				},
 			}
@@ -164,7 +164,7 @@ func TestGetBySite(t *testing.T) {
 
 		Convey("with missing select columns", func() {
 			ag := ApplicationGuide{
-				Website: website.Website{
+				Website: Website{
 					ID: 1,
 				},
 			}
@@ -179,7 +179,7 @@ func TestGetBySite(t *testing.T) {
 
 		Convey("invalid website", func() {
 			ag := ApplicationGuide{
-				Website: website.Website{
+				Website: Website{
 					ID: 10,
 				},
 			}
@@ -191,7 +191,7 @@ func TestGetBySite(t *testing.T) {
 
 		Convey("valid", func() {
 			ag := ApplicationGuide{
-				Website: website.Website{
+				Website: Website{
 					ID: 1,
 				},
 			}
@@ -207,7 +207,7 @@ func TestGet(t *testing.T) {
 	Convey("Get", t, func() {
 
 		ctx := &middleware.APIContext{
-			DataContext: &middleware.DataContext{
+			DataContext: &customer.DataContext{
 				BrandID: 3,
 				APIKey:  apiKey,
 			},
@@ -216,7 +216,7 @@ func TestGet(t *testing.T) {
 		}
 		Convey("Bad query", func() {
 			ag := ApplicationGuide{
-				Website: website.Website{
+				Website: Website{
 					ID: 1,
 				},
 			}
@@ -230,7 +230,7 @@ func TestGet(t *testing.T) {
 
 		Convey("with missing select columns", func() {
 			ag := ApplicationGuide{
-				Website: website.Website{
+				Website: Website{
 					ID: 1,
 				},
 			}

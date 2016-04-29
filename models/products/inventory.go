@@ -49,5 +49,5 @@ type FeedRecord struct {
 	Warehouse  Warehouse `json:"warehouse" xml:"warehouse"`
 	Part       int       `json:"part" xml:"part,attr"`
 	Quantity   int       `json:"quantity" xml:"quantity,attr"`
-	DateUpdate time.Time `json:"date_updated" xml:"date_updated`
+	DateUpdate time.Time `json:"date_updated" xml:"date_updated"`
 }

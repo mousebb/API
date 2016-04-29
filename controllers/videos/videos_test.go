@@ -1,11 +1,10 @@
 package videos_ctlr
 
 import (
-	"github.com/curt-labs/API/helpers/apicontextmock"
-	"github.com/curt-labs/API/helpers/httprunner"
 	"github.com/curt-labs/API/models/brand"
 	"github.com/curt-labs/API/models/products"
 	"github.com/curt-labs/API/models/video"
+	"github.com/curt-labs/httprunner"
 	. "github.com/smartystreets/goconvey/convey"
 
 	"encoding/json"
@@ -15,11 +14,6 @@ import (
 )
 
 func TestVideos(t *testing.T) {
-
-	dtx, err := apicontextmock.Mock()
-	if err != nil {
-		t.Log(err)
-	}
 
 	Convey("Video Channel Types", t, func() {
 		var ct video.ChannelType
@@ -233,6 +227,4 @@ func TestVideos(t *testing.T) {
 
 		p.Delete(dtx)
 	})
-
-	_ = apicontextmock.DeMock(dtx)
 }

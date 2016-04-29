@@ -11,25 +11,25 @@ import (
 )
 
 type Lifestyle struct {
-	ID          int       `json:"id,omitempty" xml:"id,omitempty`
-	DateAdded   time.Time `json:"dateAdded,omitempty" xml:"dateAdded,omitempty`
+	ID          int       `json:"id,omitempty" xml:"id,omitempty"`
+	DateAdded   time.Time `json:"dateAdded,omitempty" xml:"dateAdded,omitempty"`
 	ParentID    int       `json:"parentID,omitempty" xml:"parentID,omitempty"`
 	Name        string    `json:"name,omitempty" xml:"name,omitempty"`
-	ShortDesc   string    `json:"shortDesc,omitempty" xml:"shortDesc,omitempty`
+	ShortDesc   string    `json:"shortDesc,omitempty" xml:"shortDesc,omitempty"`
 	LongDesc    string    `json:"longDesc,omitempty" xml:"longDesc,omitempty"`
 	Image       string    `json:"image,omitempty" xml:"image,omitempty"`
 	IsLifestyle int       `json:"isLifestyle,omitempty" xml:"isLifestyle,omitempty"`
 	Sort        int       `json:"sort,omitempty" xml:"sort,omitempty"`
 	Contents    Contents  `json:"contents,omitempty" xml:"contents,omitempty"`
-	Towables    Towables  `json:"towables,omitempty" xml:"towables,omitempty`
+	Towables    Towables  `json:"towables,omitempty" xml:"towables,omitempty"`
 }
 
 type Lifestyles []Lifestyle
 
 type Content struct {
-	ID          int         `json:"id,omitempty" xml:"id,omitempty`
+	ID          int         `json:"id,omitempty" xml:"id,omitempty"`
 	UserID      int         `json:"userID,omitempty" xml:"userID,omitempty"`
-	Text        string      `json:"content,omitempty" xml:"content,omitempty`
+	Text        string      `json:"content,omitempty" xml:"content,omitempty"`
 	ContentType ContentType `json:"contentType,omitempty" xml:"contentType,omitempty"`
 	Deleted     bool        `json:"deleted,omitempty" xml:"deleted,omitempty"`
 	PartID      int
@@ -37,18 +37,18 @@ type Content struct {
 type Contents []Content
 
 type ContentType struct {
-	ID   int    `json:"id,omitempty" xml:"id,omitempty`
-	Name string `json:"name,omitempty" xml:"name,omitempty`
-	HTML bool   `json:"html,omitempty" xml:"html,omitempty`
+	ID   int    `json:"id,omitempty" xml:"id,omitempty"`
+	Name string `json:"name,omitempty" xml:"name,omitempty"`
+	HTML bool   `json:"html,omitempty" xml:"html,omitempty"`
 }
 type Towable struct {
-	ID         int    `json:"id,omitempty" xml:"id,omitempty`
-	CatId      int    `json:"catId,omitempty" xml:"catId,omitempty`
+	ID         int    `json:"id,omitempty" xml:"id,omitempty"`
+	CatId      int    `json:"catId,omitempty" xml:"catId,omitempty"`
 	Name       string `json:"name,omitempty" xml:"name,omitempty"`
 	ShortDesc  string `json:"shortDesc,omitempty" xml:"shortDesc,omitempty"`
 	Image      string `json:"image,omitempty" xml:"image,omitempty"`
 	HitchClass string `json:"hitchClass,omitempty" xml:"hitchClass,omitempty"`
-	TW         int    `json:"TW,omitempty" xml:"TW,omitempty`
+	TW         int    `json:"TW,omitempty" xml:"TW,omitempty"`
 	GTW        int    `json:"GTW,omitempty" xml:"GTW,omitempty"`
 	Message    string `json:"message,omitempty" xml:"message,omitempty"`
 }

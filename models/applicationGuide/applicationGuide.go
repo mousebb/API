@@ -20,9 +20,9 @@ type ApplicationGuide struct {
 
 type Website struct {
 	ID          int    `json:"id,omitempty" xml:"id,omitempty"`
-	Url         string `json:"url,omitempty" xml:"url,omitempty"`
+	URL         string `json:"url,omitempty" xml:"url,omitempty"`
 	Description string `json:"description,omitempty" xml:"description,omitempty"`
-	BrandIDs    []int  `json:"brandId,omitempty" xml:brandId,omitempty"`
+	BrandIDs    []int  `json:"brandId,omitempty" xml:"brandId,omitempty"`
 }
 
 const (

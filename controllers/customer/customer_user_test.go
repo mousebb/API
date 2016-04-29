@@ -10,6 +10,7 @@ import (
 
 	"github.com/curt-labs/API/helpers/database"
 	"github.com/curt-labs/API/middleware"
+	"github.com/curt-labs/API/models/apiKeyType"
 	"github.com/curt-labs/API/models/brand"
 	"github.com/curt-labs/API/models/customer"
 	"github.com/julienschmidt/httprouter"
@@ -39,7 +40,7 @@ var (
 						ID: 3,
 					},
 				},
-				Type: customer.APIKeyType{
+				Type: apiKeyType.KeyType{
 					Type: "Private",
 				},
 			}},
@@ -56,7 +57,7 @@ func TestMain(m *testing.M) {
 			return false
 		}
 		for _, user := range testUsers {
-			err := session.DB(database.ProductMongoDatabase).C(database.CustomerCollectionName).Insert(user)
+			err = session.DB(database.ProductMongoDatabase).C(database.CustomerCollectionName).Insert(user)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -80,7 +81,7 @@ func TestMain(m *testing.M) {
 func TestGetAllBrands(t *testing.T) {
 	Convey("Testing GetUserByKey", t, func() {
 		ctx := &middleware.APIContext{
-			DataContext: &middleware.DataContext{
+			DataContext: &customer.DataContext{
 				BrandID: 3,
 			},
 			Params:  httprouter.Params{},

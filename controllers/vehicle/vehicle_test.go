@@ -1,9 +1,8 @@
 package vehicle
 
 import (
-	"github.com/curt-labs/API/helpers/apicontextmock"
-	"github.com/curt-labs/API/helpers/httprunner"
 	"github.com/curt-labs/API/models/products"
+	"github.com/curt-labs/httprunner"
 	. "github.com/smartystreets/goconvey/convey"
 
 	"encoding/json"
@@ -15,11 +14,6 @@ import (
 )
 
 func TestVehicles(t *testing.T) {
-
-	dtx, err := apicontextmock.Mock()
-	if err != nil {
-		t.Log(err)
-	}
 
 	Convey("Vehicls", t, func() {
 		var l products.Lookup
@@ -91,5 +85,4 @@ func TestVehicles(t *testing.T) {
 		So(len(l.Parts), ShouldBeGreaterThanOrEqualTo, 0)
 
 	})
-	_ = apicontextmock.DeMock(dtx)
 }

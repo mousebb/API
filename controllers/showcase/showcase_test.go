@@ -1,8 +1,8 @@
 package showcase
 
 import (
-	"github.com/curt-labs/API/helpers/httprunner"
 	"github.com/curt-labs/API/models/showcase"
+	"github.com/curt-labs/httprunner"
 	. "github.com/smartystreets/goconvey/convey"
 
 	"encoding/json"

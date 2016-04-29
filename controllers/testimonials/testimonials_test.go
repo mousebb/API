@@ -1,9 +1,8 @@
 package testimonials
 
 import (
-	"github.com/curt-labs/API/helpers/apicontextmock"
-	"github.com/curt-labs/API/helpers/httprunner"
 	"github.com/curt-labs/API/models/testimonials"
+	"github.com/curt-labs/httprunner"
 	. "github.com/smartystreets/goconvey/convey"
 
 	"encoding/json"
@@ -13,11 +12,6 @@ import (
 )
 
 func TestTestTestimonials(t *testing.T) {
-
-	dtx, err := apicontextmock.Mock()
-	if err != nil {
-		t.Log(err)
-	}
 
 	Convey("Testimonials", t, func() {
 		var test testimonials.Testimonial
@@ -51,5 +45,4 @@ func TestTestTestimonials(t *testing.T) {
 		So(json.Unmarshal(response.Body.Bytes(), &test), ShouldEqual, nil)
 
 	})
-	_ = apicontextmock.DeMock(dtx)
 }

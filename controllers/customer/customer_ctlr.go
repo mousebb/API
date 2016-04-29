@@ -7,22 +7,6 @@ import (
 	"github.com/curt-labs/API/models/customer"
 )
 
-// import (
-// 	"github.com/curt-labs/API/helpers/encoding"
-// 	"github.com/curt-labs/API/helpers/error"
-// 	"github.com/curt-labs/API/middleware"
-// 	"github.com/curt-labs/API/models/customer"
-// 	"github.com/curt-labs/API/models/products"
-//
-// 	"encoding/json"
-// 	"errors"
-// 	"io/ioutil"
-// 	"net/http"
-// 	"net/url"
-// 	"strconv"
-// 	"strings"
-// )
-//
 // GetCustomer Retrieves a customer.Customer based of the given API key.
 func GetCustomer(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	// var err error

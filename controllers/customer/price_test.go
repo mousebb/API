@@ -8,7 +8,7 @@ package customerCtlr
 // 	"testing"
 // 	"time"
 
-// 	"github.com/curt-labs/API/helpers/httprunner"
+// 	"github.com/curt-labs/httprunner"
 // 	"github.com/curt-labs/API/helpers/testThatHttp"
 // 	"github.com/curt-labs/API/models/customer"
 // 	. "github.com/smartystreets/goconvey/convey"
