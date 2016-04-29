@@ -1,1 +1,30 @@
-language: go
+box: golang
+
+sudo: required
+
+services:
+    - docker
+
+env:
+    - DOCKERTEST_BIND_LOCALHOST=true
+
+build:
+    - setup-go-workspace
+
+    - script:
+        name: go get
+        code: |
+            go get -v github.com/golang/lint/golint
+            go get -d -t -v ./...
+
+    - script:
+        name: go build
+        code: |
+            go build -v
+
+    - script:
+        name: go test
+        code: |
+            go test -v ./models/geography
+            go vet ./...
+            golint ./...

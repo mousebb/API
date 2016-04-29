@@ -69,52 +69,52 @@ func TestMain(m *testing.M) {
 
 func TestGetAllCountriesAndstates(t *testing.T) {
 	Convey("GetAllCountriesAndStates(db *sql.DB)", t, func() {
-		// Convey("with bad sql", func() {
-		// 	tmp := getAllCountriesAndStatesStmt
-		// 	getAllCountriesAndStatesStmt = "bad query"
-		//
-		// 	countries, err := GetAllCountriesAndStates(db)
-		// 	So(countries, ShouldHaveSameTypeAs, []Country{})
-		// 	So(len(countries), ShouldEqual, 0)
-		// 	So(err, ShouldNotBeNil)
-		//
-		// 	getAllCountriesAndStatesStmt = tmp
-		// })
-		//
-		// Convey("with bad query params", func() {
-		// 	tmp := getAllCountriesAndStatesStmt
-		// 	getAllCountriesAndStatesStmt = strings.Replace(getAllCountriesAndStatesStmt, "order by c.countryID", "where s.abbr = ? order by c.countryID", 1)
-		//
-		// 	countries, err := GetAllCountriesAndStates(db)
-		// 	So(countries, ShouldHaveSameTypeAs, []Country{})
-		// 	So(len(countries), ShouldEqual, 0)
-		// 	So(err, ShouldNotBeNil)
-		//
-		// 	getAllCountriesAndStatesStmt = tmp
-		// })
-		//
-		// Convey("with no data", func() {
-		// 	countries, err := GetAllCountriesAndStates(db)
-		// 	So(countries, ShouldHaveSameTypeAs, []Country{})
-		// 	So(len(countries), ShouldEqual, 0)
-		// 	So(err, ShouldBeNil)
-		// })
-		//
-		// Convey("with bad select columns", func() {
-		//
-		// 	err := insertGeoData()
-		// 	So(err, ShouldBeNil)
-		//
-		// 	tmp := getAllCountriesAndStatesStmt
-		// 	getAllCountriesAndStatesStmt = strings.Replace(getAllCountriesAndStatesStmt, "select c.countryID,", "select", 1)
-		//
-		// 	countries, err := GetAllCountriesAndStates(db)
-		// 	So(countries, ShouldHaveSameTypeAs, []Country{})
-		// 	So(len(countries), ShouldEqual, 0)
-		// 	So(err, ShouldBeNil)
-		//
-		// 	getAllCountriesAndStatesStmt = tmp
-		// })
+		Convey("with bad sql", func() {
+			tmp := getAllCountriesAndStatesStmt
+			getAllCountriesAndStatesStmt = "bad query"
+
+			countries, err := GetAllCountriesAndStates(db)
+			So(countries, ShouldHaveSameTypeAs, []Country{})
+			So(len(countries), ShouldEqual, 0)
+			So(err, ShouldNotBeNil)
+
+			getAllCountriesAndStatesStmt = tmp
+		})
+
+		Convey("with bad query params", func() {
+			tmp := getAllCountriesAndStatesStmt
+			getAllCountriesAndStatesStmt = strings.Replace(getAllCountriesAndStatesStmt, "order by c.countryID", "where s.abbr = ? order by c.countryID", 1)
+
+			countries, err := GetAllCountriesAndStates(db)
+			So(countries, ShouldHaveSameTypeAs, []Country{})
+			So(len(countries), ShouldEqual, 0)
+			So(err, ShouldNotBeNil)
+
+			getAllCountriesAndStatesStmt = tmp
+		})
+
+		Convey("with no data", func() {
+			countries, err := GetAllCountriesAndStates(db)
+			So(countries, ShouldHaveSameTypeAs, []Country{})
+			So(len(countries), ShouldEqual, 0)
+			So(err, ShouldBeNil)
+		})
+
+		Convey("with bad select columns", func() {
+
+			err := insertGeoData()
+			So(err, ShouldBeNil)
+
+			tmp := getAllCountriesAndStatesStmt
+			getAllCountriesAndStatesStmt = strings.Replace(getAllCountriesAndStatesStmt, "select c.countryID,", "select", 1)
+
+			countries, err := GetAllCountriesAndStates(db)
+			So(countries, ShouldHaveSameTypeAs, []Country{})
+			So(len(countries), ShouldEqual, 0)
+			So(err, ShouldBeNil)
+
+			getAllCountriesAndStatesStmt = tmp
+		})
 
 		Convey("success", func() {
 			err := insertGeoData()

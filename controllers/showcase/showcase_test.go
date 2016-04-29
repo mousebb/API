@@ -1,7 +1,6 @@
 package showcase
 
 import (
-	"github.com/curt-labs/API/helpers/apicontextmock"
 	"github.com/curt-labs/API/helpers/httprunner"
 	"github.com/curt-labs/API/models/showcase"
 	. "github.com/smartystreets/goconvey/convey"
@@ -13,11 +12,6 @@ import (
 )
 
 func TestShowcases(t *testing.T) {
-
-	dtx, err := apicontextmock.Mock()
-	if err != nil {
-		t.Log(err)
-	}
 
 	Convey("Showcases", t, func() {
 		var test showcase.Showcase
@@ -51,5 +45,4 @@ func TestShowcases(t *testing.T) {
 		So(json.Unmarshal(response.Body.Bytes(), &test), ShouldEqual, nil)
 
 	})
-	_ = apicontextmock.DeMock(dtx)
 }
