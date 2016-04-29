@@ -1,4 +1,7 @@
-box: golang
+language: go
+
+go:
+    - 1.6
 
 sudo: required
 
