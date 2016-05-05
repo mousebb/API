@@ -7,12 +7,22 @@ sudo: required
 
 services:
     - docker
+    - mysql
+    - redis-serveri
+    - elasticsearch
+    - mongodb
+
+env:
+    - DOCKERTEST_BIND_LOCALHOST=true
 
 before_install:
     - docker pull mysql
     - docker pull mongo
     - docker pull redis
     - docker pull elasticsearch
+
+before_script:
+    - sleep 10
 
 build:
     - setup-go-workspace
