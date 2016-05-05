@@ -8,9 +8,6 @@ sudo: required
 services:
     - docker
 
-env:
-    - DOCKERTEST_BIND_LOCALHOST=true
-
 before_install:
     - docker pull mysql
     - docker pull mongo
