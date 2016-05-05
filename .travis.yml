@@ -13,7 +13,7 @@ services:
     - mongodb
 
 env:
-    - DOCKERTEST_BIND_LOCALHOST=true
+    - DOCKER_BIND_LOCALHOST=true
 
 before_install:
     - docker pull mysql
