@@ -11,6 +11,12 @@ services:
 env:
     - DOCKERTEST_BIND_LOCALHOST=true
 
+before_install:
+    - docker pull mysql
+    - docker pull mongo
+    - docker pull redis
+    - docker pull elasticsearch
+
 build:
     - setup-go-workspace
 
