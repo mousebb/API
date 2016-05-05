@@ -5,12 +5,13 @@ import (
 	"testing"
 
 	"github.com/curt-labs/API/middleware"
+	"github.com/curt-labs/API/models/customer"
 	. "github.com/smartystreets/goconvey/convey"
 )
 
 func TestDsl(t *testing.T) {
 	ctx := &middleware.APIContext{
-		DataContext: &middleware.DataContext{},
+		DataContext: &customer.DataContext{},
 	}
 
 	ip := "127.0.0.1:9200"

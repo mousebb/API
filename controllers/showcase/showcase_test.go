@@ -18,9 +18,9 @@ func TestShowcases(t *testing.T) {
 		var tests []showcase.Showcase
 
 		qs := make(url.Values, 0)
-		qs.Add("key", dtx.APIKey)
+		// qs.Add("key", dtx.APIKey)
 
-		test.BrandID = dtx.BrandID
+		// test.BrandID = dtx.BrandID
 		test.Text = "test content - controller test"
 
 		response := httprunner.ParameterizedJsonRequest("POST", "/showcase", "/showcase", &qs, test, Save)

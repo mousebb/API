@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/curt-labs/API/models/customer"
 	"github.com/curt-labs/API/models/vehicle"
 
 	"gopkg.in/mgo.v2"
@@ -135,7 +136,7 @@ func TestMain(m *testing.M) {
 func TestIdentifiers(t *testing.T) {
 	Convey("Testing part.Identifiers", t, func() {
 		ctx := &middleware.APIContext{
-			DataContext: &middleware.DataContext{
+			DataContext: &customer.DataContext{
 				BrandID: 3,
 			},
 			Params:       httprouter.Params{},
@@ -157,7 +158,7 @@ func TestIdentifiers(t *testing.T) {
 func TestAll(t *testing.T) {
 	Convey("Testing part.All", t, func() {
 		ctx := &middleware.APIContext{
-			DataContext: &middleware.DataContext{
+			DataContext: &customer.DataContext{
 				BrandID: 3,
 			},
 			Params:       httprouter.Params{},
@@ -212,7 +213,7 @@ func TestAll(t *testing.T) {
 func TestFeatured(t *testing.T) {
 	Convey("Testing part.Featured", t, func() {
 		ctx := &middleware.APIContext{
-			DataContext: &middleware.DataContext{
+			DataContext: &customer.DataContext{
 				BrandID: 3,
 			},
 			Params:       httprouter.Params{},
@@ -277,7 +278,7 @@ func TestFeatured(t *testing.T) {
 func TestLatest(t *testing.T) {
 	Convey("Testing part.Latest", t, func() {
 		ctx := &middleware.APIContext{
-			DataContext: &middleware.DataContext{
+			DataContext: &customer.DataContext{
 				BrandID: 3,
 			},
 			Params:       httprouter.Params{},
@@ -343,7 +344,7 @@ func TestGet(t *testing.T) {
 
 	Convey("Testing part.Get", t, func() {
 		ctx := &middleware.APIContext{
-			DataContext: &middleware.DataContext{
+			DataContext: &customer.DataContext{
 				BrandID: 3,
 			},
 			Params: httprouter.Params{
@@ -388,7 +389,7 @@ func TestGetRelated(t *testing.T) {
 
 	Convey("Testing part.GetRelated", t, func() {
 		ctx := &middleware.APIContext{
-			DataContext: &middleware.DataContext{
+			DataContext: &customer.DataContext{
 				BrandID: 3,
 			},
 			Params: httprouter.Params{
@@ -421,7 +422,7 @@ func TestGetWithVehicle(t *testing.T) {
 
 	Convey("Testing part.GetWithVehicle", t, func() {
 		ctx := &middleware.APIContext{
-			DataContext: &middleware.DataContext{
+			DataContext: &customer.DataContext{
 				BrandID: 3,
 			},
 			Params: httprouter.Params{
@@ -454,7 +455,7 @@ func TestVehicles(t *testing.T) {
 
 	Convey("Testing part.Vehicles", t, func() {
 		ctx := &middleware.APIContext{
-			DataContext: &middleware.DataContext{
+			DataContext: &customer.DataContext{
 				BrandID: 3,
 			},
 			Params: httprouter.Params{
@@ -500,7 +501,7 @@ func TestImages(t *testing.T) {
 
 	Convey("Testing part.Images", t, func() {
 		ctx := &middleware.APIContext{
-			DataContext: &middleware.DataContext{
+			DataContext: &customer.DataContext{
 				BrandID: 3,
 			},
 			Params: httprouter.Params{
@@ -546,7 +547,7 @@ func TestAttributes(t *testing.T) {
 
 	Convey("Testing part.Attributes", t, func() {
 		ctx := &middleware.APIContext{
-			DataContext: &middleware.DataContext{
+			DataContext: &customer.DataContext{
 				BrandID: 3,
 			},
 			Params: httprouter.Params{
@@ -592,7 +593,7 @@ func TestGetContent(t *testing.T) {
 
 	Convey("Testing part.GetContent", t, func() {
 		ctx := &middleware.APIContext{
-			DataContext: &middleware.DataContext{
+			DataContext: &customer.DataContext{
 				BrandID: 3,
 			},
 			Params: httprouter.Params{
@@ -638,7 +639,7 @@ func TestPackaging(t *testing.T) {
 
 	Convey("Testing part.Packaging", t, func() {
 		ctx := &middleware.APIContext{
-			DataContext: &middleware.DataContext{
+			DataContext: &customer.DataContext{
 				BrandID: 3,
 			},
 			Params: httprouter.Params{
@@ -684,7 +685,7 @@ func TestActiveApprovedReviews(t *testing.T) {
 
 	Convey("Testing part.ActiveApprovedReviews", t, func() {
 		ctx := &middleware.APIContext{
-			DataContext: &middleware.DataContext{
+			DataContext: &customer.DataContext{
 				BrandID: 3,
 			},
 			Params: httprouter.Params{
@@ -730,7 +731,7 @@ func TestVideos(t *testing.T) {
 
 	Convey("Testing part.Videos", t, func() {
 		ctx := &middleware.APIContext{
-			DataContext: &middleware.DataContext{
+			DataContext: &customer.DataContext{
 				BrandID: 3,
 			},
 			Params: httprouter.Params{
@@ -776,7 +777,7 @@ func TestInstallSheet(t *testing.T) {
 
 	Convey("Testing part.InstallSheet", t, func() {
 		ctx := &middleware.APIContext{
-			DataContext: &middleware.DataContext{
+			DataContext: &customer.DataContext{
 				BrandID: 3,
 			},
 			Params: httprouter.Params{
@@ -835,7 +836,7 @@ func TestCategories(t *testing.T) {
 
 	Convey("Testing part.Categories", t, func() {
 		ctx := &middleware.APIContext{
-			DataContext: &middleware.DataContext{
+			DataContext: &customer.DataContext{
 				BrandID: 3,
 			},
 			Params: httprouter.Params{
@@ -881,7 +882,7 @@ func TestPrices(t *testing.T) {
 
 	Convey("Testing part.Prices", t, func() {
 		ctx := &middleware.APIContext{
-			DataContext: &middleware.DataContext{
+			DataContext: &customer.DataContext{
 				BrandID: 3,
 			},
 			Params: httprouter.Params{

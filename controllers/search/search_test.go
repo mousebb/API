@@ -13,6 +13,7 @@ import (
 
 	"github.com/curt-labs/API/middleware"
 	"github.com/curt-labs/API/models/category"
+	"github.com/curt-labs/API/models/customer"
 	"github.com/curt-labs/API/models/products"
 	"github.com/julienschmidt/httprouter"
 	"github.com/mattbaird/elastigo/lib"
@@ -68,7 +69,7 @@ func TestMain(m *testing.M) {
 func TestSearch(t *testing.T) {
 	Convey("Testing Search", t, func() {
 		ctx := &middleware.APIContext{
-			DataContext: &middleware.DataContext{
+			DataContext: &customer.DataContext{
 				BrandID: 3,
 			},
 			Params: httprouter.Params{

@@ -18,9 +18,9 @@ func TestTestTestimonials(t *testing.T) {
 		var tests testimonials.Testimonials
 
 		qs := make(url.Values, 0)
-		qs.Add("key", dtx.APIKey)
+		// qs.Add("key", dtx.APIKey)
 
-		test.BrandID = dtx.BrandID
+		// test.BrandID = dtx.BrandID
 		test.Content = "test content - controller test"
 
 		response := httprunner.ParameterizedJsonRequest("POST", "/testimonials", "/testimonials", &qs, test, Save)

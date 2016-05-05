@@ -13,6 +13,7 @@ import (
 
 	"github.com/curt-labs/API/middleware"
 	"github.com/curt-labs/API/models/brand"
+	"github.com/curt-labs/API/models/customer"
 	"github.com/julienschmidt/httprouter"
 	"github.com/ory-am/dockertest"
 	. "github.com/smartystreets/goconvey/convey"
@@ -76,7 +77,7 @@ func TestGetAllBrands(t *testing.T) {
 
 	Convey("Testing GetAllBrands", t, func() {
 		ctx := &middleware.APIContext{
-			DataContext: &middleware.DataContext{
+			DataContext: &customer.DataContext{
 				BrandID: 3,
 			},
 			Params: httprouter.Params{},
@@ -100,7 +101,7 @@ func TestGetBrand(t *testing.T) {
 
 	Convey("Testing GetBrand", t, func() {
 		ctx := &middleware.APIContext{
-			DataContext: &middleware.DataContext{
+			DataContext: &customer.DataContext{
 				BrandID: 3,
 			},
 			Params: httprouter.Params{},

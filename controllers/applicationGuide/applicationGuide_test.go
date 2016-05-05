@@ -10,6 +10,7 @@ import (
 
 	"github.com/curt-labs/API/middleware"
 	"github.com/curt-labs/API/models/applicationGuide"
+	"github.com/curt-labs/API/models/customer"
 	"github.com/julienschmidt/httprouter"
 	"github.com/ory-am/dockertest"
 	. "github.com/smartystreets/goconvey/convey"
@@ -82,7 +83,7 @@ func TestGetApplicationGuide(t *testing.T) {
 
 	Convey("Testing GetApplicationGuide", t, func() {
 		ctx := &middleware.APIContext{
-			DataContext: &middleware.DataContext{
+			DataContext: &customer.DataContext{
 				BrandID: 3,
 				APIKey:  Key,
 			},
@@ -145,7 +146,7 @@ func TestGetApplicationGuidesByWebsite(t *testing.T) {
 
 	Convey("Testing GetApplicationGuidesByWebsite", t, func() {
 		ctx := &middleware.APIContext{
-			DataContext: &middleware.DataContext{
+			DataContext: &customer.DataContext{
 				BrandID: 3,
 				APIKey:  Key,
 			},

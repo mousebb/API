@@ -173,43 +173,43 @@ func TestVideo_New(t *testing.T) {
 
 func BenchmarkGetAllVideos(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		GetAllVideos(MockedDTX)
+		// GetAllVideos()
 	}
 }
 
 func BenchmarkGetPartVideos(b *testing.B) {
 	// p := 11000
 	for i := 0; i < b.N; i++ {
-		GetPartVideos(11000)
+		// GetPartVideos(11000)
 	}
 }
 
 func BenchmarkGetAllChannels(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		GetAllChannels()
+		// GetAllChannels()
 	}
 }
 
 func BenchmarkGetAllCdnFiles(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		GetAllCdnFiles()
+		// GetAllCdnFiles()
 	}
 }
 
 func BenchmarkGetAllCdnFileTypes(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		GetAllCdnFileTypes()
+		// GetAllCdnFileTypes()
 	}
 }
 
 func BenchmarkGetAllVideoTypes(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		GetAllVideoTypes()
+		// GetAllVideoTypes()
 	}
 }
 
 func BenchmarkGetAllChannelTypes(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		GetAllChannelTypes()
+		// GetAllChannelTypes()
 	}
 }

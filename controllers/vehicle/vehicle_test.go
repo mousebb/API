@@ -23,7 +23,7 @@ func TestVehicles(t *testing.T) {
 
 		//get all
 		qs := make(url.Values, 0)
-		qs.Add("key", dtx.APIKey)
+		// qs.Add("key", dtx.APIKey)
 		response := httprunner.ParameterizedJsonRequest("POST", "/vehicle", "/vehicle", &qs, &qs, Query)
 		So(response.Code, ShouldEqual, 200)
 		So(json.Unmarshal(response.Body.Bytes(), &l), ShouldEqual, nil)
