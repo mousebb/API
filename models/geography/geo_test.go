@@ -15,6 +15,8 @@ var (
 	db *sql.DB
 
 	schemas = map[string]string{
+		`dropStates`:    `DROP TABLE IF EXISTS States`,
+		`dropCountry`:   `DROP TABLE IF EXISTS Country`,
 		`statesSchema`:  `CREATE TABLE States (stateID int(11) NOT NULL AUTO_INCREMENT,state varchar(100) NOT NULL,abbr varchar(3) NOT NULL,countryID int(11) NOT NULL DEFAULT '1',PRIMARY KEY (stateID)) ENGINE=InnoDB AUTO_INCREMENT=85 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
 		`countrySchema`: `CREATE TABLE Country (countryID int(11) NOT NULL AUTO_INCREMENT,name varchar(255) DEFAULT NULL,abbr varchar(10) DEFAULT NULL,PRIMARY KEY (countryID)) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
 	}

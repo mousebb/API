@@ -18,6 +18,10 @@ var (
 	apiKey string
 
 	schemas = map[string]string{
+		`dropApplicationGuides`: `DROP TABLE IF EXISTS ApplicationGuides`,
+		`dropCategories`:        `DROP TABLE IF EXISTS Categories`,
+		`dropApiKey`:            `DROP TABLE IF EXISTS ApiKey`,
+		`dropApiKeyToBrand`:     `DROP TABLE IF EXISTS ApiKeyToBrand`,
 		`applicationGuideSchema`: `CREATE TABLE ApplicationGuides (
 			  ID int(11) unsigned NOT NULL AUTO_INCREMENT,
 			  url varchar(255) NOT NULL DEFAULT '',

@@ -15,6 +15,7 @@ var (
 	db *sql.DB
 
 	schemas = map[string]string{
+		`dropApiKeyType`:   `DROP TABLE IF EXISTS ApiKeyType`,
 		`apiKeyTypeSchema`: `CREATE TABLE ApiKeyType (id varchar(64) NOT NULL,type varchar(500) DEFAULT NULL,date_added timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY (id)) ENGINE=InnoDB DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
 	}
 
