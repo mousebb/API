@@ -3,10 +3,7 @@ language: go
 go:
     - 1.6
 
-sudo: required
-
 services:
-    - docker
     - mysql
     - redis-serveri
     - elasticsearch
@@ -16,7 +13,7 @@ env:
     - DOCKER_BIND_LOCALHOST=true
 
 before_script:
-    - mysql -e 'create database CurtData;'
+    - mysql -u root -e 'create database CurtData;'
 
 build:
     - setup-go-workspace
