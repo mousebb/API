@@ -75,6 +75,13 @@ func TestMain(m *testing.M) {
 			log.Fatalf("MySQL connection failed, with address '%s'.", "127.0.0.1:3306")
 		}
 
+		for _, schema := range drops {
+			_, err = db.Exec(schema)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+
 		for _, schema := range schemas {
 			_, err = db.Exec(schema)
 			if err != nil {
