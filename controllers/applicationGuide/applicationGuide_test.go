@@ -24,12 +24,15 @@ const (
 var (
 	db *sql.DB
 
+	drops = map[string]string{
+		`dropApiKeyType`:        `DROP TABLE IF EXISTS ApiKeyType`,
+		`dropApiKey`:            `DROP TABLE IF EXISTS ApiKey`,
+		`dropApiKeyToBrand`:     `DROP TABLE IF EXISTS ApiKeyToBrand`,
+		`dropCategories`:        `DROP TABLE IF EXISTS Categories`,
+		`dropApplicationGuides`: `DROP TABLE IF EXISTS ApplicationGuides`,
+	}
+
 	schemas = map[string]string{
-		`dropApiKeyType`:         `DROP TABLE IF EXISTS ApiKeyType`,
-		`dropApiKey`:             `DROP TABLE IF EXISTS ApiKey`,
-		`dropApiKeyToBrand`:      `DROP TABLE IF EXISTS ApiKeyToBrand`,
-		`dropCategories`:         `DROP TABLE IF EXISTS Categories`,
-		`dropApplicationGuides`:  `DROP TABLE IF EXISTS ApplicationGuides`,
 		`apiKeyTypeSchema`:       `CREATE TABLE ApiKeyType (id varchar(64) NOT NULL,type varchar(500) DEFAULT NULL,date_added timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY (id)) ENGINE=InnoDB DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
 		`categorySchema`:         `CREATE TABLE Categories (catID int(11) NOT NULL AUTO_INCREMENT,dateAdded timestamp NULL DEFAULT CURRENT_TIMESTAMP,parentID int(11) NOT NULL,catTitle varchar(100) DEFAULT NULL,shortDesc varchar(255) DEFAULT NULL,longDesc longtext,image varchar(255) DEFAULT NULL,isLifestyle int(11) NOT NULL,codeID int(11) NOT NULL DEFAULT '0',sort int(11) NOT NULL DEFAULT '1',vehicleSpecific tinyint(1) NOT NULL DEFAULT '0',vehicleRequired tinyint(1) NOT NULL DEFAULT '0',metaTitle text,metaDesc text,metaKeywords text,icon varchar(255) DEFAULT NULL,path varchar(255) DEFAULT NULL,brandID int(11) NOT NULL DEFAULT '1',isDeleted tinyint(1) NOT NULL DEFAULT '0',PRIMARY KEY (catID)) ENGINE=InnoDB AUTO_INCREMENT=345 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
 		`apiKeyBrandSchema`:      `CREATE TABLE ApiKeyToBrand (ID int(11) NOT NULL AUTO_INCREMENT,keyID int(11) NOT NULL,brandID int(11) NOT NULL,PRIMARY KEY (ID)) ENGINE=InnoDB AUTO_INCREMENT=38361 DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT`,
@@ -54,6 +57,13 @@ func TestMain(m *testing.M) {
 			db, err = sql.Open("mysql", url+"?parseTime=true")
 			if err != nil {
 				log.Fatalf("MySQL connection failed, with address '%s'.", url)
+			}
+
+			for _, schema := range drops {
+				_, err = db.Exec(schema)
+				if err != nil {
+					log.Fatal(err)
+				}
 			}
 
 			for _, schema := range schemas {

@@ -17,11 +17,14 @@ var (
 	db     *sql.DB
 	apiKey string
 
-	schemas = map[string]string{
+	drops = map[string]string{
 		`dropApplicationGuides`: `DROP TABLE IF EXISTS ApplicationGuides`,
 		`dropCategories`:        `DROP TABLE IF EXISTS Categories`,
 		`dropApiKey`:            `DROP TABLE IF EXISTS ApiKey`,
 		`dropApiKeyToBrand`:     `DROP TABLE IF EXISTS ApiKeyToBrand`,
+	}
+
+	schemas = map[string]string{
 		`applicationGuideSchema`: `CREATE TABLE ApplicationGuides (
 			  ID int(11) unsigned NOT NULL AUTO_INCREMENT,
 			  url varchar(255) NOT NULL DEFAULT '',
@@ -92,6 +95,13 @@ func TestMain(m *testing.M) {
 		db, err = sql.Open("mysql", url+"?parseTime=true")
 		if err != nil {
 			log.Fatalf("MySQL connection failed, with address '%s'.", url)
+		}
+
+		for _, schema := range drops {
+			_, err = db.Exec(schema)
+			if err != nil {
+				log.Fatal(err)
+			}
 		}
 
 		for _, schema := range schemas {

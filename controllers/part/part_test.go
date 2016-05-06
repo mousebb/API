@@ -31,7 +31,7 @@ var (
 	session *mgo.Session
 	db      *sql.DB
 
-	schemas = map[string]string{
+	drops = map[string]string{
 		`dropBaseVehicle`:            `DROP TABLE IF EXISTS BaseVehicle`,
 		`dropVcdbVehicle`:            `DROP TABLE IF EXISTS vcdb_Vehicle`,
 		`dropVcdbVehiclePart`:        `DROP TABLE IF EXISTS vcdb_VehiclePart`,
@@ -42,8 +42,11 @@ var (
 		`dropConfigAttribute`:        `DROP TABLE IF EXISTS ConfigAttribute`,
 		`dropConfigAttributeType`:    `DROP TABLE IF EXISTS ConfigAttributeType`,
 		`dropCustomerPricing`:        `DROP TABLE IF EXISTS CustomerPricing`,
-		`baseVehicleSchema`:          `CREATE TABLE BaseVehicle (ID int(11) NOT NULL AUTO_INCREMENT,AAIABaseVehicleID int(11) DEFAULT NULL,YearID int(11) NOT NULL,MakeID int(11) NOT NULL,ModelID int(11) NOT NULL,PRIMARY KEY (ID)) ENGINE=InnoDB AUTO_INCREMENT=25998 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
-		`vcdbVehicleSchema`:          `CREATE TABLE vcdb_Vehicle (ID int(11) NOT NULL AUTO_INCREMENT, BaseVehicleID int(11) NOT NULL, SubModelID int(11) DEFAULT NULL, ConfigID int(11) DEFAULT NULL, AppID int(11) DEFAULT NULL, RegionID int(11) NOT NULL DEFAULT '0', PRIMARY KEY (ID)) ENGINE=InnoDB AUTO_INCREMENT=59887 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
+	}
+
+	schemas = map[string]string{
+		`baseVehicleSchema`: `CREATE TABLE BaseVehicle (ID int(11) NOT NULL AUTO_INCREMENT,AAIABaseVehicleID int(11) DEFAULT NULL,YearID int(11) NOT NULL,MakeID int(11) NOT NULL,ModelID int(11) NOT NULL,PRIMARY KEY (ID)) ENGINE=InnoDB AUTO_INCREMENT=25998 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
+		`vcdbVehicleSchema`: `CREATE TABLE vcdb_Vehicle (ID int(11) NOT NULL AUTO_INCREMENT, BaseVehicleID int(11) NOT NULL, SubModelID int(11) DEFAULT NULL, ConfigID int(11) DEFAULT NULL, AppID int(11) DEFAULT NULL, RegionID int(11) NOT NULL DEFAULT '0', PRIMARY KEY (ID)) ENGINE=InnoDB AUTO_INCREMENT=59887 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
 		`vcdbVehiclePartSchema`: `CREATE TABLE vcdb_VehiclePart ( ID int(11) NOT NULL AUTO_INCREMENT,		  VehicleID int(11) NOT NULL,		  PartNumber int(11) NOT NULL,		  PRIMARY KEY (ID)		) ENGINE=InnoDB AUTO_INCREMENT=350523 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
 		`submodelSchema`:        ` CREATE TABLE Submodel (   ID int(11) NOT NULL AUTO_INCREMENT,   AAIASubmodelID int(11) DEFAULT NULL,   SubmodelName varchar(50) NOT NULL,   PRIMARY KEY (ID) ) ENGINE=InnoDB AUTO_INCREMENT=2037 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
 		`vcdbMakeSchema`:        ` CREATE TABLE vcdb_Make (   ID int(11) NOT NULL AUTO_INCREMENT,   AAIAMakeID int(11) DEFAULT NULL,   MakeName varchar(50) NOT NULL,   PRIMARY KEY (ID) ) ENGINE=InnoDB AUTO_INCREMENT=58 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
@@ -88,6 +91,14 @@ func setupMongoData() {
 
 func setupMysqlData() {
 	var err error
+
+	for _, schema := range drops {
+		_, err = db.Exec(schema)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
 	for _, schema := range schemas {
 		_, err = db.Exec(schema)
 		if err != nil {

@@ -40,15 +40,18 @@ var (
 	TestSuperPassword           = "TestSuperPassword"
 	TestSingleUserPassword      = "single_password"
 
+	drops = map[string]string{
+		`dropBrand`:             `DROP TABLE IF EXISTS Brand`,
+		`dropCustomerToBrand`:   `DROP TABLE IF EXISTS CustomerToBrand`,
+		`dropCustomer`:          `DROP TABLE IF EXISTS Customer`,
+		`dropCustomerUser`:      `DROP TABLE IF EXISTS CustomerUser`,
+		`dropCustomerLocations`: `DROP TABLE IF EXISTS CustomerLocations`,
+		`dropApiKeyType`:        `DROP TABLE IF EXISTS ApiKeyType`,
+		`dropApiKey`:            `DROP TABLE IF EXISTS ApiKey`,
+		`dropApiKeyToBrand`:     `DROP TABLE IF EXISTS ApiKeyToBrand`,
+	}
+
 	schemas = map[string]string{
-		`dropBrand`:              `DROP TABLE IF EXISTS Brand`,
-		`dropCustomerToBrand`:    `DROP TABLE IF EXISTS CustomerToBrand`,
-		`dropCustomer`:           `DROP TABLE IF EXISTS Customer`,
-		`dropCustomerUser`:       `DROP TABLE IF EXISTS CustomerUser`,
-		`dropCustomerLocations`:  `DROP TABLE IF EXISTS CustomerLocations`,
-		`dropApiKeyType`:         `DROP TABLE IF EXISTS ApiKeyType`,
-		`dropApiKey`:             `DROP TABLE IF EXISTS ApiKey`,
-		`dropApiKeyToBrand`:      `DROP TABLE IF EXISTS ApiKeyToBrand`,
 		`apiKeySchema`:           `CREATE TABLE ApiKey (id int(11) NOT NULL AUTO_INCREMENT,api_key varchar(64) NOT NULL,type_id varchar(64) NOT NULL,user_id varchar(64) NOT NULL,date_added timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,UNIQUE KEY id (id)) ENGINE=InnoDB AUTO_INCREMENT=14489 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
 		`apiKeyBrandSchema`:      `CREATE TABLE ApiKeyToBrand (ID int(11) NOT NULL AUTO_INCREMENT,keyID int(11) NOT NULL,brandID int(11) NOT NULL,PRIMARY KEY (ID)) ENGINE=InnoDB AUTO_INCREMENT=38361 DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT`,
 		`apiKeyTypeSchema`:       `CREATE TABLE ApiKeyType (id varchar(64) NOT NULL,type varchar(500) DEFAULT NULL,date_added timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY (id)) ENGINE=InnoDB DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
@@ -80,6 +83,13 @@ func TestMain(m *testing.M) {
 		db, err = sql.Open("mysql", url)
 		if err != nil {
 			log.Fatalf("MySQL connection failed, with address '%s'.", url)
+		}
+
+		for _, schema := range drops {
+			_, err = db.Exec(schema)
+			if err != nil {
+				log.Fatal(err)
+			}
 		}
 
 		for _, schema := range schemas {

@@ -13,8 +13,11 @@ import (
 var (
 	db *sql.DB
 
+	drops = map[string]string{
+		`dropApiKeyType`: `DROP TABLE IF EXISTS ApiKeyType`,
+	}
+
 	schemas = map[string]string{
-		`dropApiKeyType`:   `DROP TABLE IF EXISTS ApiKeyType`,
 		`apiKeyTypeSchema`: `CREATE TABLE ApiKeyType (id varchar(64) NOT NULL,type varchar(500) DEFAULT NULL,date_added timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY (id)) ENGINE=InnoDB DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT`,
 	}
 
@@ -30,6 +33,13 @@ func TestMain(m *testing.M) {
 		db, err = sql.Open("mysql", url+"?parseTime=true")
 		if err != nil {
 			log.Fatalf("MySQL connection failed, with address '%s'.", url)
+		}
+
+		for _, schema := range drops {
+			_, err = db.Exec(schema)
+			if err != nil {
+				log.Fatal(err)
+			}
 		}
 
 		for _, schema := range schemas {
