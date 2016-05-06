@@ -3,20 +3,15 @@ package customerCtlr
 import (
 	"database/sql"
 	"log"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/curt-labs/API/helpers/database"
-	"github.com/curt-labs/API/middleware"
 	"github.com/curt-labs/API/models/apiKeyType"
 	"github.com/curt-labs/API/models/brand"
 	"github.com/curt-labs/API/models/customer"
-	"github.com/julienschmidt/httprouter"
 	"github.com/ory-am/dockertest"
-	. "github.com/smartystreets/goconvey/convey"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
@@ -98,26 +93,26 @@ func TestMain(m *testing.M) {
 	m.Run()
 }
 
-func TestGetAllBrands(t *testing.T) {
-	Convey("Testing GetUserByKey", t, func() {
-		ctx := &middleware.APIContext{
-			DataContext: &customer.DataContext{
-				BrandID: 3,
-			},
-			Params:  httprouter.Params{},
-			Session: session,
-		}
-
-		Convey("with valid db connection", func() {
-			rec := httptest.NewRecorder()
-			req, err := http.NewRequest("GET", "http://localhost:8080/customer/user", nil)
-			So(err, ShouldBeNil)
-
-			resp, err := GetUserByKey(ctx, rec, req)
-			So(err, ShouldBeNil)
-			So(resp, ShouldNotBeNil)
-
-		})
-
-	})
-}
+// func TestGetAllBrands(t *testing.T) {
+// 	Convey("Testing GetUserByKey", t, func() {
+// 		ctx := &middleware.APIContext{
+// 			DataContext: &customer.DataContext{
+// 				BrandID: 3,
+// 			},
+// 			Params:  httprouter.Params{},
+// 			Session: session,
+// 		}
+//
+// 		Convey("with valid db connection", func() {
+// 			rec := httptest.NewRecorder()
+// 			req, err := http.NewRequest("GET", "http://localhost:8080/customer/user", nil)
+// 			So(err, ShouldBeNil)
+//
+// 			resp, err := GetUserByKey(ctx, rec, req)
+// 			So(err, ShouldBeNil)
+// 			So(resp, ShouldNotBeNil)
+//
+// 		})
+//
+// 	})
+// }

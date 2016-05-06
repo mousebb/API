@@ -48,6 +48,33 @@ var (
 	}
 )
 
+func setupMongoData() {
+	p := getExamplePart("1042")
+	p.Identifier = bson.NewObjectId()
+	for i := range p.Categories {
+		p.Categories[i].Identifier = bson.NewObjectId()
+	}
+
+	session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName).Insert(&p)
+
+	p = getExamplePart("110001")
+	p.Identifier = bson.NewObjectId()
+	for i := range p.Categories {
+		p.Categories[i].Identifier = bson.NewObjectId()
+	}
+	p.InstallSheet = nil
+
+	session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName).Insert(&p)
+
+	p = getExamplePart("11000")
+	p.Identifier = bson.NewObjectId()
+	for i := range p.Categories {
+		p.Categories[i].Identifier = bson.NewObjectId()
+	}
+
+	session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName).Insert(&p)
+}
+
 func TestMain(m *testing.M) {
 
 	mongo, err := dockertest.ConnectToMongoDB(15, time.Second, func(url string) bool {
@@ -59,30 +86,7 @@ func TestMain(m *testing.M) {
 
 		session.SetMode(mgo.Monotonic, true)
 
-		p := getExamplePart("1042")
-		p.Identifier = bson.NewObjectId()
-		for i := range p.Categories {
-			p.Categories[i].Identifier = bson.NewObjectId()
-		}
-
-		session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName).Insert(&p)
-
-		p = getExamplePart("110001")
-		p.Identifier = bson.NewObjectId()
-		for i := range p.Categories {
-			p.Categories[i].Identifier = bson.NewObjectId()
-		}
-		p.InstallSheet = nil
-
-		session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName).Insert(&p)
-
-		p = getExamplePart("11000")
-		p.Identifier = bson.NewObjectId()
-		for i := range p.Categories {
-			p.Categories[i].Identifier = bson.NewObjectId()
-		}
-
-		session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName).Insert(&p)
+		setupMongoData()
 
 		return session.Ping() == nil
 	})
