@@ -3,6 +3,7 @@ package geography
 import (
 	"database/sql"
 	"log"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -30,6 +31,23 @@ var (
 	}
 )
 
+func setupMySQL() {
+	var err error
+	for _, schema := range drops {
+		_, err = db.Exec(schema)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	for _, schema := range schemas {
+		_, err = db.Exec(schema)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+}
+
 func insertGeoData() error {
 	for _, insert := range dataInserts {
 		_, err := db.Exec(insert)
@@ -42,38 +60,36 @@ func insertGeoData() error {
 }
 
 func TestMain(m *testing.M) {
+	var err error
+	if os.Getenv("DOCKER_BIND_LOCALHOST") == "" {
+		var mysql dockertest.ContainerID
+		mysql, err = dockertest.ConnectToMySQL(15, time.Second*5, func(url string) bool {
+			db, err = sql.Open("mysql", url+"?parseTime=true")
+			if err != nil {
+				log.Fatalf("MySQL connection failed, with address '%s'.", url)
+			}
 
-	mysql, err := dockertest.ConnectToMySQL(15, time.Second*5, func(url string) bool {
-		var err error
-		db, err = sql.Open("mysql", url+"?parseTime=true")
+			setupMySQL()
+
+			return db.Ping() == nil
+		})
+
+		defer func() {
+			db.Close()
+			mysql.KillRemove()
+		}()
+
 		if err != nil {
-			log.Fatalf("MySQL connection failed, with address '%s'.", url)
+			log.Fatal(err)
 		}
-
-		for _, schema := range drops {
-			_, err = db.Exec(schema)
-			if err != nil {
-				log.Fatal(err)
-			}
+	} else {
+		db, err = sql.Open("mysql", "root:@tcp(127.0.0.1:3306)/CurtData?parseTime=true")
+		if err != nil {
+			log.Fatalf("MySQL connection failed, with address '%s'.", "127.0.0.1:3306")
 		}
+		defer db.Close()
 
-		for _, schema := range schemas {
-			_, err = db.Exec(schema)
-			if err != nil {
-				log.Fatal(err)
-			}
-		}
-
-		return db.Ping() == nil
-	})
-
-	defer func() {
-		db.Close()
-		mysql.KillRemove()
-	}()
-
-	if err != nil {
-		log.Fatal(err)
+		setupMySQL()
 	}
 
 	m.Run()

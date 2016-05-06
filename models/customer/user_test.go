@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -74,190 +74,199 @@ var (
 	}
 )
 
-func TestMain(m *testing.M) {
-
-	mysql, err := dockertest.ConnectToMySQL(15, time.Second*5, func(url string) bool {
-		url = fmt.Sprintf("%s?parseTime=true&loc=%s", url, "America%2FChicago")
-		var err error
-
-		db, err = sql.Open("mysql", url)
+func setupMySQL() {
+	var err error
+	for _, schema := range drops {
+		_, err = db.Exec(schema)
 		if err != nil {
-			log.Fatalf("MySQL connection failed, with address '%s'.", url)
+			log.Fatal(err)
 		}
+	}
 
-		for _, schema := range drops {
-			_, err = db.Exec(schema)
-			if err != nil {
-				log.Fatal(err)
-			}
+	for _, schema := range schemas {
+		_, err = db.Exec(schema)
+		if err != nil {
+			log.Fatal(err)
 		}
+	}
 
-		for _, schema := range schemas {
-			_, err = db.Exec(schema)
-			if err != nil {
-				log.Fatal(err)
-			}
+	for _, insert := range dataInserts {
+		_, err = db.Exec(insert)
+		if err != nil {
+			log.Fatal(err)
 		}
+	}
+}
 
-		for _, insert := range dataInserts {
-			_, err = db.Exec(insert)
-			if err != nil {
-				log.Fatal(err)
-			}
-		}
-
-		return db.Ping() == nil
-	})
-
-	defer func() {
-		db.Close()
-		mysql.KillRemove()
-	}()
-
+func setupMongo() {
+	encryptedPass, err := bcrypt.GenerateFromPassword([]byte(TestPassword), bcrypt.DefaultCost)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	mongo, err := dockertest.ConnectToMongoDB(15, time.Second, func(url string) bool {
-		var err error
-		session, err = mgo.Dial(url)
-		if err != nil {
-			log.Fatalf("MongoDB connection failed, with address '%s'.", url)
-		}
-
-		session.SetMode(mgo.Monotonic, true)
-
-		encryptedPass, err := bcrypt.GenerateFromPassword([]byte(TestPassword), bcrypt.DefaultCost)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		encryptedSuperPass, err := bcrypt.GenerateFromPassword([]byte(TestSuperPassword), bcrypt.DefaultCost)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		encryptedSinglePass, err := bcrypt.GenerateFromPassword([]byte(TestSingleUserPassword), bcrypt.DefaultCost)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		c := Customer{
-			Identifier:     bson.NewObjectId(),
-			CustomerNumber: 1,
-			Users: []User{
-				User{
-					ID:             TestUserID.String(),
-					Name:           "Test User",
-					Email:          TestEmail,
-					Password:       string(encryptedPass),
-					CustomerNumber: 1,
-					Keys: []APIKey{
-						APIKey{
-							Key: TestUserAPIKey.String(),
-							Type: apiKeyType.KeyType{
-								Type: PublicKeyType,
-							},
-						},
-						APIKey{
-							Key: TestUserPrivateAPIKey.String(),
-							Type: apiKeyType.KeyType{
-								Type: PrivateKeyType,
-							},
-						},
-					},
-				},
-				User{
-					ID:             uuid.NewV4().String(),
-					Name:           "Test Super User",
-					Email:          TestSuperEmail,
-					Password:       string(encryptedSuperPass),
-					CustomerNumber: 1,
-					SuperUser:      true,
-					Keys: []APIKey{
-						APIKey{
-							Key: TestSuperUserAPIKey.String(),
-							Type: apiKeyType.KeyType{
-								Type: PublicKeyType,
-							},
-						},
-						APIKey{
-							Key: TestSuperUserPrivateAPIKey.String(),
-							Type: apiKeyType.KeyType{
-								Type: PrivateKeyType,
-							},
-						},
-					},
-				},
-			},
-		}
-
-		err = session.DB(database.ProductMongoDatabase).C(database.CustomerCollectionName).Insert(&c)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		singleUser := Customer{
-			Identifier:     bson.NewObjectId(),
-			CustomerNumber: 2,
-			Users: []User{
-				User{
-					ID:             uuid.NewV4().String(),
-					Name:           "Test Single User",
-					Email:          TestSingleUserEmail,
-					Password:       string(encryptedSinglePass),
-					CustomerNumber: 2,
-					SuperUser:      true,
-					Keys: []APIKey{
-						APIKey{
-							Key: TestSingleUserAPIKey.String(),
-							Type: apiKeyType.KeyType{
-								Type: PublicKeyType,
-							},
-						},
-						APIKey{
-							Key: TestSingleUserPrivateAPIKey.String(),
-							Type: apiKeyType.KeyType{
-								Type: PrivateKeyType,
-							},
-						},
-					},
-				},
-			},
-		}
-
-		err = session.DB(database.ProductMongoDatabase).C(database.CustomerCollectionName).Insert(&singleUser)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		return session.Ping() == nil
-	})
-
-	defer func() {
-		session.Close()
-		mongo.KillRemove()
-	}()
-
-	nsqd, err := dockertest.ConnectToNSQd(15, time.Second, func(ip string, httpPort int, tcpPort int) bool {
-		// var err error
-
-		resp, err := http.Get(fmt.Sprintf("http://%s:%d/ping", ip, httpPort))
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		NsqHost = fmt.Sprintf("%s:%d", ip, tcpPort)
-
-		return resp.StatusCode == 200
-	})
-
-	defer func() {
-		nsqd.KillRemove()
-	}()
-
+	encryptedSuperPass, err := bcrypt.GenerateFromPassword([]byte(TestSuperPassword), bcrypt.DefaultCost)
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	encryptedSinglePass, err := bcrypt.GenerateFromPassword([]byte(TestSingleUserPassword), bcrypt.DefaultCost)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	c := Customer{
+		Identifier:     bson.NewObjectId(),
+		CustomerNumber: 1,
+		Users: []User{
+			User{
+				ID:             TestUserID.String(),
+				Name:           "Test User",
+				Email:          TestEmail,
+				Password:       string(encryptedPass),
+				CustomerNumber: 1,
+				Keys: []APIKey{
+					APIKey{
+						Key: TestUserAPIKey.String(),
+						Type: apiKeyType.KeyType{
+							Type: PublicKeyType,
+						},
+					},
+					APIKey{
+						Key: TestUserPrivateAPIKey.String(),
+						Type: apiKeyType.KeyType{
+							Type: PrivateKeyType,
+						},
+					},
+				},
+			},
+			User{
+				ID:             uuid.NewV4().String(),
+				Name:           "Test Super User",
+				Email:          TestSuperEmail,
+				Password:       string(encryptedSuperPass),
+				CustomerNumber: 1,
+				SuperUser:      true,
+				Keys: []APIKey{
+					APIKey{
+						Key: TestSuperUserAPIKey.String(),
+						Type: apiKeyType.KeyType{
+							Type: PublicKeyType,
+						},
+					},
+					APIKey{
+						Key: TestSuperUserPrivateAPIKey.String(),
+						Type: apiKeyType.KeyType{
+							Type: PrivateKeyType,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	err = session.DB(database.ProductMongoDatabase).C(database.CustomerCollectionName).Insert(&c)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	singleUser := Customer{
+		Identifier:     bson.NewObjectId(),
+		CustomerNumber: 2,
+		Users: []User{
+			User{
+				ID:             uuid.NewV4().String(),
+				Name:           "Test Single User",
+				Email:          TestSingleUserEmail,
+				Password:       string(encryptedSinglePass),
+				CustomerNumber: 2,
+				SuperUser:      true,
+				Keys: []APIKey{
+					APIKey{
+						Key: TestSingleUserAPIKey.String(),
+						Type: apiKeyType.KeyType{
+							Type: PublicKeyType,
+						},
+					},
+					APIKey{
+						Key: TestSingleUserPrivateAPIKey.String(),
+						Type: apiKeyType.KeyType{
+							Type: PrivateKeyType,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	err = session.DB(database.ProductMongoDatabase).C(database.CustomerCollectionName).Insert(&singleUser)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func TestMain(m *testing.M) {
+	var err error
+	if os.Getenv("DOCKER_BIND_LOCALHOST") == "" {
+		var mysql dockertest.ContainerID
+		mysql, err = dockertest.ConnectToMySQL(15, time.Second*5, func(url string) bool {
+			url = fmt.Sprintf("%s?parseTime=true&loc=%s", url, "America%2FChicago")
+
+			db, err = sql.Open("mysql", url)
+			if err != nil {
+				log.Fatalf("MySQL connection failed, with address '%s'.", url)
+			}
+
+			setupMySQL()
+
+			return db.Ping() == nil
+		})
+
+		defer func() {
+			db.Close()
+			mysql.KillRemove()
+		}()
+
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		mongo, err := dockertest.ConnectToMongoDB(15, time.Second, func(url string) bool {
+			var err error
+			session, err = mgo.Dial(url)
+			if err != nil {
+				log.Fatalf("MongoDB connection failed, with address '%s'.", url)
+			}
+
+			session.SetMode(mgo.Monotonic, true)
+
+			setupMongo()
+
+			return session.Ping() == nil
+		})
+
+		defer func() {
+			session.Close()
+			mongo.KillRemove()
+		}()
+
+		if err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		// travis
+		db, err = sql.Open("mysql", "root:@tcp(127.0.0.1:3306)/CurtData?parseTime=true")
+		if err != nil {
+			log.Fatalf("MySQL connection failed, with address '%s'.", "127.0.0.1:3306")
+		}
+
+		setupMySQL()
+
+		session, err = mgo.Dial("mongodb://127.0.0.1:27017/mydb")
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		setupMongo()
 	}
 
 	m.Run()
