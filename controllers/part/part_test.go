@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -75,62 +76,84 @@ func setupMongoData() {
 	session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName).Insert(&p)
 }
 
-func TestMain(m *testing.M) {
-
-	mongo, err := dockertest.ConnectToMongoDB(15, time.Second, func(url string) bool {
-		var err error
-		session, err = mgo.Dial(url)
+func setupMysqlData() {
+	var err error
+	for _, schema := range schemas {
+		_, err = db.Exec(schema)
 		if err != nil {
-			log.Fatalf("MongoDB connection failed, with address '%s'.", url)
+			log.Fatal(err)
 		}
-
-		session.SetMode(mgo.Monotonic, true)
-
-		setupMongoData()
-
-		return session.Ping() == nil
-	})
-
-	defer func() {
-		session.Close()
-		mongo.KillRemove()
-	}()
-
-	if err != nil {
-		log.Fatal(err)
 	}
 
-	mysql, err := dockertest.ConnectToMySQL(15, time.Second*5, func(url string) bool {
-		var err error
-		db, err = sql.Open("mysql", url)
+	for _, insert := range dataInserts {
+		_, err = db.Exec(insert)
 		if err != nil {
-			log.Fatalf("MySQL connection failed, with address '%s'.", url)
+			log.Fatal(err)
 		}
+	}
+}
 
-		for _, schema := range schemas {
-			_, err = db.Exec(schema)
+func TestMain(m *testing.M) {
+	var err error
+	if os.Getenv("DOCKER_BIND_LOCALHOST") == "" {
+		var mongo dockertest.ContainerID
+		var mysql dockertest.ContainerID
+
+		mongo, err = dockertest.ConnectToMongoDB(15, time.Second, func(url string) bool {
+			session, err = mgo.Dial(url)
 			if err != nil {
-				log.Fatal(err)
+				log.Fatalf("MongoDB connection failed, with address '%s'.", url)
 			}
+
+			session.SetMode(mgo.Monotonic, true)
+
+			setupMongoData()
+
+			return session.Ping() == nil
+		})
+
+		defer func() {
+			session.Close()
+			mongo.KillRemove()
+		}()
+
+		if err != nil {
+			log.Fatal(err)
 		}
 
-		for _, insert := range dataInserts {
-			_, err = db.Exec(insert)
+		mysql, err = dockertest.ConnectToMySQL(15, time.Second*5, func(url string) bool {
+			db, err = sql.Open("mysql", url)
 			if err != nil {
-				log.Fatal(err)
+				log.Fatalf("MySQL connection failed, with address '%s'.", url)
 			}
+
+			setupMysqlData()
+
+			return db.Ping() == nil
+		})
+
+		defer func() {
+			db.Close()
+			mysql.KillRemove()
+		}()
+
+		if err != nil {
+			log.Fatal(err)
 		}
+	} else {
+		// Mongo Init
+		session, err = mgo.Dial("mongodb://127.0.0.1:27017/mydb")
+		if err != nil {
+			log.Fatal(err)
+		}
+		setupMongoData()
 
-		return db.Ping() == nil
-	})
-
-	defer func() {
-		db.Close()
-		mysql.KillRemove()
-	}()
-
-	if err != nil {
-		log.Fatal(err)
+		// MySQL Init
+		db, err = sql.Open("mysql", "root:@tcp(127.0.0.1:3306)/CurtData?parseTime=true")
+		if err != nil {
+			log.Fatalf("MySQL connection failed, with address '%s'.", "127.0.0.1:3306")
+		}
+		setupMysqlData()
 	}
 
 	m.Run()
