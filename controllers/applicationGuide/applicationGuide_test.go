@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -41,12 +42,44 @@ var (
 )
 
 func TestMain(m *testing.M) {
+	var err error
+	if os.Getenv("DOCKER_BIND_LOCALHOST") == "" {
+		var mysql dockertest.ContainerID
+		mysql, err = dockertest.ConnectToMySQL(15, time.Second*5, func(url string) bool {
+			db, err = sql.Open("mysql", url+"?parseTime=true")
+			if err != nil {
+				log.Fatalf("MySQL connection failed, with address '%s'.", url)
+			}
 
-	mysql, err := dockertest.ConnectToMySQL(15, time.Second*5, func(url string) bool {
-		var err error
-		db, err = sql.Open("mysql", url+"?parseTime=true")
+			for _, schema := range schemas {
+				_, err = db.Exec(schema)
+				if err != nil {
+					log.Fatal(err)
+				}
+			}
+
+			for _, insert := range dataInserts {
+				_, err = db.Exec(insert)
+				if err != nil {
+					log.Fatal(err)
+				}
+			}
+
+			return db.Ping() == nil
+		})
+
+		defer func() {
+			db.Close()
+			mysql.KillRemove()
+		}()
+
 		if err != nil {
-			log.Fatalf("MySQL connection failed, with address '%s'.", url)
+			log.Fatal(err)
+		}
+	} else {
+		db, err = sql.Open("mysql", "root:@tcp(127.0.0.1:3306)/CurtData?parseTime=true")
+		if err != nil {
+			log.Fatalf("MySQL connection failed, with address '%s'.", "127.0.0.1:3306")
 		}
 
 		for _, schema := range schemas {
@@ -63,16 +96,9 @@ func TestMain(m *testing.M) {
 			}
 		}
 
-		return db.Ping() == nil
-	})
-
-	defer func() {
-		db.Close()
-		mysql.KillRemove()
-	}()
-
-	if err != nil {
-		log.Fatal(err)
+		defer func() {
+			db.Close()
+		}()
 	}
 
 	m.Run()

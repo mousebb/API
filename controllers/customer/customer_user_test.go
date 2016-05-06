@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -51,10 +52,36 @@ var (
 
 func TestMain(m *testing.M) {
 	var err error
-	mongo, err := dockertest.ConnectToMongoDB(3, time.Second*30, func(url string) bool {
-		session, err = mgo.Dial(url)
+
+	if os.Getenv("DOCKER_BIND_LOCALHOST") == "" {
+		var mongo dockertest.ContainerID
+		mongo, err = dockertest.ConnectToMongoDB(3, time.Second*30, func(url string) bool {
+			session, err = mgo.Dial(url)
+			if err != nil {
+				return false
+			}
+			for _, user := range testUsers {
+				err = session.DB(database.ProductMongoDatabase).C(database.CustomerCollectionName).Insert(user)
+				if err != nil {
+					log.Fatal(err)
+				}
+			}
+			var u []customer.User
+			err = session.DB(database.ProductMongoDatabase).C(database.CustomerCollectionName).Find(bson.M{}).All(&u)
+			return true
+		})
+
+		defer func() {
+			mongo.KillRemove()
+		}()
+
 		if err != nil {
-			return false
+			log.Fatal(err)
+		}
+	} else {
+		session, err = mgo.Dial("mongodb://127.0.0.1:27017/mydb")
+		if err != nil {
+			log.Fatal(err)
 		}
 		for _, user := range testUsers {
 			err = session.DB(database.ProductMongoDatabase).C(database.CustomerCollectionName).Insert(user)
@@ -64,16 +91,9 @@ func TestMain(m *testing.M) {
 		}
 		var u []customer.User
 		err = session.DB(database.ProductMongoDatabase).C(database.CustomerCollectionName).Find(bson.M{}).All(&u)
-		log.Print(u)
-		return true
-	})
-
-	defer func() {
-		mongo.KillRemove()
-	}()
-
-	if err != nil {
-		log.Fatal(err)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 	m.Run()
 }
