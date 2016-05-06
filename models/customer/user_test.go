@@ -208,6 +208,7 @@ func TestMain(m *testing.M) {
 	var err error
 	if os.Getenv("DOCKER_BIND_LOCALHOST") == "" {
 		var mysql dockertest.ContainerID
+		var mongo dockertest.ContainerID
 		mysql, err = dockertest.ConnectToMySQL(15, time.Second*5, func(url string) bool {
 			url = fmt.Sprintf("%s?parseTime=true&loc=%s", url, "America%2FChicago")
 
@@ -230,8 +231,7 @@ func TestMain(m *testing.M) {
 			log.Fatal(err)
 		}
 
-		mongo, err := dockertest.ConnectToMongoDB(15, time.Second, func(url string) bool {
-			var err error
+		mongo, err = dockertest.ConnectToMongoDB(15, time.Second, func(url string) bool {
 			session, err = mgo.Dial(url)
 			if err != nil {
 				log.Fatalf("MongoDB connection failed, with address '%s'.", url)
@@ -577,11 +577,10 @@ func TestAddUser(t *testing.T) {
 			insertAPIKey = tmp
 		})
 
-		Convey("invalid NSQ host", func() {
+		Convey("invalid PubSub scopes", func() {
 
-			tmp := NsqHost
-			NsqHost = "1.2.3.4:4150"
-
+			tmp := scopes
+			scopes = []string{}
 			u := &User{
 				Name:           "Test User",
 				Email:          TestEmail,
@@ -592,8 +591,7 @@ func TestAddUser(t *testing.T) {
 			err := AddUser(session, db, u, TestUserPrivateAPIKey.String())
 			So(err, ShouldNotBeNil)
 
-			NsqHost = tmp
-
+			scopes = tmp
 		})
 
 		Convey("valid", func() {
