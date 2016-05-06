@@ -15,14 +15,8 @@ services:
 env:
     - DOCKER_BIND_LOCALHOST=true
 
-before_install:
-    - docker pull mysql
-    - docker pull mongo
-    - docker pull redis
-    - docker pull elasticsearch
-
 before_script:
-    - sleep 10
+    - mysql -e 'create database CurtData;'
 
 build:
     - setup-go-workspace
