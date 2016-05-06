@@ -12,8 +12,8 @@ func TestLookupGetModels(t *testing.T) {
 	l.Brands = append(l.Brands, 1)
 	Convey("Testing GetModels() without year/make", t, func() {
 		err := l.GetModels(&middleware.APIContext{})
-		So(err, ShouldEqual, nil)
-		So(l.Models, ShouldNotEqual, nil)
+		So(err, ShouldNotBeNil)
+		So(l.Models, ShouldHaveSameTypeAs, []string{})
 		So(len(l.Models), ShouldEqual, 0)
 	})
 
@@ -21,16 +21,16 @@ func TestLookupGetModels(t *testing.T) {
 		l.Vehicle.Base.Year = 1
 		l.Vehicle.Base.Make = "KD"
 		err := l.GetModels(&middleware.APIContext{})
-		So(err, ShouldEqual, nil)
-		So(l.Models, ShouldNotEqual, nil)
+		So(err, ShouldNotBeNil)
+		So(l.Models, ShouldHaveSameTypeAs, []string{})
 		So(len(l.Models), ShouldEqual, 0)
 	})
 
 	Convey("Testing GetModels() with year", t, func() {
 		l.Vehicle.Base.Year = 2010
 		err := l.GetModels(&middleware.APIContext{})
-		So(err, ShouldEqual, nil)
-		So(l.Models, ShouldNotEqual, nil)
+		So(err, ShouldNotBeNil)
+		So(l.Models, ShouldHaveSameTypeAs, []string{})
 		So(len(l.Models), ShouldEqual, 0)
 	})
 
@@ -38,8 +38,7 @@ func TestLookupGetModels(t *testing.T) {
 		l.Vehicle.Base.Year = 2010
 		l.Vehicle.Base.Make = "Ford"
 		err := l.GetModels(&middleware.APIContext{})
-		So(err, ShouldEqual, nil)
-		So(l.Models, ShouldNotEqual, nil)
+		So(err, ShouldNotBeNil)
 		So(l.Models, ShouldHaveSameTypeAs, []string{})
 		So(l.Vehicle.Base.Year, ShouldEqual, 2010)
 		So(l.Vehicle.Base.Make, ShouldEqual, "Ford")

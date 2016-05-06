@@ -1,6 +1,7 @@
 package products
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -25,6 +26,10 @@ func (l *Lookup) GetModels(ctx *middleware.APIContext) error {
 	}
 	brandStmt = strings.TrimRight(brandStmt, ",") + ")"
 	wholeStmt := stmtBeginning + brandStmt + stmtEnd
+
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("%s", "failed to establish database connection")
+	}
 
 	stmt, err := ctx.DB.Prepare(wholeStmt)
 	if err != nil {

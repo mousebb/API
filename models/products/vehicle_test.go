@@ -304,7 +304,7 @@ func TestInquiry(t *testing.T) {
 			i.Phone = "555-555-5555"
 			i.Vehicle = "{'base':{'year':2010}}"
 			err := i.Push(&middleware.APIContext{})
-			So(err, ShouldBeNil)
+			So(err, ShouldNotBeNil)
 		})
 	})
 }

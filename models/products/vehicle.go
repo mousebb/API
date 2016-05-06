@@ -303,6 +303,9 @@ func (i *VehicleInquiry) Push(ctx *middleware.APIContext) error {
 	if i.Vehicle == "" {
 		return fmt.Errorf("%s", "the vehicle of inquiry is required")
 	}
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("%s", "failed to establish database connection")
+	}
 
 	stmt, err := ctx.DB.Prepare(insertStmt)
 	if err != nil {
