@@ -26,17 +26,48 @@ var (
 )
 
 func TestMain(m *testing.M) {
+	if os.Getenv("DOCKER_BIND_LOCALHOST") == "" {
+		var es dockertest.ContainerID
+		var err error
+		es, err = dockertest.ConnectToElasticSearch(15, time.Second, func(url string) bool {
+			conn = elastigo.NewConn()
 
-	es, err := dockertest.ConnectToElasticSearch(15, time.Second, func(url string) bool {
+			segs := strings.Split(url, ":")
+			if len(segs) != 2 {
+				log.Fatalf("ElasticSearch connection failed, with address '%s'.", url)
+			}
+
+			conn.Domain = segs[0]
+			conn.Port = segs[1]
+
+			os.Setenv("ELASTIC_HOST", conn.Domain)
+			os.Setenv("ELASTIC_PORT", conn.Port)
+
+			cat := getExampleCategory("1")
+			conn.Index("mongo_all", "category", "1", nil, cat)
+			conn.Index("mongo_curt", "category", "1", nil, cat)
+
+			part := getExamplePart("1042")
+			conn.Index("mongo_all", "part", "1042", nil, part)
+			conn.Index("mongo_aries", "part", "1042", nil, part)
+
+			return true
+		})
+
+		defer func() {
+			os.Clearenv()
+			conn.Close()
+			es.KillRemove()
+		}()
+
+		if err != nil {
+			log.Fatal(err)
+		}
+	} else {
 		conn = elastigo.NewConn()
 
-		segs := strings.Split(url, ":")
-		if len(segs) != 2 {
-			log.Fatalf("ElasticSearch connection failed, with address '%s'.", url)
-		}
-
-		conn.Domain = segs[0]
-		conn.Port = segs[1]
+		conn.Domain = "127.0.0.1"
+		conn.Port = "9200"
 
 		os.Setenv("ELASTIC_HOST", conn.Domain)
 		os.Setenv("ELASTIC_PORT", conn.Port)
@@ -49,17 +80,11 @@ func TestMain(m *testing.M) {
 		conn.Index("mongo_all", "part", "1042", nil, part)
 		conn.Index("mongo_aries", "part", "1042", nil, part)
 
-		return true
-	})
+		defer func() {
+			os.Clearenv()
+			conn.Close()
+		}()
 
-	defer func() {
-		os.Clearenv()
-		conn.Close()
-		es.KillRemove()
-	}()
-
-	if err != nil {
-		log.Fatal(err)
 	}
 
 	m.Run()

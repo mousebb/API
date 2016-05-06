@@ -13,6 +13,7 @@ env:
     - DOCKER_BIND_LOCALHOST=true
 
 before_script:
+    - sleep 10
     - mysql -u root -e 'create database CurtData;'
 
 build:
