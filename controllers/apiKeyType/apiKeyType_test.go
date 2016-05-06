@@ -59,7 +59,7 @@ func TestMain(m *testing.M) {
 			log.Fatal(err)
 		}
 	} else {
-		db, err = sql.Open("mysql", "127.0.0.1:3306/CurtData?parseTime=true")
+		db, err = sql.Open("mysql", "root:@tcp(127.0.0.1:3306)/CurtData?parseTime=true")
 		if err != nil {
 			log.Fatalf("MySQL connection failed, with address '%s'.", "127.0.0.1:3306")
 		}
