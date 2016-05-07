@@ -12,6 +12,10 @@ services:
 env:
     - DOCKER_BIND_LOCALHOST=true
 
+before_install:
+    - go get github.com/mattn/goveralls
+    - go get golang.org/x/tools/cmd/cover
+
 before_script:
     - sleep 10
     - mysql -u root -e 'create database CurtData;'
@@ -36,3 +40,8 @@ build:
             go test -v ./models/geography
             go vet ./...
             golint ./...
+
+    - script:
+        name: goveralls
+        code: |
+            $HOME/gopath/bin/goveralls -service=travis-ci
