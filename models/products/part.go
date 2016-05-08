@@ -19,42 +19,49 @@ import (
 
 // Part ...
 type Part struct {
-	Identifier        bson.ObjectId        `bson:"_id" json:"-" xml:"-"`
-	ID                int                  `json:"id" xml:"id,attr" bson:"id"`
-	PartNumber        string               `bson:"part_number" json:"part_number" xml:"part_number,attr"`
-	Brand             brand.Brand          `json:"brand" xml:"brand,attr" bson:"brand"`
-	Status            int                  `json:"status" xml:"status,attr" bson:"status"`
-	PriceCode         int                  `json:"price_code" xml:"price_code,attr" bson:"price_code"`
-	RelatedCount      int                  `json:"related_count" xml:"related_count,attr" bson:"related_count"`
-	AverageReview     float64              `json:"average_review" xml:"average_review,attr" bson:"average_review"`
-	DateModified      time.Time            `json:"date_modified" xml:"date_modified,attr" bson:"date_modified"`
-	DateAdded         time.Time            `json:"date_added" xml:"date_added,attr" bson:"date_added"`
-	ShortDesc         string               `json:"short_description" xml:"short_description,attr" bson:"short_description"`
-	InstallSheet      *url.URL             `json:"install_sheet" xml:"install_sheet" bson:"install_sheet"`
-	Attributes        []Attribute          `json:"attributes" xml:"attributes" bson:"attributes"`
-	AcesVehicles      []AcesVehicle        `bson:"aces_vehicles" json:"aces_vehicles" xml:"aces_vehicles"`
-	VehicleAttributes []string             `json:"vehicle_atttributes" xml:"vehicle_attributes" bson:"vehicle_attributes"`
-	Vehicles          []VehicleApplication `json:"vehicle_applications,omitempty" xml:"vehicle_applications,omitempty" bson:"vehicle_applications"`
-	Content           []Content            `json:"content" xml:"content" bson:"content"`
-	Pricing           []Price              `json:"pricing" xml:"pricing" bson:"pricing"`
-	Reviews           []Review             `json:"reviews" xml:"reviews" bson:"reviews"`
-	Images            []Image              `json:"images" xml:"images" bson:"images"`
-	Related           []int                `json:"related" xml:"related" bson:"related" bson:"related"`
-	Categories        []Category           `json:"categories" xml:"categories" bson:"categories"`
-	Videos            []video.Video        `json:"videos" xml:"videos" bson:"videos"`
-	Packages          []Package            `json:"packages" xml:"packages" bson:"packages"`
-	Customer          CustomerPart         `json:"customer,omitempty" xml:"customer,omitempty" bson:"v"`
-	Class             Class                `json:"class,omitempty" xml:"class,omitempty" bson:"class"`
-	Featured          bool                 `json:"featured,omitempty" xml:"featured,omitempty" bson:"featured"`
-	AcesPartTypeID    int                  `json:"acesPartTypeId,omitempty" xml:"acesPartTypeId,omitempty" bson:"acesPartTypeId"`
-	Inventory         PartInventory        `json:"inventory,omitempty" xml:"inventory,omitempty" bson:"inventory"`
-	UPC               string               `json:"upc,omitempty" xml:"upc,omitempty" bson:"upc"`
+	Identifier    bson.ObjectId `bson:"_id" json:"-" xml:"-"`
+	ID            int           `json:"id" xml:"id,attr" bson:"id"`
+	SKU           string        `bson:"part_number" json:"sku" xml:"sku,attr"`
+	Brand         brand.Brand   `json:"brand" xml:"brand,attr" bson:"brand"`
+	Status        int           `json:"status" xml:"status,attr" bson:"status"`
+	PriceCode     int           `json:"price_code" xml:"price_code,attr" bson:"price_code"`
+	RelatedCount  int           `json:"related_count" xml:"related_count,attr" bson:"related_count"`
+	AverageReview float64       `json:"average_review" xml:"average_review,attr" bson:"average_review"`
+	DateModified  time.Time     `json:"date_modified" xml:"date_modified,attr" bson:"date_modified"`
+	DateAdded     time.Time     `json:"date_added" xml:"date_added,attr" bson:"date_added"`
+	ShortDesc     string        `json:"short_description" xml:"short_description,attr" bson:"short_description"`
+	InstallSheet  *url.URL      `json:"install_sheet" xml:"install_sheet" bson:"install_sheet"`
+	Attributes    []Attribute   `json:"attributes" xml:"attributes" bson:"attributes"`
+
+	// TODO: This needs to be re-evaluated for the integrated new web.
+	// AcesVehicles      []AcesVehicle        `bson:"aces_vehicles" json:"aces_vehicles" xml:"aces_vehicles"`
+
+	// TODO: Is this really needed? All of this data is available on the
+	// `Vehicles` array. It's more of a "nice to have", worth the bandwidth?
+	// VehicleAttributes []string             `json:"vehicle_atttributes" xml:"vehicle_attributes" bson:"vehicle_attributes"`
+
+	Vehicles       []VehicleApplication `json:"vehicle_applications,omitempty" xml:"vehicle_applications,omitempty" bson:"vehicle_applications"`
+	Content        []Content            `json:"content" xml:"content" bson:"content"`
+	Pricing        []Price              `json:"pricing" xml:"pricing" bson:"pricing"`
+	Reviews        []Review             `json:"reviews" xml:"reviews" bson:"reviews"`
+	Images         []Image              `json:"images" xml:"images" bson:"images"`
+	Related        []int                `json:"related" xml:"related" bson:"related" bson:"related"`
+	Categories     []Category           `json:"categories" xml:"categories" bson:"categories"`
+	Videos         []video.Video        `json:"videos" xml:"videos" bson:"videos"`
+	Packages       []Package            `json:"packages" xml:"packages" bson:"packages"`
+	Customer       CustomerPart         `json:"customer,omitempty" xml:"customer,omitempty" bson:"v"`
+	Class          Class                `json:"class,omitempty" xml:"class,omitempty" bson:"class"`
+	Featured       bool                 `json:"featured,omitempty" xml:"featured,omitempty" bson:"featured"`
+	AcesPartTypeID int                  `json:"acesPartTypeId,omitempty" xml:"acesPartTypeId,omitempty" bson:"acesPartTypeId"`
+	Inventory      PartInventory        `json:"inventory,omitempty" xml:"inventory,omitempty" bson:"inventory"`
+	UPC            string               `json:"upc,omitempty" xml:"upc,omitempty" bson:"upc"`
 }
 
 // CustomerPart Holds customer specific data.
 type CustomerPart struct {
-	Price         float64 `json:"price" xml:"price,attr"`
-	CartReference int     `json:"cart_reference" xml:"cart_reference,attr"`
+	Price           float64                   `json:"price" xml:"price,attr"`
+	CartReference   int                       `json:"cart_reference" xml:"cart_reference,attr"`
+	CustomerContent []customerContent.Content `json:"content" xml:"content"`
 }
 
 // PaginatedProductListing ...
@@ -244,7 +251,7 @@ func (p *Part) Get(ctx *middleware.APIContext, brandID int) (err error) {
 	}
 
 	pattern := bson.RegEx{
-		Pattern: "^" + p.PartNumber + "$",
+		Pattern: "^" + p.SKU + "$",
 		Options: "i",
 	}
 

@@ -108,7 +108,7 @@ func Latest(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request)
 // TODO: We should add logic for the CURT year/make/model/style.
 func Get(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	p := products.Part{
-		PartNumber: ctx.Params.ByName("part"),
+		SKU: ctx.Params.ByName("part"),
 	}
 
 	err := p.Get(ctx, 0)
@@ -122,7 +122,7 @@ func Get(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (i
 
 	//TODO - remove when curt & aries vehicle application data are in sync
 	if p.Brand.ID == 3 {
-		mgoVehicles, err := products.ReverseMongoLookup(ctx, p.PartNumber)
+		mgoVehicles, err := products.ReverseMongoLookup(ctx, p.SKU)
 		if err != nil {
 			return nil, err
 		}
@@ -143,7 +143,7 @@ func Get(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (i
 // GetRelated Retrieves the related Part to a given Part.
 func GetRelated(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	p := products.Part{
-		PartNumber: ctx.Params.ByName("part"),
+		SKU: ctx.Params.ByName("part"),
 	}
 
 	return p.GetRelated(ctx, 0)
@@ -196,7 +196,7 @@ func GetWithVehicle(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.
 // Vehicles Returns the vehicles that fit a given Part.
 func Vehicles(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	p := products.Part{
-		PartNumber: ctx.Params.ByName("part"),
+		SKU: ctx.Params.ByName("part"),
 	}
 
 	err := p.Get(ctx, 0)
@@ -210,7 +210,7 @@ func Vehicles(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Reques
 //Redundant
 func Images(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	p := products.Part{
-		PartNumber: ctx.Params.ByName("part"),
+		SKU: ctx.Params.ByName("part"),
 	}
 
 	err := p.Get(ctx, 0)
@@ -224,7 +224,7 @@ func Images(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request)
 //Redundant
 func Attributes(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	p := products.Part{
-		PartNumber: ctx.Params.ByName("part"),
+		SKU: ctx.Params.ByName("part"),
 	}
 
 	err := p.Get(ctx, 0)
@@ -238,7 +238,7 @@ func Attributes(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Requ
 //Redundant
 func GetContent(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	p := products.Part{
-		PartNumber: ctx.Params.ByName("part"),
+		SKU: ctx.Params.ByName("part"),
 	}
 
 	err := p.Get(ctx, 0)
@@ -252,7 +252,7 @@ func GetContent(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Requ
 //Redundant
 func Packaging(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	p := products.Part{
-		PartNumber: ctx.Params.ByName("part"),
+		SKU: ctx.Params.ByName("part"),
 	}
 
 	err := p.Get(ctx, 0)
@@ -266,7 +266,7 @@ func Packaging(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Reque
 //Redundant
 func ActiveApprovedReviews(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	p := products.Part{
-		PartNumber: ctx.Params.ByName("part"),
+		SKU: ctx.Params.ByName("part"),
 	}
 
 	err := p.Get(ctx, 0)
@@ -286,7 +286,7 @@ func ActiveApprovedReviews(ctx *middleware.APIContext, rw http.ResponseWriter, r
 
 func Videos(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	p := products.Part{
-		PartNumber: ctx.Params.ByName("part"),
+		SKU: ctx.Params.ByName("part"),
 	}
 
 	err := p.Get(ctx, 0)
@@ -300,7 +300,7 @@ func Videos(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request)
 //Sort of Redundant
 func InstallSheet(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) {
 	p := products.Part{
-		PartNumber: ctx.Params.ByName("part"),
+		SKU: ctx.Params.ByName("part"),
 	}
 
 	err := p.Get(ctx, 0)
@@ -332,7 +332,7 @@ func InstallSheet(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Re
 func Categories(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 
 	p := products.Part{
-		PartNumber: ctx.Params.ByName("part"),
+		SKU: ctx.Params.ByName("part"),
 	}
 
 	err := p.Get(ctx, 0)
@@ -345,7 +345,7 @@ func Categories(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Requ
 
 func Prices(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	p := products.Part{
-		PartNumber: ctx.Params.ByName("part"),
+		SKU: ctx.Params.ByName("part"),
 	}
 
 	err := p.Get(ctx, 0)
