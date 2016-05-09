@@ -270,7 +270,12 @@ func TestMain(m *testing.M) {
 
 		setupMySQL()
 
-		session, err = mgo.Dial("mongodb://127.0.0.1:27017/mydb")
+		session, err = mgo.Dial(
+			fmt.Sprintf(
+				"mongodb://%s/mydb",
+				os.Getenv("WERCKER_MONGODB_HOST"),
+			),
+		)
 		if err != nil {
 			log.Fatal(err)
 		}
