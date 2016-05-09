@@ -3,6 +3,7 @@ package searchCtlr
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -68,6 +69,17 @@ func TestMain(m *testing.M) {
 
 		conn.Domain = os.Getenv("ELASTICSEARCH_PORT_9300_TCP_ADDR")
 		conn.Port = os.Getenv("ELASTICSEARCH_PORT_9300_TCP_PORT")
+
+		res, err := http.Get(fmt.Sprintf("http://%s:%s/_cluster/health?pretty=true", conn.Domain, conn.Port))
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer res.Body.Close()
+		data, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Println(string(data))
 
 		os.Setenv("ELASTIC_HOST", conn.Domain)
 		os.Setenv("ELASTIC_PORT", conn.Port)
