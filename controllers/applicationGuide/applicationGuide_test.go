@@ -98,7 +98,7 @@ func TestMain(m *testing.M) {
 			fmt.Sprintf(
 				"root:%s@tcp(%s:%s)%s?parseTime=true",
 				os.Getenv("MARIADB_ENV_MYSQL_ROOT_PASSWORD"),
-				os.Getenv("MARIADB_PORT_3306_TCP_ADDRESS"),
+				os.Getenv("MARIADB_PORT_3306_TCP_ADDR"),
 				os.Getenv("MARIADB_PORT_3306_TCP_PORT"),
 				os.Getenv("MARIADB_NAME"),
 			),
