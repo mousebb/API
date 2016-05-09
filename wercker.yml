@@ -1,9 +1,12 @@
 box: golang
 
 services:
-    - mysql
+    - mariadb
+        env:
+            MYSQL_ROOT_PASSWORD: mypassword
 
-    - mongodb
+    - mongo
+
 build:
   steps:
     - setup-go-workspace

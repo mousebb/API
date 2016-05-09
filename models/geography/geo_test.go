@@ -2,6 +2,7 @@ package geography
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -61,7 +62,7 @@ func insertGeoData() error {
 
 func TestMain(m *testing.M) {
 	var err error
-	if os.Getenv("DOCKER_BIND_LOCALHOST") == "" {
+	if os.Getenv("CI") == "" {
 		var mysql dockertest.ContainerID
 		mysql, err = dockertest.ConnectToMySQL(15, time.Second*5, func(url string) bool {
 			db, err = sql.Open("mysql", url+"?parseTime=true")
@@ -83,7 +84,16 @@ func TestMain(m *testing.M) {
 			log.Fatal(err)
 		}
 	} else {
-		db, err = sql.Open("mysql", "root:@tcp(127.0.0.1:3306)/CurtData?parseTime=true")
+		db, err = sql.Open(
+			"mysql",
+			fmt.Sprintf(
+				"root:%s@tcp(%s:%s)%s?parseTime=true",
+				os.Getenv("MARIADB_ENV_MYSQL_ROOT_PASSWORD"),
+				os.Getenv("MARIADB_PORT_3306_TCP_ADDRESS"),
+				os.Getenv("MARIADB_PORT_3306_TCP_PORT"),
+				os.Getenv("MARIADB_NAME"),
+			),
+		)
 		if err != nil {
 			log.Fatalf("MySQL connection failed, with address '%s'.", "127.0.0.1:3306")
 		}

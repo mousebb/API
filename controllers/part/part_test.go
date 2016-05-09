@@ -116,7 +116,7 @@ func setupMysqlData() {
 
 func TestMain(m *testing.M) {
 	var err error
-	if os.Getenv("DOCKER_BIND_LOCALHOST") == "" {
+	if os.Getenv("CI") == "" {
 		var mongo dockertest.ContainerID
 		var mysql dockertest.ContainerID
 
@@ -170,7 +170,16 @@ func TestMain(m *testing.M) {
 		setupMongoData()
 
 		// MySQL Init
-		db, err = sql.Open("mysql", "root:@tcp(127.0.0.1:3306)/CurtData?parseTime=true")
+		db, err = sql.Open(
+			"mysql",
+			fmt.Sprintf(
+				"root:%s@tcp(%s:%s)%s?parseTime=true",
+				os.Getenv("MARIADB_ENV_MYSQL_ROOT_PASSWORD"),
+				os.Getenv("MARIADB_PORT_3306_TCP_ADDRESS"),
+				os.Getenv("MARIADB_PORT_3306_TCP_PORT"),
+				os.Getenv("MARIADB_NAME"),
+			),
+		)
 		if err != nil {
 			log.Fatalf("MySQL connection failed, with address '%s'.", "127.0.0.1:3306")
 		}

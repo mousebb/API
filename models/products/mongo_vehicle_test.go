@@ -119,7 +119,7 @@ func setupMongo() {
 
 func TestMain(m *testing.M) {
 	var err error
-	if os.Getenv("DOCKER_BIND_LOCALHOST") == "" {
+	if os.Getenv("CI") == "" {
 		var mongo dockertest.ContainerID
 
 		mongo, err = dockertest.ConnectToMongoDB(15, time.Second, func(url string) bool {

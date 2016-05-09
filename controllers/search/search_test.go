@@ -26,7 +26,7 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	if os.Getenv("DOCKER_BIND_LOCALHOST") == "" {
+	if os.Getenv("CI") == "" {
 		var es dockertest.ContainerID
 		var err error
 		es, err = dockertest.ConnectToElasticSearch(15, time.Second, func(url string) bool {
