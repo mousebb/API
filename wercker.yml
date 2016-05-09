@@ -16,7 +16,8 @@ build:
 
     - script:
         name: sleeper
-        code: sleep 10
+        code: |
+            sleep 10
 
     # Gets the dependencies
     - script:
