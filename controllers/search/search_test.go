@@ -66,8 +66,8 @@ func TestMain(m *testing.M) {
 	} else {
 		conn = elastigo.NewConn()
 
-		conn.Domain = "127.0.0.1"
-		conn.Port = "9200"
+		conn.Domain = os.Getenv("ELASTICSEARCH_PORT_9300_TCP_ADDR")
+		conn.Port = os.Getenv("ELASTICSEARCH_PORT_9300_TCP_PORT")
 
 		os.Setenv("ELASTIC_HOST", conn.Domain)
 		os.Setenv("ELASTIC_PORT", conn.Port)

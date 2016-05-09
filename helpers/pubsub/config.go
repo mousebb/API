@@ -67,7 +67,10 @@ func backgrounContext(scopes []string) error {
 func PushMessage(topic string, msgs ...*ps.Message) error {
 	var err error
 	if pubsubCtx == nil {
-		NewContext(pubsubScopes)
+		err = NewContext(pubsubScopes)
+		if err != nil {
+			return err
+		}
 	}
 
 	err = createTopic(topic)
@@ -81,6 +84,14 @@ func PushMessage(topic string, msgs ...*ps.Message) error {
 }
 
 func createTopic(topic string) error {
+	var err error
+	if pubsubCtx == nil {
+		err = NewContext(pubsubScopes)
+		if err != nil {
+			return err
+		}
+	}
+
 	exists, err := ps.TopicExists(pubsubCtx, topic)
 	if err != nil || exists {
 		return err

@@ -1,6 +1,7 @@
 package search
 
 import (
+	"fmt"
 	"os"
 	"testing"
 
@@ -21,6 +22,16 @@ func TestDsl(t *testing.T) {
 	}
 	if os.Getenv("ELASTIC_PORT") != "" {
 		port = os.Getenv("ELASTIC_PORT")
+	}
+	if os.Getenv("ELASTICSEARCH_PORT_9300_TCP_ADDR") != "" {
+		ip = fmt.Sprintf(
+			"%s:%s",
+			os.Getenv("ELASTICSEARCH_PORT_9300_TCP_ADDR"),
+			os.Getenv("ELASTICSEARCH_PORT_9300_TCP_PORT"),
+		)
+	}
+	if os.Getenv("ELASTICSEARCH_PORT_9300_TCP_PORT") != "" {
+		port = os.Getenv("ELASTICSEARCH_PORT_9300_TCP_PORT")
 	}
 	user := os.Getenv("ELASTIC_USER")
 	pass := os.Getenv("ELASTIC_PASS")
