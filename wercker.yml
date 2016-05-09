@@ -7,6 +7,7 @@ services:
         MYSQL_DATABASE: CurtData
 
     - id: mongo
+
     - id: elasticsearch
 
 build:
@@ -14,8 +15,8 @@ build:
     - setup-go-workspace
 
     - script:
-        name: env
-        code: env
+        name: sleeper
+        code: sleep 10
 
     # Gets the dependencies
     - script:
