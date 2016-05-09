@@ -36,8 +36,15 @@ type StyleParts struct {
 	Parts []Part `json:"parts" xml:"parts"`
 }
 
-func (va *VehicleApplication) Query(ctx *middleware.APIContext) error {
+// Query Takes the incoming vehicle data and returns a `VehicleApplication`
+// that matches the provided data.
+func Query(ctx *middleware.APIContext, year, make, model string) (VehicleApplication, error) {
 	var err error
+	va := VehicleApplication{
+		Year:  year,
+		Make:  make,
+		Model: model,
+	}
 
 	if va.Year == "" {
 		va.Years, err = getYears(ctx)
@@ -49,7 +56,7 @@ func (va *VehicleApplication) Query(ctx *middleware.APIContext) error {
 		va.CategoryStyles, err = getStyles(ctx, va.Year, va.Make, va.Model)
 	}
 
-	return err
+	return va, err
 }
 
 func ReverseMongoLookup(ctx *middleware.APIContext, part string) ([]VehicleApplication, error) {
@@ -118,7 +125,7 @@ func getMakes(ctx *middleware.APIContext, year string) ([]string, error) {
 	}
 
 	var apps []Apps
-	err := c.Find(bson.M{
+	qry := bson.M{
 		"vehicle_applications": bson.M{
 			"$elemMatch": bson.M{
 				"year": year,
@@ -130,7 +137,8 @@ func getMakes(ctx *middleware.APIContext, year string) ([]string, error) {
 		"brand.id": bson.M{
 			"$in": ctx.DataContext.BrandArray,
 		},
-	}).Select(bson.M{"vehicle_applications.$.make": 1, "_id": 0}).All(&apps)
+	}
+	err := c.Find(qry).Select(bson.M{"vehicle_applications.make": 1, "_id": 0}).All(&apps)
 	if err != nil {
 		return nil, err
 	}
