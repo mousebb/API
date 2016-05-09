@@ -89,7 +89,7 @@ func TestMain(m *testing.M) {
 			os.Getenv("MARIADB_ENV_MYSQL_ROOT_PASSWORD"),
 			os.Getenv("MARIADB_PORT_3306_TCP_ADDR"),
 			os.Getenv("MARIADB_PORT_3306_TCP_PORT"),
-			os.Getenv("MARIADB_NAME"),
+			os.Getenv("MYSQL_DATABASE"),
 		)
 		log.Println(dsn)
 		db, err = sql.Open(

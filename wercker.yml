@@ -4,6 +4,7 @@ services:
     - id: mariadb
       env:
         MYSQL_ROOT_PASSWORD: mypassword
+        MYSQL_DATABASE: CurtData
 
     - id: mongo
 
