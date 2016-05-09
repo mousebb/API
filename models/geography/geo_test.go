@@ -85,11 +85,11 @@ func TestMain(m *testing.M) {
 		}
 	} else {
 		dsn := fmt.Sprintf(
-			"root:%s@tcp(%s:%s)%s?parseTime=true",
+			"root:%s@tcp(%s:%s)/%s?parseTime=true",
 			os.Getenv("MARIADB_ENV_MYSQL_ROOT_PASSWORD"),
 			os.Getenv("MARIADB_PORT_3306_TCP_ADDR"),
 			os.Getenv("MARIADB_PORT_3306_TCP_PORT"),
-			os.Getenv("MYSQL_DATABASE"),
+			os.Getenv("MARIADB_ENV_MYSQL_DATABASE"),
 		)
 		log.Println(dsn)
 		db, err = sql.Open(
