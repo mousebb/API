@@ -1,11 +1,11 @@
 box: golang
 
 services:
-    - mariadb
-        env:
-            MYSQL_ROOT_PASSWORD: mypassword
+    - id: mariadb
+      env:
+        MYSQL_ROOT_PASSWORD: mypassword
 
-    - mongo
+    - id: mongo
 
 build:
   steps:
