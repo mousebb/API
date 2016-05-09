@@ -17,7 +17,13 @@ func Query(ctx *middleware.APIContext, w http.ResponseWriter, r *http.Request) (
 		Make:  r.FormValue("make"),
 		Model: r.FormValue("model"),
 	}
-	err := va.Query(ctx)
+
+	va, err := products.Query(
+		ctx,
+		r.FormValue("year"),
+		r.FormValue("make"),
+		r.FormValue("model"),
+	)
 	if err != nil {
 		return nil, err
 	}
