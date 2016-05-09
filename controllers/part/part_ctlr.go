@@ -355,7 +355,14 @@ func Prices(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request)
 
 	price, err := customer.GetCustomerPrice(ctx.DB, p.ID)
 	if err == nil {
-		custPrice := products.Price{0, 0, "Customer", price, false, time.Now()}
+		custPrice := products.Price{
+			Id:           0,
+			PartId:       0,
+			Type:         "Customer",
+			Price:        price,
+			Enforced:     false,
+			DateModified: time.Now(),
+		}
 		p.Pricing = append(p.Pricing, custPrice)
 	}
 
