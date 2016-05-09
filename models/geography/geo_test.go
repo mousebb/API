@@ -84,17 +84,15 @@ func TestMain(m *testing.M) {
 			log.Fatal(err)
 		}
 	} else {
-		dsn := fmt.Sprintf(
-			"root:%s@tcp(%s:%s)/%s?parseTime=true",
-			os.Getenv("MARIADB_ENV_MYSQL_ROOT_PASSWORD"),
-			os.Getenv("MARIADB_PORT_3306_TCP_ADDR"),
-			os.Getenv("MARIADB_PORT_3306_TCP_PORT"),
-			os.Getenv("MARIADB_ENV_MYSQL_DATABASE"),
-		)
-		log.Println(dsn)
 		db, err = sql.Open(
 			"mysql",
-			dsn,
+			fmt.Sprintf(
+				"root:%s@tcp(%s:%s)/%s?parseTime=true",
+				os.Getenv("MARIADB_ENV_MYSQL_ROOT_PASSWORD"),
+				os.Getenv("MARIADB_PORT_3306_TCP_ADDR"),
+				os.Getenv("MARIADB_PORT_3306_TCP_PORT"),
+				os.Getenv("MARIADB_ENV_MYSQL_DATABASE"),
+			),
 		)
 		if err != nil {
 			log.Fatalf("MySQL connection failed, with address '%s'.", "127.0.0.1:3306")

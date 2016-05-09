@@ -178,11 +178,11 @@ func TestMain(m *testing.M) {
 		db, err = sql.Open(
 			"mysql",
 			fmt.Sprintf(
-				"root:%s@tcp(%s:%s)%s?parseTime=true",
+				"root:%s@tcp(%s:%s)/%s?parseTime=true",
 				os.Getenv("MARIADB_ENV_MYSQL_ROOT_PASSWORD"),
 				os.Getenv("MARIADB_PORT_3306_TCP_ADDR"),
 				os.Getenv("MARIADB_PORT_3306_TCP_PORT"),
-				os.Getenv("MARIADB_NAME"),
+				os.Getenv("MARIADB_ENV_MYSQL_DATABASE"),
 			),
 		)
 		if err != nil {
