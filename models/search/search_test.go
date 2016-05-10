@@ -2,7 +2,6 @@ package search
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"testing"
 
@@ -25,7 +24,6 @@ func TestDsl(t *testing.T) {
 		port = os.Getenv("ELASTIC_PORT")
 	}
 	if os.Getenv("ELASTICSEARCH_PORT_9300_TCP_ADDR") != "" {
-		log.Println(os.Getenv("ELASTICSEARCH_PORT_9300_TCP_ADDR"))
 		ip = fmt.Sprintf(
 			"%s:%s",
 			os.Getenv("ELASTICSEARCH_PORT_9300_TCP_ADDR"),
