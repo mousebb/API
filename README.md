@@ -3,6 +3,9 @@ CURT API v3
 =========
 ---------
 
+[![wercker status](https://app.wercker.com/status/f8512c3d160ff9b1d198ea38b2e9568b/s "wercker status")](https://app.wercker.com/project/bykey/f8512c3d160ff9b1d198ea38b2e9568b)
+
+
 --------
 Endpoints
 ---------

@@ -19,6 +19,11 @@ build:
         code: |
             sleep 10
 
+    - script:
+        name: es-health
+        code: |
+            curl http://$ELASTICSEARCH_PORT_9300_TCP_ADDR:ELASTICSEARCH_PORT_9300_TCP_PORT/_cluster/health?pretty=true
+
     # Gets the dependencies
     - script:
         name: go get
