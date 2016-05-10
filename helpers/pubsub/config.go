@@ -1,6 +1,7 @@
 package pubsub
 
 import (
+	"fmt"
 	"os"
 
 	"golang.org/x/net/context"
@@ -65,6 +66,10 @@ func backgrounContext(scopes []string) error {
 // PushMessage Will send the `msgs` to Google PubSub into the `topic` that
 // is provided. If the `topic` doesn't exist, it will be created.
 func PushMessage(topic string, msgs ...*ps.Message) error {
+	if msgs == nil || msgs[0] == nil {
+		return fmt.Errorf("no messages to push")
+	}
+
 	var err error
 	if pubsubCtx == nil {
 		err = NewContext(pubsubScopes)
@@ -80,7 +85,6 @@ func PushMessage(topic string, msgs ...*ps.Message) error {
 
 	_, err = ps.Publish(pubsubCtx, topic, msgs...)
 	return err
-
 }
 
 func createTopic(topic string) error {
