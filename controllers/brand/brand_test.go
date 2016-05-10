@@ -28,6 +28,7 @@ var (
 		`dropCustomerToBrand`: `DROP TABLE IF EXISTS CustomerToBrand`,
 		`dropWebsiteToBrand`:  `DROP TABLE IF EXISTS WebsiteToBrand`,
 		`dropCustomer`:        `DROP TABLE IF EXISTS Customer`,
+		`dropCustomer`:        `DROP TABLE IF EXISTS Website`,
 	}
 
 	schemas = map[string]string{
