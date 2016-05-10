@@ -22,9 +22,7 @@ build:
     - script:
         name: es-health
         code: |
-            echo $ELASTICSEARCH_PORT_9300_TCP_ADDR
-            echo $ELASTICSEARCH_PORT_9300_TCP_PORT
-            curl http://$ELASTICSEARCH_PORT_9300_TCP_ADDR:$ELASTICSEARCH_PORT_9300_TCP_PORT/_cluster/health?pretty=true
+            curl http://$ELASTICSEARCH_PORT_9300_TCP_ADDR:9200/_cluster/health?pretty=true
 
     # Gets the dependencies
     - script:
