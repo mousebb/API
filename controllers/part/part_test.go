@@ -165,7 +165,6 @@ func TestMain(m *testing.M) {
 		// Mongo Init
 		info := mgo.DialInfo{
 			Addrs:    []string{os.Getenv("MONGO_PORT_27017_TCP_ADDR")},
-			Database: "mydb",
 			Timeout:  time.Second * 2,
 			FailFast: true,
 		}
