@@ -14,10 +14,6 @@ build:
   steps:
     - setup-go-workspace
 
-    - script:
-        name: env
-        code: env
-
     # Gets the dependencies
     - script:
         name: go get

@@ -145,11 +145,10 @@ func TestMain(m *testing.M) {
 			log.Fatal(err)
 		}
 	} else {
-
 		session, err = mgo.Dial(
 			fmt.Sprintf(
-				"mongodb://%s/mydb",
-				os.Getenv("WERCKER_MONGODB_HOST"),
+				"mongodb://%s:27017/mydb",
+				os.Getenv("MONGO_PORT_27017_TCP_ADDR"),
 			),
 		)
 		if err != nil {
