@@ -162,6 +162,7 @@ func TestMain(m *testing.M) {
 			log.Fatal(err)
 		}
 	} else {
+		log.Println(os.Getenv("WERCKER_MONGODB_HOST"))
 		// Mongo Init
 		session, err = mgo.Dial(
 			fmt.Sprintf(
