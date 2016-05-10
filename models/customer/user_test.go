@@ -270,12 +270,14 @@ func TestMain(m *testing.M) {
 
 		setupMySQL()
 
-		session, err = mgo.Dial(
-			fmt.Sprintf(
-				"mongodb://%s:27017/mydb",
-				os.Getenv("MONGO_PORT_27017_TCP_ADDR"),
-			),
-		)
+		info := mgo.DialInfo{
+			Addrs:    []string{os.Getenv("MONGO_PORT_27017_TCP_ADDR")},
+			Database: "mydb",
+			Timeout:  time.Second * 2,
+			FailFast: true,
+		}
+
+		session, err = mgo.DialWithInfo(&info)
 		if err != nil {
 			log.Fatal(err)
 		}
