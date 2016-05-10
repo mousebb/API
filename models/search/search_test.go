@@ -25,13 +25,10 @@ func TestDsl(t *testing.T) {
 	}
 	if os.Getenv("ELASTICSEARCH_PORT_9300_TCP_ADDR") != "" {
 		ip = fmt.Sprintf(
-			"%s:%s",
+			"%s:9200",
 			os.Getenv("ELASTICSEARCH_PORT_9300_TCP_ADDR"),
-			os.Getenv("ELASTICSEARCH_PORT_9300_TCP_PORT"),
 		)
-	}
-	if os.Getenv("ELASTICSEARCH_PORT_9300_TCP_PORT") != "" {
-		port = os.Getenv("ELASTICSEARCH_PORT_9300_TCP_PORT")
+		port = "9200"
 	}
 	user := os.Getenv("ELASTIC_USER")
 	pass := os.Getenv("ELASTIC_PASS")

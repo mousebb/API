@@ -8,21 +8,11 @@ services:
 
     - id: mongo
 
-    - id: elasticsearch:1.7
+    - id: elasticsearch
 
 build:
   steps:
     - setup-go-workspace
-
-    - script:
-        name: sleeper
-        code: |
-            sleep 10
-
-    - script:
-        name: es-health
-        code: |
-            curl http://$ELASTICSEARCH_PORT_9300_TCP_ADDR:9200/_cluster/health?pretty=true
 
     # Gets the dependencies
     - script:
