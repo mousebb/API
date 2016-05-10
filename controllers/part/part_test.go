@@ -168,6 +168,7 @@ func TestMain(m *testing.M) {
 			Timeout:  time.Second * 2,
 			FailFast: true,
 		}
+		log.Printf("%v\n", info)
 
 		session, err = mgo.DialWithInfo(&info)
 		if err != nil {
