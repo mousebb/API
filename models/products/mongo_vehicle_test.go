@@ -20,11 +20,11 @@ import (
 var (
 	session  *mgo.Session
 	emptyCtx *middleware.APIContext
-)
-
-func setupMongo() {
-
-	p := Part{
+	testCat  = Category{
+		Identifier: bson.NewObjectId(),
+		Title:      "Test Category",
+	}
+	p = Part{
 		Identifier: bson.NewObjectId(),
 		ID:         12345,
 		SKU:        "12345",
@@ -35,10 +35,7 @@ func setupMongo() {
 			Code: "BA",
 		},
 		Categories: []Category{
-			Category{
-				Identifier: bson.NewObjectId(),
-				Title:      "Test Category",
-			},
+			testCat,
 		},
 		Vehicles: []VehicleApplication{
 			VehicleApplication{
@@ -74,12 +71,7 @@ func setupMongo() {
 		},
 	}
 
-	err := session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName).Insert(&p)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	p = Part{
+	part2 = Part{
 		Identifier: bson.NewObjectId(),
 		ID:         54321,
 		SKU:        "54321",
@@ -90,17 +82,14 @@ func setupMongo() {
 			Code: "BA",
 		},
 		Categories: []Category{
-			Category{
-				Identifier: bson.NewObjectId(),
-				Title:      "Test Category 2",
-			},
+			testCat,
 		},
 		Vehicles: []VehicleApplication{
 			VehicleApplication{
 				Year:  "1997",
 				Make:  "Jeep",
 				Model: "Grand Cherokee",
-				Style: "Outlander",
+				Style: "",
 			},
 			VehicleApplication{
 				Year:  "1997",
@@ -110,8 +99,53 @@ func setupMongo() {
 			},
 		},
 	}
+)
 
-	err = session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName).Insert(&p)
+func setupMongo() {
+
+	err := session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName).Insert(&p)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName).Insert(&part2)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	noCatPart := Part{
+		Identifier: bson.NewObjectId(),
+		ID:         67891,
+		SKU:        "67891",
+		Status:     900,
+		Brand: brand.Brand{
+			ID:   1,
+			Name: "Brand",
+			Code: "BA",
+		},
+		Vehicles: []VehicleApplication{
+			VehicleApplication{
+				Year:  "1997",
+				Make:  "Jeep",
+				Model: "Grand Cherokee",
+				Style: "",
+			},
+			VehicleApplication{
+				Year:  "1997",
+				Make:  "Ford",
+				Model: "F-150",
+				Style: "FX4",
+			},
+			VehicleApplication{
+				Year:  "1997",
+				Make:  "Ford",
+				Model: "F-150",
+				Style: "Limited",
+			},
+		},
+	}
+
+	err = session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName).Insert(&noCatPart)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -186,10 +220,10 @@ func TestQuery(t *testing.T) {
 		So(va.Models, ShouldNotBeEmpty)
 		So(len(va.Models), ShouldEqual, 1)
 
-		va, err = Query(ctx, "1997", "Jeep", "Grand Cherokee")
+		va, err = Query(ctx, "1997", "Ford", "F-150")
 		So(err, ShouldBeNil)
 		So(va.CategoryStyles, ShouldNotBeEmpty)
-		So(len(va.CategoryStyles), ShouldEqual, 2)
+		So(len(va.CategoryStyles), ShouldEqual, 1)
 	})
 }
 
@@ -281,28 +315,246 @@ func TestGetMakes(t *testing.T) {
 	})
 }
 
-// func TestReverseLookup(t *testing.T) {
-// 	Convey("Test ReverseLookup(*middleware.APIContext, string)", t, func() {
-// 		err := database.Init()
-// 		So(err, ShouldBeNil)
-//
-// 		ctx := middleware.APIContext{
-// 			Session: database.ProductMongoSession,
-// 			DataContext: &customer.DataContext{
-// 				BrandArray: []int{1, 3},
-// 			},
-// 		}
-//
-// 		Convey("invalid mongo Connection", func() {
-// 			res, err := ReverseMongoLookup(emptyCtx, "")
-// 			So(err, ShouldNotBeNil)
-// 			So(res, ShouldBeNil)
-// 		})
-//
-// 		Convey("valid", func() {
-// 			res, err := ReverseMongoLookup(&ctx, "11000")
-// 			So(err, ShouldBeNil)
-// 			So(res, ShouldHaveSameTypeAs, []VehicleApplication{})
-// 		})
-// 	})
-// }
+func TestGetModels(t *testing.T) {
+	Convey("Test getModels(ctx *middleware.APIContext, year, make string)", t, func() {
+		ctx := &middleware.APIContext{}
+
+		Convey("with no session", func() {
+			models, err := getModels(ctx, "", "")
+			So(err, ShouldNotBeNil)
+			So(models, ShouldBeNil)
+		})
+
+		ctx.Session = session
+
+		Convey("with no data context", func() {
+			models, err := getModels(ctx, "", "")
+			So(err, ShouldNotBeNil)
+			So(models, ShouldBeNil)
+		})
+
+		ctx.DataContext = &customer.DataContext{
+			BrandArray: []int{1, 3},
+		}
+
+		tmp := database.ProductCollectionName
+		database.ProductCollectionName = ""
+
+		Convey("with no collection name", func() {
+			models, err := getModels(ctx, "", "")
+			So(err, ShouldNotBeNil)
+			So(models, ShouldBeNil)
+		})
+
+		database.ProductCollectionName = tmp
+
+		Convey("empty year", func() {
+			models, err := getModels(ctx, "", "")
+			So(err, ShouldBeNil)
+			So(models, ShouldBeNil)
+		})
+
+		Convey("empty make", func() {
+			models, err := getModels(ctx, "1997", "")
+			So(err, ShouldBeNil)
+			So(models, ShouldBeNil)
+		})
+
+		Convey("success", func() {
+			models, err := getModels(ctx, "1997", "Jeep")
+			So(err, ShouldBeNil)
+			So(models, ShouldNotBeNil)
+		})
+	})
+}
+
+func TestGetStyles(t *testing.T) {
+	Convey("Test getStyles(ctx *middleware.APIContext, year, make, model string)", t, func() {
+		ctx := &middleware.APIContext{}
+
+		Convey("with no session", func() {
+			css, err := getStyles(ctx, "", "", "")
+			So(err, ShouldNotBeNil)
+			So(css, ShouldBeNil)
+		})
+
+		ctx.Session = session
+
+		Convey("with no data context", func() {
+			css, err := getStyles(ctx, "", "", "")
+			So(err, ShouldNotBeNil)
+			So(css, ShouldBeNil)
+		})
+
+		ctx.DataContext = &customer.DataContext{
+			BrandArray: []int{1, 3},
+		}
+
+		tmp := database.ProductCollectionName
+		database.ProductCollectionName = ""
+
+		Convey("with no collection name", func() {
+			css, err := getStyles(ctx, "", "", "")
+			So(err, ShouldNotBeNil)
+			So(css, ShouldBeNil)
+		})
+
+		database.ProductCollectionName = tmp
+
+		Convey("empty year", func() {
+			css, err := getStyles(ctx, "", "", "")
+			So(err, ShouldBeNil)
+			So(css, ShouldBeNil)
+		})
+
+		Convey("empty make", func() {
+			css, err := getStyles(ctx, "1997", "", "")
+			So(err, ShouldBeNil)
+			So(css, ShouldBeNil)
+		})
+
+		Convey("empty model", func() {
+			css, err := getStyles(ctx, "1997", "Jeep", "")
+			So(err, ShouldBeNil)
+			So(css, ShouldBeNil)
+		})
+
+		Convey("left field", func() {
+			css, err := getStyles(ctx, "1797", "Ord", "150-F")
+			So(err, ShouldBeNil)
+			So(css, ShouldBeNil)
+		})
+
+		Convey("success", func() {
+			css, err := getStyles(ctx, "1997", "Ford", "F-150")
+			So(err, ShouldBeNil)
+			So(css, ShouldNotBeNil)
+		})
+	})
+}
+
+func TestGetChildCategory(t *testing.T) {
+	Convey("Test getChildCategory(cats []Category) (Category, error)", t, func() {
+		Convey("empty array", func() {
+			cat, err := getChildCategory([]Category{})
+			So(err, ShouldNotBeNil)
+			So(err.Error(), ShouldEqual, "failed to locate child")
+			So(cat, ShouldNotBeNil)
+		})
+
+		Convey("valid child", func() {
+			cats := []Category{
+				Category{
+					Title: "Test Category",
+				},
+			}
+			child, err := getChildCategory(cats)
+			So(err, ShouldBeNil)
+			So(child, ShouldNotBeNil)
+			So(child.Title, ShouldEqual, "Test Category")
+		})
+	})
+}
+
+func TestGenerateCategoryStyles(t *testing.T) {
+	Convey(
+		"Test (css *CategoryStyles) generateCategoryStyles()",
+		t,
+		func() {
+
+			var css categoryStyles
+			Convey("with no parts", func() {
+				css.generateCategoryStyles()
+				So(css.Styles, ShouldHaveSameTypeAs, []CategoryStyle{})
+				So(len(css.Styles), ShouldEqual, 0)
+			})
+
+			Convey("with parts but no categories", func() {
+				css.Parts = []Part{
+					Part{},
+				}
+				css.generateCategoryStyles()
+				So(css.Styles, ShouldHaveSameTypeAs, []CategoryStyle{})
+				So(len(css.Styles), ShouldEqual, 0)
+			})
+
+			css.Parts = []Part{p, part2}
+			Convey("with parts and no vehicle", func() {
+				css.generateCategoryStyles()
+				So(css.Styles, ShouldHaveSameTypeAs, []CategoryStyle{})
+				So(len(css.Styles), ShouldEqual, 0)
+			})
+
+			css.Year = "1997"
+			css.Make = "Ford"
+			css.Model = "F-150"
+
+			Convey("with parts and vehicle", func() {
+				css.generateCategoryStyles()
+				So(css.Styles, ShouldHaveSameTypeAs, []CategoryStyle{})
+				So(len(css.Styles), ShouldEqual, 1)
+			})
+		},
+	)
+}
+
+func TestMapPartToCategoryStyles(t *testing.T) {
+	Convey(
+		"Test mapPartToCategoryStyles(p Part, css map[string]CategoryStyle, style string) map[string]CategoryStyle",
+		t,
+		func() {
+
+			Convey("with no part categories", func() {
+				css := mapPartToCategoryStyles(Part{}, make(map[string]CategoryStyle, 0), "")
+				So(css, ShouldNotBeNil)
+				So(len(css), ShouldEqual, 0)
+			})
+
+			Convey("valid", func() {
+				css := make(map[string]CategoryStyle, 0)
+				css = mapPartToCategoryStyles(p, css, "FX4")
+				So(css, ShouldNotBeNil)
+				So(len(css), ShouldEqual, 1)
+
+				css = mapPartToCategoryStyles(part2, css, "FX4")
+				So(css, ShouldNotBeNil)
+				So(len(css), ShouldEqual, 1)
+			})
+		},
+	)
+}
+
+func TestReverseLookup(t *testing.T) {
+	Convey("Test ReverseLookup(*middleware.APIContext, string)", t, func() {
+		err := database.Init()
+		So(err, ShouldBeNil)
+
+		ctx := middleware.APIContext{
+			Session: database.ProductMongoSession,
+			DataContext: &customer.DataContext{
+				BrandArray: []int{1, 3},
+			},
+		}
+
+		Convey("invalid mongo Connection", func() {
+			res, err := ReverseMongoLookup(emptyCtx, "")
+			So(err, ShouldNotBeNil)
+			So(res, ShouldBeNil)
+		})
+
+		Convey("no data context", func() {
+			tmp := ctx.DataContext
+			ctx.DataContext = nil
+			res, err := ReverseMongoLookup(&ctx, "")
+			So(err, ShouldNotBeNil)
+			So(res, ShouldBeNil)
+			ctx.DataContext = tmp
+		})
+
+		Convey("valid", func() {
+			res, err := ReverseMongoLookup(&ctx, "11000")
+			So(err, ShouldBeNil)
+			So(res, ShouldHaveSameTypeAs, []VehicleApplication{})
+		})
+	})
+}

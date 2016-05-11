@@ -10,6 +10,7 @@ import (
 	"gopkg.in/mgo.v2/bson"
 )
 
+// VehicleApplication Holds information about a vehicle lookup session.
 type VehicleApplication struct {
 	Year        string `bson:"year" json:"year" xml:"year"`
 	Make        string `bson:"make" json:"make" xml:"make"`
@@ -26,14 +27,25 @@ type VehicleApplication struct {
 	CategoryStyles []CategoryStyle `json:"categoryStyles" xml:"categoryStyles"`
 }
 
+// CategoryStyle Associates an array of StyleParts to a given category
 type CategoryStyle struct {
 	Category   Category     `json:"category" xml:"category"`
 	StyleParts []StyleParts `json:"styleParts" xml:"styleParts"`
 }
 
+// StyleParts Associates an array of parts to a given vehicle style
 type StyleParts struct {
 	Style string `json:"style" xml:"style"`
 	Parts []Part `json:"parts" xml:"parts"`
+}
+
+type categoryStyles struct {
+	Styles []CategoryStyle
+	Parts  []Part
+	Year   string
+	Make   string
+	Model  string
+	Style  string
 }
 
 // Query Takes the incoming vehicle data and returns a `VehicleApplication`
@@ -59,8 +71,10 @@ func Query(ctx *middleware.APIContext, year, make, model string) (VehicleApplica
 	return va, err
 }
 
+// ReverseMongoLookup Returns the vehicle applications that are assoicated with
+// a given part number.
 func ReverseMongoLookup(ctx *middleware.APIContext, part string) ([]VehicleApplication, error) {
-	if ctx.Session == nil {
+	if ctx == nil || ctx.Session == nil {
 		return nil, fmt.Errorf("invalid mongodb connection")
 	} else if ctx.DataContext == nil {
 		return nil, fmt.Errorf("invalid data context")
@@ -68,12 +82,10 @@ func ReverseMongoLookup(ctx *middleware.APIContext, part string) ([]VehicleAppli
 
 	c := ctx.Session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName)
 
-	qry := bson.M{
-		"part_number": part,
-	}
-
 	var apps []VehicleApplication
-	err := c.Find(qry).Select(bson.M{"vehicle_applications": 1, "_id": 0}).All(&apps)
+	err := c.Find(bson.M{
+		"part_number": part,
+	}).Select(bson.M{"vehicle_applications": 1, "_id": 0}).All(&apps)
 
 	return apps, err
 }
@@ -229,7 +241,7 @@ func getStyles(ctx *middleware.APIContext, year, vehicleMake, model string) ([]C
 	}
 
 	var parts []Part
-	err := c.Find(bson.M{
+	qry := bson.M{
 		"vehicle_applications": bson.M{
 			"$elemMatch": bson.M{
 				"year": year,
@@ -249,37 +261,21 @@ func getStyles(ctx *middleware.APIContext, year, vehicleMake, model string) ([]C
 		"brand.id": bson.M{
 			"$in": ctx.DataContext.BrandArray,
 		},
-	}).All(&parts)
-
-	if err != nil {
+	}
+	err := c.Find(qry).All(&parts)
+	if err != nil || len(parts) == 0 {
 		return nil, err
 	}
 
-	lowerMake := strings.ToLower(vehicleMake)
-	lowerModel := strings.ToLower(model)
-
-	css := make(map[string]CategoryStyle, 0)
-	for _, p := range parts {
-		if len(p.Categories) == 0 {
-			continue
-		}
-
-		for _, va := range p.Vehicles {
-			if va.Year != year || strings.ToLower(va.Make) != lowerMake || strings.ToLower(va.Model) != lowerModel {
-				continue
-			}
-
-			css = mapPartToCategoryStyles(p, css, va.Style)
-		}
-
+	css := categoryStyles{
+		Parts: parts,
+		Year:  year,
+		Make:  vehicleMake,
+		Model: model,
 	}
+	css.generateCategoryStyles()
 
-	var catStyles []CategoryStyle
-	for _, cs := range css {
-		catStyles = append(catStyles, cs)
-	}
-
-	return catStyles, nil
+	return css.Styles, nil
 }
 
 func getChildCategory(cats []Category) (Category, error) {
@@ -290,6 +286,30 @@ func getChildCategory(cats []Category) (Category, error) {
 	}
 
 	return Category{}, fmt.Errorf("failed to locate child")
+}
+
+func (css *categoryStyles) generateCategoryStyles() {
+	cs := make(map[string]CategoryStyle, 0)
+	year := css.Year
+	make := strings.ToLower(css.Make)
+	model := strings.ToLower(css.Model)
+	for _, p := range css.Parts {
+		if len(p.Categories) == 0 {
+			continue
+		}
+
+		for _, va := range p.Vehicles {
+			if va.Year != year || strings.ToLower(va.Make) != make || strings.ToLower(va.Model) != model {
+				continue
+			}
+
+			cs = mapPartToCategoryStyles(p, cs, va.Style)
+		}
+	}
+
+	for _, cs := range cs {
+		css.Styles = append(css.Styles, cs)
+	}
 }
 
 func mapPartToCategoryStyles(p Part, css map[string]CategoryStyle, style string) map[string]CategoryStyle {
