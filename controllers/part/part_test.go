@@ -163,7 +163,7 @@ func TestMain(m *testing.M) {
 		}
 	} else {
 		// Mongo Init
-		log.Println(os.Getenv("MONGO_PORT_27017_TCP_ADDR"))
+		log.Printf("MONGO_PORT_27017_TCP_ADDR: %s\n", os.Getenv("MONGO_PORT_27017_TCP_ADDR"))
 		info := mgo.DialInfo{
 			Addrs:    []string{os.Getenv("MONGO_PORT_27017_TCP_ADDR")},
 			Timeout:  time.Second * 2,
