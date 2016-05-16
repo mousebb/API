@@ -121,7 +121,8 @@ func Get(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (i
 	// would have already been applied before indexing.
 
 	//TODO - remove when curt & aries vehicle application data are in sync
-	if p.Brand.ID == 3 {
+	switch p.Brand.ID {
+	case 3:
 		mgoVehicles, err := products.ReverseMongoLookup(ctx, p.SKU)
 		if err != nil {
 			return nil, err
