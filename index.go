@@ -1,3 +1,8 @@
+// @APIVersion 1.0.0
+// @APITitle CURT API
+// @APIDescription Version 3 of the CURT API
+// @Contact aninneman@curtmfg.com
+// @License BSD
 package main
 
 import (
