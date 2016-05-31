@@ -5,79 +5,21 @@ CURT API v3
 
 [![wercker status](https://app.wercker.com/status/f8512c3d160ff9b1d198ea38b2e9568b/s "wercker status")](https://app.wercker.com/project/bykey/f8512c3d160ff9b1d198ea38b2e9568b)
 
+> The 3rd iteration of the CURT Manufacturing API. This is developed using MongoDB
+as a storage service that is being distributed from our master data source in
+real time. All CURT assets are developed using the endpoints available in this series
+of endpoints.
 
---------
-Endpoints
----------
----------
+  - Concurrent MySQL access using [Goroutines](http://golang.org/doc/effective_go.html#concurrency)
+  - JSON rendering powered by [encoding/json](http://golang.org/pkg/encoding/json/)
+  - XML rendering powered by [encoding/xml](http://golang.org/pkg/encoding/xml/)
+  - MongoDB Persistence using [mgo](https://labix.org/mgo)
+  - Multi-Brand Support
+  - ACES Compliant vehicle lookup with product groups
+  - Custom lookup to support each brands vehicle requirements
+  - Tailored product content
+  - Category Hierarchy with products matched all the way down
 
-> Note: this application is still in heavy development and all endpoints/objects have the potential to change at any time.
-
-> You can view example endpoints for all of the routes in the index_test.go file.
-
-#### Vehicle
-
----
-
-https://github.com/curt-labs/API/blob/master/docs/Vehicle.md
-
----
-#### Parts
-
----
-
-*Get Part by Part #
-
-    GET - http://API.curtmfg.com/v3/part/110003?key=[public api key]
-
-*Reverse Lookup by Part #
-
-    GET - http://API.curtmfg.com/v3/part/110003/vehicles?key=[public api key]
-
-----
-
-#### Categories
-
----
-
-https://github.com/curt-labs/API/blob/master/docs/Categories.md
-
-----
-
-#### Customer
-
----
-
-*Authentication*
-
-    POST - http://API.curtmfg.com/v3/customer/auth
-
-    Payload
-    --------------------------
-    email: user@example.com
-    password: password
-
-> The following GET route for the customer user authentication is only useful if in the last 6 hours this user has logged in through the POST directive of the /customer/auth endpoint.
-
-    GET - http://API.curtmfg.com/v3/customer/auth?key=c8bd5d89-8d16-11e2-801f-00155d47bb0a
-
-*Customer Locations*
-
-    POST - http://API.curtmfg.com/v3/customer/locations
-
-    Payload
-    --------------------------
-    key: CEB28F99-F03A-4568-B004-E4FFA87CBDF1
-
-*Customer Users*
-
-    POST - http://API.curtmfg.com/v3/customer/users
-
-    Payload
-    --------------------------
-    key: CEB28F99-F03A-4568-B004-E4FFA87CBDF1
-
-> The customer users endpoint will only return data if the requesting user is marked as sudo user
 
 Philoshopy
 -
@@ -87,21 +29,18 @@ Philoshopy
 Deployment
 -
 
-Deployment will be done using the master branch on Github. Once a commit is pushed to Github
-it will route that commit to Drone.io, which will then running CI testing across
-the project and then deploy new Docker containers to all CURT servers.
+Deployment will be done using the master branch on Github. Continuous Delivery/Integration
+will go through [Jenkins](https://jenkins.io/). The application will run in a
+cluster of Docker containers that is orchestrated by a Kubernetes arbiter.
 
 Contributors
 -
 * Alex Ninneman
     * [Github](http://github.com/ninnemana)
-    * [Twitter](https://twitter.com/ninnemana)
 * David Vaini
     * [Github](https://github.com/DavidVaini)
 * John Shenk
     * [Github](https://github.com/stinkyfingers)
-* Matt Mickelson
-    * [Github](https://github.com/mickelsonm)
 * Broc Seigneurie
     * [Github](https://github.com/baseigneurie)
 
@@ -110,4 +49,4 @@ License
 
 MIT
 
-*Free Software, Fuck Yeah!*
+*Free-ish software? Open, we'll call it open software. Oh and :beers:*
