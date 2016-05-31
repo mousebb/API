@@ -23,6 +23,7 @@ func Query(ctx *middleware.APIContext, w http.ResponseWriter, r *http.Request) (
 		r.FormValue("year"),
 		r.FormValue("make"),
 		r.FormValue("model"),
+		r.FormValue("category"),
 	)
 	if err != nil {
 		return nil, err

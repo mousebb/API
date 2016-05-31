@@ -50,12 +50,25 @@ type categoryStyles struct {
 
 // Query Takes the incoming vehicle data and returns a `VehicleApplication`
 // that matches the provided data.
-func Query(ctx *middleware.APIContext, year, make, model string) (VehicleApplication, error) {
+func Query(ctx *middleware.APIContext, args ...string) (VehicleApplication, error) {
 	var err error
-	va := VehicleApplication{
-		Year:  year,
-		Make:  make,
-		Model: model,
+	var va VehicleApplication
+	var category string
+	switch len(args) {
+	case 1:
+		va.Year = args[0]
+	case 2:
+		va.Year = args[0]
+		va.Make = args[1]
+	case 3:
+		va.Year = args[0]
+		va.Make = args[1]
+		va.Model = args[2]
+	case 4:
+		va.Year = args[0]
+		va.Make = args[1]
+		va.Model = args[2]
+		category = args[3]
 	}
 
 	if va.Year == "" {
@@ -65,7 +78,7 @@ func Query(ctx *middleware.APIContext, year, make, model string) (VehicleApplica
 	} else if va.Year != "" && va.Make != "" && va.Model == "" {
 		va.Models, err = getModels(ctx, va.Year, va.Make)
 	} else if va.Year != "" && va.Make != "" && va.Model != "" {
-		va.CategoryStyles, err = getStyles(ctx, va.Year, va.Make, va.Model)
+		va.CategoryStyles, err = getStyles(ctx, va.Year, va.Make, va.Model, category)
 	}
 
 	return va, err
@@ -226,7 +239,7 @@ func getModels(ctx *middleware.APIContext, year, vehicleMake string) ([]string, 
 	return models, err
 }
 
-func getStyles(ctx *middleware.APIContext, year, vehicleMake, model string) ([]CategoryStyle, error) {
+func getStyles(ctx *middleware.APIContext, year, vehicleMake, model, category string) ([]CategoryStyle, error) {
 	if ctx.Session == nil {
 		return nil, fmt.Errorf("invalid mongodb connection")
 	} else if ctx.DataContext == nil {
@@ -261,6 +274,10 @@ func getStyles(ctx *middleware.APIContext, year, vehicleMake, model string) ([]C
 		"brand.id": bson.M{
 			"$in": ctx.DataContext.BrandArray,
 		},
+	}
+
+	if category != "" {
+		qry["categories.title"] = category
 	}
 	err := c.Find(qry).All(&parts)
 	if err != nil || len(parts) == 0 {
