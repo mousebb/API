@@ -345,6 +345,10 @@ func mapPartToCategoryStyles(p Part, css map[string]CategoryStyle, style string)
 		}
 	}
 
+	// we're going to clear out the category information here, since
+	// the products are already being grouped into their respective
+	// categories at the higher level. (saves on da bits)
+	p.Categories = nil
 	for i, sp := range cs.StyleParts {
 		if strings.ToLower(sp.Style) == strings.ToLower(style) {
 			cs.StyleParts[i].Parts = append(cs.StyleParts[i].Parts, p)
