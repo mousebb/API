@@ -1,10 +1,12 @@
 package middleware
 
 import (
+	"compress/gzip"
 	"database/sql"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"time"
 
 	"gopkg.in/mgo.v2"
@@ -69,8 +71,15 @@ func (fn APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, ps httpro
 		apierror.GenerateError("There hasn't been a handler declared for this route", nil, w, r, http.StatusInternalServerError)
 		return
 	}
-
-	rw := beefwriter.NewResponseWriter(w)
+	var rw beefwriter.ResponseWriter
+	if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+		rw = beefwriter.NewResponseWriter(w)
+	} else {
+		w.Header().Set("Content-Encoding", "gzip")
+		gz := gzip.NewWriter(beefwriter.NewResponseWriter(w))
+		defer gz.Close()
+		rw = beefwriter.NewGzipResponseWriter(gz, w)
+	}
 
 	ctx := &APIContext{
 		Params:       ps,

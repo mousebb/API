@@ -298,7 +298,8 @@ func Videos(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request)
 	return p.Videos, err
 }
 
-//Sort of Redundant
+// InstallSheet Takes the provided part number and outputs the assoicated installation
+// sheet to the response.
 func InstallSheet(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) {
 	p := products.Part{
 		SKU: ctx.Params.ByName("part"),
@@ -315,7 +316,7 @@ func InstallSheet(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Re
 		return
 	}
 
-	data, err := rest.GetPDF(p.InstallSheet.String(), r)
+	data, err := rest.GetPDF(p.InstallSheet.String())
 	if err != nil {
 		apierror.GenerateError("Error getting PDF", err, rw, r)
 		return

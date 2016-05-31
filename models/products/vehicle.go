@@ -337,6 +337,9 @@ func mapPartToCategoryStyles(p Part, css map[string]CategoryStyle, style string)
 
 	cs, ok := css[childCat.Identifier.String()]
 	if !ok {
+		childCat.PartIDs = nil
+		childCat.Children = nil
+		childCat.ProductListing = nil
 		cs = CategoryStyle{
 			Category: childCat,
 		}
