@@ -1,6 +1,7 @@
 package products
 
 import (
+	"fmt"
 	"sort"
 
 	"github.com/curt-labs/API/helpers/database"
@@ -15,6 +16,12 @@ import (
 	"net/url"
 	"strings"
 	"time"
+)
+
+const (
+	// MaxPartCount defines the maximum numbers of products that can be returned
+	// for a paginated query.
+	MaxPartCount = 250
 )
 
 // Part ...
@@ -82,22 +89,15 @@ type Class struct {
 }
 
 // Identifiers ...
-func Identifiers(ctx *middleware.APIContext, brandID int) ([]string, error) {
+func Identifiers(ctx *middleware.APIContext) ([]string, error) {
 	var parts []string
-	brands := []int{brandID}
-
-	if brandID == 0 && ctx.DataContext.BrandID != 0 {
-		brands = []int{ctx.DataContext.BrandID}
-	} else if brandID == 0 && ctx.DataContext.BrandID == 0 {
-		brands = ctx.DataContext.BrandArray
-	}
 
 	qry := bson.M{
 		"brand.id": bson.M{
-			"$in": brands,
+			"$in": ctx.DataContext.BrandArray,
 		},
 		"status": bson.M{
-			"$in": []int{800, 900},
+			"$in": ctx.Statuses,
 		},
 	}
 
@@ -112,39 +112,34 @@ func Identifiers(ctx *middleware.APIContext, brandID int) ([]string, error) {
 }
 
 // All Retrieves all parts for the given brands
-func All(page, count int, ctx *middleware.APIContext) ([]Part, error) {
+func All(ctx *middleware.APIContext, page, count int) ([]Part, error) {
 	var parts []Part
-	brands := []int{ctx.Brand}
-	if ctx.Brand == 0 {
-		brands = ctx.DataContext.BrandArray
+
+	if count > MaxPartCount {
+		count = MaxPartCount
 	}
 
 	qry := bson.M{
 		"brand.id": bson.M{
-			"$in": brands,
+			"$in": ctx.DataContext.BrandArray,
 		},
 	}
 
-	err := ctx.Session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName).Find(qry).Sort("id:1").Skip(page * count).Limit(count).All(&parts)
+	col := ctx.Session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName)
+
+	err := col.Find(qry).Sort("id:1").Skip(page * count).Limit(count).All(&parts)
 
 	return parts, err
 }
 
 // Featured Returns `count` featured products.
-func Featured(ctx *middleware.APIContext, count, brandID int) ([]Part, error) {
+func Featured(ctx *middleware.APIContext, count int) ([]Part, error) {
 	var parts []Part
-	brands := []int{brandID}
-
-	if brandID == 0 && ctx.DataContext.BrandID != 0 {
-		brands = []int{ctx.DataContext.BrandID}
-	} else if brandID == 0 && ctx.DataContext.BrandID == 0 {
-		brands = ctx.DataContext.BrandArray
-	}
 
 	qry := bson.M{
 		"featured": true,
 		"brand.id": bson.M{
-			"$in": brands,
+			"$in": ctx.DataContext.BrandArray,
 		},
 	}
 
@@ -154,49 +149,50 @@ func Featured(ctx *middleware.APIContext, count, brandID int) ([]Part, error) {
 }
 
 // Latest Returns `count` latest products.
-func Latest(ctx *middleware.APIContext, count, brandID int) ([]Part, error) {
+func Latest(ctx *middleware.APIContext, count int) ([]Part, error) {
 	var parts []Part
-	brands := []int{brandID}
-
-	if brandID == 0 && ctx.DataContext.BrandID != 0 {
-		brands = []int{ctx.DataContext.BrandID}
-	} else if brandID == 0 && ctx.DataContext.BrandID == 0 {
-		brands = ctx.DataContext.BrandArray
-	}
 
 	qry := bson.M{
 		"brand.id": bson.M{
-			"$in": brands,
+			"$in": ctx.DataContext.BrandArray,
 		},
 	}
 
 	err := ctx.Session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName).Find(qry).Sort("-date_added").Limit(count).All(&parts)
-	return parts, err
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve latest from DB: %s\n", err.Error())
+	}
+
+	return parts, nil
 }
 
 // GetRelated Returns all the products that are related to this one.
-func (p *Part) GetRelated(ctx *middleware.APIContext, brandID int) ([]Part, error) {
+func (p *Part) GetRelated(ctx *middleware.APIContext) ([]Part, error) {
 	var parts []Part
-	brands := []int{brandID}
+	col := ctx.Session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName)
 
-	if brandID == 0 && ctx.DataContext.BrandID != 0 {
-		brands = []int{ctx.DataContext.BrandID}
-	} else if brandID == 0 && ctx.DataContext.BrandID == 0 {
-		brands = ctx.DataContext.BrandArray
+	if len(p.Related) == 0 {
+		// part hasn't retrieved it's related array, so we'll do it
+		err := col.Find(bson.M{"part_number": p.SKU}).Select(bson.M{"related": 1, "_id": 0}).All(&p.Related)
+		if err != nil {
+			return nil, fmt.Errorf("failed to lookup related identifiers: %s\n", err.Error())
+		}
 	}
-
 	query := bson.M{
 		"id": bson.M{
 			"$in": p.Related,
 		},
 		"brand.id": bson.M{
-			"$in": brands,
+			"$in": ctx.DataContext.BrandArray,
 		},
 	}
 
-	err := ctx.Session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName).Find(query).Sort("id:1").All(&parts)
+	err := col.Find(query).Sort("id:1").All(&parts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve related parts from DB: %s\n", err.Error())
+	}
 
-	return parts, err
+	return parts, nil
 }
 
 // BindCustomer Binds customer specific data to the product.
@@ -241,14 +237,7 @@ func (p *Part) BindCustomer(ctx *middleware.APIContext) CustomerPart {
 }
 
 // Get Retrieves product data.
-func (p *Part) Get(ctx *middleware.APIContext, brandID int) (err error) {
-	brands := []int{brandID}
-
-	if brandID == 0 && ctx.DataContext.BrandID != 0 {
-		brands = []int{ctx.DataContext.BrandID}
-	} else if brandID == 0 && ctx.DataContext.BrandID == 0 {
-		brands = ctx.DataContext.BrandArray
-	}
+func (p *Part) Get(ctx *middleware.APIContext) (err error) {
 
 	pattern := bson.RegEx{
 		Pattern: "^" + p.SKU + "$",
@@ -257,7 +246,7 @@ func (p *Part) Get(ctx *middleware.APIContext, brandID int) (err error) {
 
 	qry := bson.M{
 		"part_number": pattern,
-		"brand.id":    bson.M{"$in": brands},
+		"brand.id":    bson.M{"$in": ctx.DataContext.BrandArray},
 	}
 
 	return ctx.Session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName).Find(qry).One(&p)

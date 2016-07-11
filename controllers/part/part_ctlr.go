@@ -17,12 +17,7 @@ import (
 
 // Identifiers Returns a slice of distinct part numbers.
 func Identifiers(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	var b int
-	if r.URL.Query().Get("brand") != "" {
-		b, _ = strconv.Atoi(r.URL.Query().Get("brand"))
-	}
-
-	return products.Identifiers(ctx, b)
+	return products.Identifiers(ctx)
 }
 
 // All Returns a slice of all Part.
@@ -48,7 +43,7 @@ func All(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (i
 		}
 	}
 
-	return products.All(page, count, ctx)
+	return products.All(ctx, page, count)
 }
 
 // Featured Returns a given amount of featured Part.
@@ -64,17 +59,8 @@ func Featured(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Reques
 			count = ct
 		}
 	}
-	var brand int
-	var err error
-	brandStr := qs.Get("brand")
-	if brandStr != "" {
-		brand, err = strconv.Atoi(brandStr)
-		if err != nil {
-			return nil, err
-		}
-	}
 
-	return products.Featured(ctx, count, brand)
+	return products.Featured(ctx, count)
 }
 
 // Latest Returns the latest slice of Part.
@@ -90,17 +76,8 @@ func Latest(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request)
 			count = ct
 		}
 	}
-	var brand int
-	var err error
-	brandStr := qs.Get("brand")
-	if brandStr != "" {
-		brand, err = strconv.Atoi(brandStr)
-		if err != nil {
-			return nil, err
-		}
-	}
 
-	return products.Latest(ctx, count, brand)
+	return products.Latest(ctx, count)
 }
 
 // Get Retrieves a Part using the :part segment of the URL pattern.
@@ -111,34 +88,8 @@ func Get(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (i
 		SKU: ctx.Params.ByName("part"),
 	}
 
-	err := p.Get(ctx, 0)
-	if err != nil {
-		return nil, err
-	}
-
-	// QUESTION: Is this the right place for the vehicle logic? Should
-	// it be handled in the fanner process instead? I would think this data
-	// would have already been applied before indexing.
-
-	//TODO - remove when curt & aries vehicle application data are in sync
-	switch p.Brand.ID {
-	case 3:
-		mgoVehicles, err := products.ReverseMongoLookup(ctx, p.SKU)
-		if err != nil {
-			return nil, err
-		}
-		for _, v := range mgoVehicles {
-			vehicleApplication := products.VehicleApplication{
-				Year:  v.Year,
-				Make:  v.Make,
-				Model: v.Model,
-				Style: v.Style,
-			}
-			p.Vehicles = append(p.Vehicles, vehicleApplication)
-		}
-	} //END TODO
-
-	return p, nil
+	err := p.Get(ctx)
+	return p, err
 }
 
 // GetRelated Retrieves the related Part to a given Part.
@@ -147,7 +98,7 @@ func GetRelated(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Requ
 		SKU: ctx.Params.ByName("part"),
 	}
 
-	return p.GetRelated(ctx, 0)
+	return p.GetRelated(ctx)
 }
 
 // GetWithVehicle Gets a Part with attributes relative to the fitment
@@ -200,7 +151,7 @@ func Vehicles(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Reques
 		SKU: ctx.Params.ByName("part"),
 	}
 
-	err := p.Get(ctx, 0)
+	err := p.Get(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +165,7 @@ func Images(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request)
 		SKU: ctx.Params.ByName("part"),
 	}
 
-	err := p.Get(ctx, 0)
+	err := p.Get(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -228,7 +179,7 @@ func Attributes(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Requ
 		SKU: ctx.Params.ByName("part"),
 	}
 
-	err := p.Get(ctx, 0)
+	err := p.Get(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -242,7 +193,7 @@ func GetContent(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Requ
 		SKU: ctx.Params.ByName("part"),
 	}
 
-	err := p.Get(ctx, 0)
+	err := p.Get(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -256,7 +207,7 @@ func Packaging(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Reque
 		SKU: ctx.Params.ByName("part"),
 	}
 
-	err := p.Get(ctx, 0)
+	err := p.Get(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -270,7 +221,7 @@ func ActiveApprovedReviews(ctx *middleware.APIContext, rw http.ResponseWriter, r
 		SKU: ctx.Params.ByName("part"),
 	}
 
-	err := p.Get(ctx, 0)
+	err := p.Get(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -290,7 +241,7 @@ func Videos(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request)
 		SKU: ctx.Params.ByName("part"),
 	}
 
-	err := p.Get(ctx, 0)
+	err := p.Get(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -305,7 +256,7 @@ func InstallSheet(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Re
 		SKU: ctx.Params.ByName("part"),
 	}
 
-	err := p.Get(ctx, 0)
+	err := p.Get(ctx)
 	if err != nil {
 		apierror.GenerateError("failed to find product", err, rw, r)
 		return
@@ -337,7 +288,7 @@ func Categories(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Requ
 		SKU: ctx.Params.ByName("part"),
 	}
 
-	err := p.Get(ctx, 0)
+	err := p.Get(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -350,7 +301,7 @@ func Prices(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request)
 		SKU: ctx.Params.ByName("part"),
 	}
 
-	err := p.Get(ctx, 0)
+	err := p.Get(ctx)
 	if err != nil {
 		return nil, err
 	}

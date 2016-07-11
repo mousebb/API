@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"time"
 
@@ -36,6 +37,10 @@ type APIContext struct {
 	Params             httprouter.Params
 	DataContext        *customer.DataContext
 	RequestStart       time.Time
+
+	// Statuses are the product implementation statuses that this request
+	// is looking to retrieve.
+	Statuses []int
 }
 
 // Middleware Gives the ability to add Middleware capability to APIHandler
@@ -84,6 +89,20 @@ func (fn APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, ps httpro
 	ctx := &APIContext{
 		Params:       ps,
 		RequestStart: time.Now(),
+		Statuses:     []int{800, 900},
+	}
+
+	if r.Header.Get("X-Statuses") != "" {
+		var statuses []int
+		segs := strings.Split(r.Header.Get("X-Statuses"), ",")
+		for _, seg := range segs {
+			status, err := strconv.Atoi(seg)
+			if err == nil {
+				statuses = append(statuses, status)
+			}
+		}
+
+		ctx.Statuses = statuses
 	}
 
 	context.Set(r, apiContext, ctx)
