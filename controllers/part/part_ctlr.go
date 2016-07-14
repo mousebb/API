@@ -1,18 +1,14 @@
 package partCtlr
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/curt-labs/API/helpers/error"
 	"github.com/curt-labs/API/helpers/rest"
 	"github.com/curt-labs/API/middleware"
-	"github.com/curt-labs/API/models/customer"
 	"github.com/curt-labs/API/models/products"
-	"github.com/curt-labs/API/models/vehicle"
 )
 
 // Identifiers Returns a slice of distinct part numbers.
@@ -80,9 +76,8 @@ func Latest(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request)
 	return products.Latest(ctx, count)
 }
 
-// Get Retrieves a Part using the :part segment of the URL pattern.
-// If it's an ARIES product it binds the MongoDB vehicle data.
-// TODO: We should add logic for the CURT year/make/model/style.
+// Get retrieves a Part using the :part segment of the URL pattern.
+// TODO: We should add logic for the year/make/model/style.
 func Get(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
 	p := products.Part{
 		SKU: ctx.Params.ByName("part"),
@@ -90,6 +85,11 @@ func Get(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (i
 
 	err := p.Get(ctx)
 	return p, err
+}
+
+// GetAttributes retrieves an array of Attribute using the :part segment of the URL pattern.
+func GetAttributes(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
+	return products.GetAttributes(ctx, ctx.Params.ByName("part"))
 }
 
 // GetRelated Retrieves the related Part to a given Part.
@@ -101,153 +101,64 @@ func GetRelated(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Requ
 	return p.GetRelated(ctx)
 }
 
-// GetWithVehicle Gets a Part with attributes relative to the fitment
-// to a Vehicle.
-func GetWithVehicle(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	var err error
-	err = errors.New("Not Implemented")
-	return nil, err
-	// qs := r.URL.Query()
-	// partID, err := strconv.Atoi(params["part"])
-	// if err != nil {
-	// 	http.Error(w, "Invalid part number", http.StatusInternalServerError)
-	// 	return ""
-	// }
-	// key := qs.Get("key")
-	// year, err := strconv.ParseFloat(params["year"], 64)
-	// if err != nil {
-	// 	http.Redirect(w, r, "/part/"+params["part"]+"?key="+key, http.StatusFound)
-	// 	return ""
-	// }
-	// vMake := params["make"]
-	// model := params["model"]
-	// submodel := params["submodel"]
-	// config_vals := strings.Split(strings.TrimSpace(params["config"]), "/")
-
-	// vehicle := Vehicle{
-	// 	Year:          year,
-	// 	Make:          vMake,
-	// 	Model:         model,
-	// 	Submodel:      submodel,
-	// 	Configuration: config_vals,
-	// }
-
-	// p := products.Part{
-	// 	ID: partID,
-	// }
-
-	// err = products.GetWithVehicle(&vehicle, key)
-	// if err != nil {
-	// 	http.Error(w, err.Error(), http.StatusInternalServerError)
-	// 	return ""
-	// }
-
-	// return encoding.Must(enc.Encode(part))
+// GetVehicles Retrieves the related Part to a given Part.
+func GetVehicles(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
+	return products.GetVehicles(ctx, ctx.Params.ByName("part"))
 }
 
-// Vehicles Returns the vehicles that fit a given Part.
-func Vehicles(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	p := products.Part{
-		SKU: ctx.Params.ByName("part"),
-	}
-
-	err := p.Get(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return vehicle.ReverseLookup(ctx, p.ID)
-}
-
-//Redundant
-func Images(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	p := products.Part{
-		SKU: ctx.Params.ByName("part"),
-	}
-
-	err := p.Get(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return p.Images, err
-}
-
-//Redundant
-func Attributes(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	p := products.Part{
-		SKU: ctx.Params.ByName("part"),
-	}
-
-	err := p.Get(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return p.Attributes, err
-}
-
-//Redundant
-func GetContent(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	p := products.Part{
-		SKU: ctx.Params.ByName("part"),
-	}
-
-	err := p.Get(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return p.Content, err
-}
-
-//Redundant
-func Packaging(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	p := products.Part{
-		SKU: ctx.Params.ByName("part"),
-	}
-
-	err := p.Get(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return p.Packages, err
-}
-
-//Redundant
-func ActiveApprovedReviews(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	p := products.Part{
-		SKU: ctx.Params.ByName("part"),
-	}
-
-	err := p.Get(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	var revs []products.Review
-	for _, rev := range p.Reviews {
-		if rev.Active == true && rev.Approved == true {
-			revs = append(revs, rev)
-		}
-	}
-
-	return revs, nil
-}
-
-func Videos(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	p := products.Part{
-		SKU: ctx.Params.ByName("part"),
-	}
-
-	err := p.Get(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return p.Videos, err
-}
+// GetContent Retrieves the related Part to a given Part.
+// func GetContent(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
+// 	return products.GetContent(ctx, ctx.Params.ByName("part"))
+// }
+//
+// // GetImages Retrieves the related Part to a given Part.
+// func GetImages(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
+// 	return products.GetImages(ctx, ctx.Params.ByName("part"))
+// }
+//
+// // GetPackaging Retrieves the related Part to a given Part.
+// func GetPackaging(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
+// 	return products.GetPackaging(ctx, ctx.Params.ByName("part"))
+// }
+//
+// // GetReviews Retrieves the related Part to a given Part.
+// func GetReviews(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
+// 	return products.GetReviews(ctx, ctx.Params.ByName("part"))
+// }
+//
+// // GetVideos Retrieves the related Part to a given Part.
+// func GetVideos(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
+// 	return products.GetVideos(ctx, ctx.Params.ByName("part"))
+// }
+//
+// // GetCategories Retrieves the related Part to a given Part.
+// func GetCategories(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
+// 	return products.GetCategories(ctx, ctx.Params.ByName("part"))
+// }
+//
+// // GetPrices Retrieves the related Part to a given Part.
+// func GetPrices(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
+// 	sku := ctx.Params.ByName("part")
+// 	prices, err := products.GetPrices(ctx, sku)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+//
+// 	price, err := customer.GetCustomerPrice(ctx.DB, sku)
+// 	if err == nil {
+// 		custPrice := products.Price{
+// 			Id:           0,
+// 			PartId:       0,
+// 			Type:         "Customer",
+// 			Price:        price,
+// 			Enforced:     false,
+// 			DateModified: time.Now(),
+// 		}
+// 		prices = append(prices, custPrice)
+// 	}
+//
+// 	return prices, nil
+// }
 
 // InstallSheet Takes the provided part number and outputs the assoicated installation
 // sheet to the response.
@@ -279,45 +190,4 @@ func InstallSheet(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Re
 	rw.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 	rw.Header().Set("Access-Control-Allow-Headers", "Origin")
 	rw.Write(data)
-}
-
-// Categories Returns product categories.
-func Categories(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-
-	p := products.Part{
-		SKU: ctx.Params.ByName("part"),
-	}
-
-	err := p.Get(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return p.Categories, err
-}
-
-func Prices(ctx *middleware.APIContext, rw http.ResponseWriter, r *http.Request) (interface{}, error) {
-	p := products.Part{
-		SKU: ctx.Params.ByName("part"),
-	}
-
-	err := p.Get(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	price, err := customer.GetCustomerPrice(ctx.DB, p.ID)
-	if err == nil {
-		custPrice := products.Price{
-			Id:           0,
-			PartId:       0,
-			Type:         "Customer",
-			Price:        price,
-			Enforced:     false,
-			DateModified: time.Now(),
-		}
-		p.Pricing = append(p.Pricing, custPrice)
-	}
-
-	return p.Pricing, nil
 }

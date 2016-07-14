@@ -251,3 +251,51 @@ func (p *Part) Get(ctx *middleware.APIContext) (err error) {
 
 	return ctx.Session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName).Find(qry).One(&p)
 }
+
+// GetAttributes ...
+func GetAttributes(ctx *middleware.APIContext, sku string) ([]Attribute, error) {
+
+	pattern := bson.RegEx{
+		Pattern: "^" + sku + "$",
+		Options: "i",
+	}
+
+	qry := bson.M{
+		"part_number": pattern,
+		"brand.id":    bson.M{"$in": ctx.DataContext.BrandArray},
+	}
+
+	col := ctx.Session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName)
+	var pa []Attribute
+
+	err := col.Find(qry).Select(bson.M{"part_attributes": 1, "_id": 0}).One(&pa)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch product attributes: %s\n", err.Error())
+	}
+
+	return pa, nil
+}
+
+// GetVehicles ...
+func GetVehicles(ctx *middleware.APIContext, sku string) ([]VehicleApplication, error) {
+
+	pattern := bson.RegEx{
+		Pattern: "^" + sku + "$",
+		Options: "i",
+	}
+
+	qry := bson.M{
+		"part_number": pattern,
+		"brand.id":    bson.M{"$in": ctx.DataContext.BrandArray},
+	}
+
+	col := ctx.Session.DB(database.ProductMongoDatabase).C(database.ProductCollectionName)
+	var va []VehicleApplication
+
+	err := col.Find(qry).Select(bson.M{"vehicle_applications": 1, "_id": 0}).One(&va)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch vehicle applications: %s\n", err.Error())
+	}
+
+	return va, nil
+}
