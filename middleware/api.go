@@ -148,7 +148,7 @@ func (fn APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, ps httpro
 		return
 	}
 
-	Log(rw, r, ctx)
+	go Log(rw, *r, *ctx)
 
 	return
 }

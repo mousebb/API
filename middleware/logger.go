@@ -60,7 +60,7 @@ type Metrics struct {
 
 // Log Gathers all information about the request/response and pushes
 // the data to Google PubSub.
-func Log(w beefwriter.ResponseWriter, r *http.Request, ctx *APIContext) {
+func Log(w beefwriter.ResponseWriter, r http.Request, ctx APIContext) {
 	if topic == "" {
 		topic = "dev_api_analytics"
 	}
@@ -109,7 +109,7 @@ func Log(w beefwriter.ResponseWriter, r *http.Request, ctx *APIContext) {
 		Body:             w.Body(),
 	}
 
-	if ctx != nil && ctx.DataContext != nil {
+	if ctx.DataContext != nil {
 		data.RequestingUser = ctx.DataContext.User
 	}
 	data.Machine, _ = os.Hostname()
