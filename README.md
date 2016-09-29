@@ -3,6 +3,7 @@ CURT API v3
 =========
 ---------
 
+[!codeship status](https://codeship.com/projects/41c48f00-68a6-0134-316b-625c6894da4e/status?branch=master)
 [![wercker status](https://app.wercker.com/status/f8512c3d160ff9b1d198ea38b2e9568b/s "wercker status")](https://app.wercker.com/project/bykey/f8512c3d160ff9b1d198ea38b2e9568b)
 
 > The 3rd iteration of the CURT Manufacturing API. This is developed using MongoDB
