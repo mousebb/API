@@ -7,11 +7,11 @@ import (
 	"os"
 	"time"
 
-	ps "google.golang.org/cloud/pubsub"
+	ps "cloud.google.com/go/pubsub"
 
 	"github.com/curt-labs/API/helpers/beefwriter"
-	"github.com/curt-labs/API/helpers/pubsub"
 	"github.com/curt-labs/API/models/customer"
+	"github.com/ninnemana/pubsub"
 )
 
 var (
