@@ -57,11 +57,12 @@ build:
     #        goveralls -package="./..." -service='wercker.com' -repotoken=$COVERALLS_TOKEN
 
 deploy:
-    - internal/docker-push:
-        username: _json_key
-        password: $GCR_JSON_KEY_FILE
-        repository: gcr.io/curt_groups/api-v3.1
-        registry: https://gcr.io
-        entrypoint: ./API
-        tag: $WERCKER_GIT_COMMIT
-        ports: "8080"
+    steps:
+        - internal/docker-push:
+            username: _json_key
+            password: $GCR_JSON_KEY_FILE
+            repository: gcr.io/curt_groups/api-v3.1
+            registry: https://gcr.io
+            entrypoint: ./API
+            tag: $WERCKER_GIT_COMMIT
+            ports: "8080"
