@@ -48,13 +48,13 @@ build:
             # golint ./...
 
     # Test coverage for the project
-    - script:
-       name: Coveralls.io
-       code: |-
-           # The COVERALLS_TOKEN is set in the project at
-           # wercker as project environment variable.
-           go get github.com/mattn/goveralls
-           goveralls -package="./..." -service='wercker.com' -repotoken=$COVERALLS_TOKEN
+    # - script:
+    #    name: Coveralls.io
+    #    code: |-
+    #        # The COVERALLS_TOKEN is set in the project at
+    #        # wercker as project environment variable.
+    #        go get github.com/mattn/goveralls
+    #        goveralls -package="./..." -service='wercker.com' -repotoken=$COVERALLS_TOKEN
 
 deploy:
     - internal/docker-push:
