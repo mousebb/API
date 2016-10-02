@@ -59,10 +59,10 @@ build:
 deploy:
     steps:
         - internal/docker-push:
-            username: _json_key
+            username: _token
             password: $GCR_JSON_KEY_FILE
-            repository: gcr.io/curt-groups/api-v3.1
+            repository: gcr.io/$GCLOUD_PROJECT/$DOCKER_IMAGE
             registry: https://gcr.io
-            entrypoint: ./API
+            entrypoint: "./API"
             tag: $WERCKER_GIT_COMMIT
             ports: "8080"
