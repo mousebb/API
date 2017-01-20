@@ -1,8 +1,10 @@
 package database
 
 import (
+	"crypto/tls"
 	"flag"
 	"fmt"
+	"net"
 	"os"
 	"strings"
 	"time"
@@ -137,7 +139,7 @@ func AriesMongoConnectionString() *mgo.DialInfo {
 	info.Password = os.Getenv("MONGO_ARIES_PASSWORD")
 	info.Database = os.Getenv("MONGO_ARIES_DATABASE")
 	info.Source = os.Getenv("MONGO_AUTH_DATABASE")
-	info.Timeout = time.Second * 2
+	info.Timeout = time.Second * 30
 	info.FailFast = true
 	if info.Database == "" {
 		info.Database = "aries"
@@ -159,8 +161,15 @@ func GetCleanDBFlag() string {
 
 func InitMongo() error {
 	var err error
+	tlsConfig := &tls.Config{}
+	tlsConfig.InsecureSkipVerify = true
+
 	if MongoSession == nil {
 		connectionString := MongoConnectionString()
+		connectionString.DialServer = func(addr *mgo.ServerAddr) (net.Conn, error) {
+			conn, err := tls.Dial("tcp", addr.String(), tlsConfig)
+			return conn, err
+		}
 		MongoSession, err = mgo.DialWithInfo(connectionString)
 		if err != nil {
 			return err
@@ -169,6 +178,10 @@ func InitMongo() error {
 	}
 	if ProductMongoSession == nil {
 		connectionString := MongoPartConnectionString()
+		connectionString.DialServer = func(addr *mgo.ServerAddr) (net.Conn, error) {
+			conn, err := tls.Dial("tcp", addr.String(), tlsConfig)
+			return conn, err
+		}
 		ProductMongoSession, err = mgo.DialWithInfo(connectionString)
 		if err != nil {
 			return err
@@ -177,6 +190,10 @@ func InitMongo() error {
 	}
 	if CategoryMongoSession == nil {
 		connectionString := MongoPartConnectionString()
+		connectionString.DialServer = func(addr *mgo.ServerAddr) (net.Conn, error) {
+			conn, err := tls.Dial("tcp", addr.String(), tlsConfig)
+			return conn, err
+		}
 		CategoryMongoSession, err = mgo.DialWithInfo(connectionString)
 		if err != nil {
 			return err
@@ -185,6 +202,10 @@ func InitMongo() error {
 	}
 	if AriesMongoSession == nil {
 		connectionString := AriesMongoConnectionString()
+		connectionString.DialServer = func(addr *mgo.ServerAddr) (net.Conn, error) {
+			conn, err := tls.Dial("tcp", addr.String(), tlsConfig)
+			return conn, err
+		}
 		AriesMongoSession, err = mgo.DialWithInfo(connectionString)
 		if err == nil {
 			AriesMongoDatabase = connectionString.Database
